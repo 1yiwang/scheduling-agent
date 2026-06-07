@@ -424,6 +424,86 @@
  padding: 20px 0;
  }
 
+ /* ── Empty States ── */
+ .empty-state {
+ text-align: center; padding: 36px 20px; display: flex;
+ flex-direction: column; align-items: center; gap: 10px;
+ }
+ .empty-state-icon {
+ width: 56px; height: 56px; border-radius: 50%;
+ display: flex; align-items: center; justify-content: center;
+ margin-bottom: 4px;
+ }
+ .empty-state-icon.sun  { background: #FFF3E0; }
+ .empty-state-icon.check{ background: #E8F5E9; }
+ .empty-state-icon.people{ background: #E3F2FD; }
+ .empty-state-icon svg { width: 28px; height: 28px; }
+ .empty-state-title {
+ font-size: 16px; font-weight: 600; color: var(--ios-text);
+ }
+ .empty-state-desc {
+ font-size: 13px; color: var(--ios-secondary); line-height: 1.5;
+ max-width: 240px;
+ }
+ .empty-state-action {
+ margin-top: 6px; font-size: 14px; font-weight: 500;
+ color: var(--ios-blue); cursor: pointer; user-select: none;
+ display: flex; align-items: center; gap: 4px;
+ }
+ .empty-state-action:active { opacity: 0.6; }
+
+ /* ── Skeleton loading ── */
+ @keyframes shimmer {
+ 0% { background-position: -400px 0; }
+ 100% { background-position: 400px 0; }
+ }
+ .skeleton {
+ background: linear-gradient(90deg, var(--ios-card) 25%, #e8e8ed 37%, var(--ios-card) 63%);
+ background-size: 800px 100%;
+ animation: shimmer 1.4s ease-in-out infinite;
+ border-radius: 8px;
+ }
+ .skeleton-card {
+ padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+ margin-bottom: 8px; border-radius: var(--radius-lg);
+ }
+ .sk-line { height: 12px; border-radius: 6px; }
+ .sk-line.w60 { width: 60%; }
+ .sk-line.w40 { width: 40%; }
+ .sk-line.w80 { width: 80%; }
+
+ /* ── Error banner ── */
+ .error-banner {
+ background: #FFF0F0; border-bottom: 1px solid #FFD0D0;
+ padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+ font-size: 13px; color: var(--ios-red); animation: slideDown 0.25s ease-out;
+ }
+ @keyframes slideDown {
+ from { transform: translateY(-100%); opacity: 0; }
+ to { transform: translateY(0); opacity: 1; }
+ }
+ .error-banner .eb-msg { flex:1; line-height:1.4; }
+ .error-banner .eb-dismiss {
+ flex-shrink: 0; cursor: pointer; opacity: 0.6; padding: 4px;
+ }
+ .error-banner .eb-dismiss:active { opacity: 1; }
+
+ /* ── Onboarding (deferred) ── */
+ .onboard-overlay {
+ position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+ z-index: 500; display: flex; align-items: center; justify-content: center;
+ }
+ .onboard-card {
+ background: #fff; border-radius: 20px; padding: 32px 24px;
+ max-width: 320px; width: 90%; text-align: center;
+ }
+ .onboard-dots { display: flex; gap: 6px; justify-content: center; margin: 16px 0; }
+ .onboard-dot {
+ width: 8px; height: 8px; border-radius: 50%; background: #ddd;
+ transition: background 0.2s;
+ }
+ .onboard-dot.active { background: var(--ios-blue); width: 20px; border-radius: 4px; }
+
  /* Coordinate page */
  .coord-prompt {
  background: var(--ios-card); border-radius: var(--radius-lg);
@@ -1179,56 +1259,8 @@
  </div>
  </div>
 
- <!-- PAGE: Contacts -->
- <div class="page" id="page-contacts">
- <div class="section-header">Calendar Friends · Shared Availability</div>
-
- <div class="contact-row">
- <div class="c-info">
- <div class="c-avatar" style="background:linear-gradient(135deg,#007AFF,#5856D6);">L</div>
- <div><div class="c-name">Lukas · NEUR.ON CTO</div><div class="c-meta">Co-founder · auto-shares free/busy</div></div>
- </div>
- <span class="contact-type-badge friend">Friend</span>
- </div>
-
- <div class="contact-row">
- <div class="c-info">
- <div class="c-avatar" style="background:linear-gradient(135deg,#AF52DE,#FF375F);">M</div>
- <div><div class="c-name">Marie · SLTA President</div><div class="c-meta">Board colleague · auto-shares free/busy</div></div>
- </div>
- <span class="contact-type-badge friend">Friend</span>
- </div>
-
- <div class="contact-row">
- <div class="c-info">
- <div class="c-avatar" style="background:linear-gradient(135deg,#34C759,#30B0C7);">T</div>
- <div><div class="c-name">Thomas · Swiss AI Center</div><div class="c-meta">Board colleague · auto-shares free/busy</div></div>
- </div>
- <span class="contact-type-badge friend">Friend</span>
- </div>
-
- <div class="section-header" style="margin-top:18px;">Temporary Links</div>
-
- <div class="contact-row">
- <div class="c-info">
- <div class="c-avatar" style="background:linear-gradient(135deg,#FF9500,#FF3B30);">A</div>
- <div><div class="c-name">Anna · met at SIX AI Event</div><div class="c-meta">Snowflake speaker · Link expires Jun 13</div></div>
- </div>
- <span class="contact-type-badge temp">Temp</span>
- </div>
-
- <div class="contact-row" style="opacity:0.5;">
- <div class="c-info">
- <div class="c-avatar" style="background:#C7C7CC;">P</div>
- <div><div class="c-name">Prof. Meier · Uni Genève</div><div class="c-meta">Swiss SF panel guest · Link expired Jun 1</div></div>
- </div>
- <span class="contact-type-badge expired">Expired</span>
- </div>
-
- <button class="ios-btn outline" style="margin-top:18px;height:46px;font-size:15px;" onclick="genTempLink()">
- Generate New Temporary Link
- </button>
- </div>
+ <!-- PAGE: Contacts (data-driven — renderPeoplePage()) -->
+ <div class="page" id="page-contacts"></div>
 
  <!-- PAGE: Analytics -->
  <div class="page" id="page-analytics">
@@ -1386,9 +1418,12 @@ function switchPage(page, el) {
  };
  document.getElementById('pageSubtitle').textContent = subs[page] || '';
 
- // Render analytics page when switching to it
+ // Render data-driven pages on switch
  if (page === 'analytics') {
  renderAnalyticsPage();
+ }
+ if (page === 'contacts') {
+ renderPeoplePage();
  }
 
  document.querySelector('.main').scrollTop = 0;
@@ -2367,7 +2402,7 @@ function openDay(day) {
  const content = document.getElementById('ddContent');
 
  if (evts.length===0) {
- content.innerHTML = '<div class="dd-empty">No events scheduled</div>';
+ content.innerHTML = renderEmptyState('free-day');
  } else {
  // Sort by startTime
  const sorted = [...evts].sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
@@ -2383,6 +2418,127 @@ function openDay(day) {
 function closeDayDetail() {
  document.getElementById('dayDetail').classList.remove('show');
  selectedDay = null;
+}
+
+// ═══════════════════════════════════════
+// EMPTY STATES & ERROR STATES (3B)
+// ═══════════════════════════════════════
+
+function renderEmptyState(type, opts) {
+ opts = opts || {};
+ let icon = '', iconClass = '', title = '', desc = '', action = '';
+ switch (type) {
+ case 'free-day':
+  icon = 'icon-sun'; iconClass = 'sun';
+  title = 'A completely free day';
+  desc = 'Nothing scheduled. Agent suggests blocking time for deep work — or just enjoy it.';
+  if (opts.showAdd) action = '<span class="empty-state-action" onclick="quickAddToDay()"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Add something</span>';
+  break;
+ case 'no-tasks':
+  icon = 'icon-check-sm'; iconClass = 'check';
+  title = 'All caught up';
+  desc = 'No pending tasks to schedule. Agent will notify you when new tasks come in.';
+  break;
+ case 'no-contacts':
+  icon = 'icon-contacts'; iconClass = 'people';
+  title = 'No Calendar Friends yet';
+  desc = 'Add your first Calendar Friend to unlock cross-person scheduling.';
+  if (opts.showAdd) action = '<span class="empty-state-action" onclick="switchPage(\'contacts\')"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Go to People</span>';
+  break;
+ case 'no-slots':
+  icon = 'icon-chart'; iconClass = 'sun';
+  title = 'No free slots found';
+  desc = 'Agent checked your calendar — every hour has something scheduled. Try rescheduling or shortening an event.';
+  break;
+ case 'computing':
+  return renderSkeleton(3);
+ case 'error':
+  showErrorBanner(opts.message || 'Something went wrong. Showing local cache.');
+  return '';
+ }
+ let h = '<div class="empty-state anim-in">';
+ if (icon) h += '<div class="empty-state-icon '+iconClass+'"><svg width="28" height="28"><use href="#'+icon+'"/></svg></div>';
+ h += '<div class="empty-state-title">'+title+'</div>';
+ h += '<div class="empty-state-desc">'+desc+'</div>';
+ if (action) h += action;
+ h += '</div>';
+ return h;
+}
+
+function renderSkeleton(count) {
+ let h = '';
+ for (let i = 0; i < count; i++) {
+  h += '<div class="skeleton-card skeleton">'+
+   '<div class="sk-line skeleton w40"></div>'+
+   '<div class="sk-line skeleton w80"></div>'+
+   '<div class="sk-line skeleton w60"></div>'+
+  '</div>';
+ }
+ return h;
+}
+
+function showErrorBanner(msg) {
+ const existing = document.getElementById('errorBanner');
+ if (existing) existing.remove();
+ const banner = document.createElement('div');
+ banner.id = 'errorBanner';
+ banner.className = 'error-banner';
+ banner.innerHTML = '<svg width="16" height="16" style="flex-shrink:0"><use href="#icon-dismiss-sm"/></svg>'+
+  '<span class="eb-msg">'+msg+'</span>'+
+  '<span class="eb-dismiss" onclick="document.getElementById(\'errorBanner\').remove()">'+
+  '<svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg></span>';
+ const main = document.querySelector('.main');
+ if (main) main.insertBefore(banner, main.firstChild);
+ setTimeout(() => { if (document.getElementById('errorBanner')) banner.remove(); }, 6000);
+}
+
+function renderPeoplePage() {
+ const contacts = [
+  { name:'Lukas', role:'NEUR.ON CTO', meta:'Co-founder · auto-shares free/busy', type:'friend', color:'linear-gradient(135deg,#007AFF,#5856D6)', initial:'L' },
+  { name:'Marie', role:'SLTA President', meta:'Shared availability · 3 common slots this week', type:'friend', color:'linear-gradient(135deg,#FF6B35,#FF8C5A)', initial:'M' },
+  { name:'Thomas', role:'Swiss AI Center', meta:'Board member · shares free/busy', type:'friend', color:'linear-gradient(135deg,#32D74B,#5856D6)', initial:'T' },
+ ];
+ const tempLinks = [
+  { name:'Anna', role:'SIX AI Event', meta:'Expires in 5 days', type:'temp', color:'linear-gradient(135deg,#FF2D55,#FF6482)', initial:'A' },
+  { name:'Prof. Meier', role:'Uni Genève', meta:'Expired', type:'expired', color:'linear-gradient(135deg,#8E8E93,#C7C7CC)', initial:'P' },
+ ];
+ const content = document.getElementById('page-contacts');
+ if (!content) return;
+ let h = '';
+ // Calendar Friends
+ h += '<div class="section-header">Calendar Friends · Shared Availability</div>';
+ if (contacts.length === 0) {
+  h += renderEmptyState('no-contacts');
+ } else {
+  contacts.forEach(c => {
+   h += '<div class="contact-row">'+
+    '<div class="c-info">'+
+     '<div class="c-avatar" style="background:'+c.color+';">'+c.initial+'</div>'+
+     '<div><div class="c-name">'+c.name+' · '+c.role+'</div><div class="c-meta">'+c.meta+'</div></div>'+
+    '</div>'+
+    '<span class="contact-type-badge '+(c.type==='friend'?'friend':'temp')+'">'+c.type.charAt(0).toUpperCase()+c.type.slice(1)+'</span>'+
+   '</div>';
+  });
+ }
+ // Temp Links
+ h += '<div class="section-header" style="margin-top:18px;">Temporary Links</div>';
+ if (tempLinks.length === 0) {
+  h += '<div style="text-align:center;padding:16px;font-size:13px;color:var(--ios-secondary);">No active temporary links</div>';
+ } else {
+  tempLinks.forEach(t => {
+   h += '<div class="contact-row'+(t.type==='expired'?' style="opacity:0.5"':'')+'">'+
+    '<div class="c-info">'+
+     '<div class="c-avatar" style="background:'+t.color+';">'+t.initial+'</div>'+
+     '<div><div class="c-name">'+t.name+' · '+t.role+'</div><div class="c-meta">'+t.meta+'</div></div>'+
+    '</div>'+
+    '<span class="contact-type-badge '+(t.type==='temp'?'temp':'')+'">'+(t.type==='expired'?'Expired':'Temp')+'</span>'+
+   '</div>';
+  });
+ }
+ // Generate button
+ h += '<button class="ios-btn outline" style="margin-top:12px;width:100%;height:42px;font-size:14px;" onclick="showToast(\'Link copied · Share with your contact\')">'+
+  '<svg width="16" height="16" style="margin-right:6px;"><use href="#icon-check-sm"/></svg> Generate New Temporary Link</button>';
+ content.innerHTML = h;
 }
 
 function quickAddToDay() {
@@ -2523,7 +2679,10 @@ function renderTodayPage() {
 
 
 function renderPendingCards() {
- let html = '<div class="section-header" style="color:var(--ios-red);font-size:14px;"><svg width="15" height="15"><use href="#icon-bell"/></svg> '+pendingTasksDB.length+' tasks to schedule</div>';
+ if (pendingTasksDB.length === 0) {
+  return renderEmptyState('no-tasks');
+ }
+ let html = '<div class="section-header" style="color:var(--ios-red);font-size:14px;"><svg width="15" height="15"><use href="#icon-bell"/></svg> '+pendingTasksDB.length+' task'+(pendingTasksDB.length>1?'s':'')+' to schedule</div>';
 
  pendingTasksDB.forEach((task, idx) => {
  const taskIdx = idx + 1;
@@ -2557,10 +2716,17 @@ function renderPendingCards() {
  '</div>'+
  '</div>';
  });
+ html += '<div class="pending-actions" style="display:flex;gap:6px;margin-top:10px;justify-content:flex-end;">'+
+  '<button class="p-action dismiss" onclick="event.stopPropagation();dismissAllTasks()"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Dismiss all</button>'+
+ '</div>';
  return html;
 }
 
-// ====== PENDING SCHEDULING ======
+function dismissAllTasks() {
+ pendingTasksDB.length = 0;
+ renderTodayPage();
+ showToast('All tasks cleared — you\'re all caught up');
+}
 function schedulePending(cardId, taskIdx, si) {
  const card = document.getElementById(cardId);
  if (!card) return;
@@ -2686,8 +2852,8 @@ function refreshDayDetail(year, month, day) {
 
  if (evts.length === 0) {
   // Last event deleted — show empty state then close
-  content.innerHTML = '<div class="dd-empty">No events scheduled</div>';
-  setTimeout(() => { closeDayDetail(); }, 800);
+  content.innerHTML = renderEmptyState('free-day');
+  setTimeout(() => { closeDayDetail(); }, 1200);
  } else {
   const sorted = [...evts].sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
   const today = 6; // June 6 demo fixed
