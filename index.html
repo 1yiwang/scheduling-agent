@@ -1,0 +1,3141 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Scheduling Agent – Prototype</title>
+<style>
+ *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+ :root {
+ --ios-bg: #F7F6F4;
+ --ios-card: #FFFFFF;
+ --ios-text: #37352F;
+ --ios-secondary: #9B9A97;
+ --ios-separator: #E9E9E7;
+ --ios-blue: #2383E2;
+ --ios-blue-bg: #E8F0FE;
+ --ios-green: #0F7B4E;
+ --ios-green-bg: #E6F2EC;
+ --ios-red: #E03E3E;
+ --ios-red-bg: #FBE9E9;
+ --ios-orange: #D9730D;
+ --ios-orange-bg: #FDF0DB;
+ --ios-purple: #9065B0;
+ --ios-purple-bg: #F3F0F8;
+ --ios-indigo: #5856D6;
+ --ios-teal: #5AC8FA;
+
+ --nav-h: 84px;
+ --safe-bottom: env(safe-area-inset-bottom, 0px);
+ --max-w: 430px;
+ --radius: 8px;
+ --radius-lg: 10px;
+ }
+
+ body {
+ font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+ background: #D1D1D6;
+ display: flex; justify-content: center; align-items: center;
+ min-height: 100dvh; color: var(--ios-text);
+ -webkit-font-smoothing: antialiased;
+ -moz-osx-font-smoothing: grayscale;
+ -webkit-tap-highlight-color: transparent;
+ user-select: none; -webkit-user-select: none;
+ }
+
+ .phone-frame {
+ width: 100%; max-width: var(--max-w);
+ height: 100dvh; max-height: 932px;
+ background: var(--ios-bg); position: relative; overflow: hidden;
+ display: flex; flex-direction: column;
+ box-shadow: 0 0 0 0.5px rgba(0,0,0,0.1);
+ }
+ @media (min-width: 431px) {
+ .phone-frame {
+ border-radius: 40px; margin: 20px 0;
+ box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 0 0.5px rgba(0,0,0,0.15);
+ }
+ }
+
+ /* Status bar mimic */
+ .status-bar {
+ height: 48px; flex-shrink: 0;
+ display: flex; align-items: flex-end; justify-content: space-between;
+ padding: 0 28px 8px;
+ font-size: 14px; font-weight: 600;
+ }
+ .status-bar .time { font-feature-settings: "tnum"; }
+ .status-icons { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+
+ /* Navigation bar */
+ .navbar {
+ padding: 8px 16px 10px; flex-shrink: 0;
+ display: flex; align-items: center; justify-content: space-between;
+ }
+ .navbar-title {
+ font-size: 28px; font-weight: 700; letter-spacing: -0.5px;
+ line-height: 1.15;
+ }
+ .navbar-subtitle {
+ font-size: 12px; color: var(--ios-secondary); margin-top: 1px;
+ }
+ .navbar-avatar {
+ width: 34px; height: 34px; border-radius: 50%;
+ background: linear-gradient(135deg, #5856D6, #AF52DE);
+ color: #fff; display: flex; align-items: center; justify-content: center;
+ font-weight: 600; font-size: 14px;
+ }
+
+ /* Main content */
+ .main {
+ flex: 1; overflow-y: auto; overflow-x: hidden;
+ -webkit-overflow-scrolling: touch;
+ padding: 0 16px 8px;
+ }
+ .page { display: none; }
+ .page.active { display: block; }
+
+ /* Section header */
+ .section-header {
+ font-size: 13px; font-weight: 500; color: var(--ios-secondary);
+ text-transform: none; letter-spacing: 0;
+ padding: 8px 0 4px; margin-bottom: 0;
+ display: flex; align-items: center; gap: 5px;
+ }
+ .section-header svg { flex-shrink: 0; opacity: 0.7; }
+
+ /* Event card */
+ .event-card {
+ background: var(--ios-card); border-radius: var(--radius-lg);
+ padding: 12px 14px; margin-bottom: 6px;
+ position: relative; overflow: hidden;
+ transition: transform 0.12s ease-out;
+ }
+ .event-card:active { transform: scale(0.985); }
+ .event-card.past { opacity: 0.55; }
+ .event-card.upcoming { border-left: none; }
+
+ .event-card .e-time-row {
+ display: flex; align-items: baseline; gap: 8px;
+ }
+ .event-card .e-time {
+ font-size: 16px; font-weight: 600; font-feature-settings: "tnum";
+ }
+ .event-card .e-duration {
+ font-size: 13px; color: var(--ios-secondary);
+ }
+ .event-card .e-transit-inline {
+ margin-left: 4px; font-size: 13px; color: var(--ios-secondary);
+ font-weight: 500; font-feature-settings: "tnum";
+ white-space: nowrap;
+ }
+ .event-card .e-title {
+ font-size: 14px; font-weight: 500; margin-top: 3px;
+ line-height: 1.3;
+ }
+
+ /* Event card completion states */
+ .event-card.completed { opacity: 0.45; }
+ .event-card.completed .e-title { text-decoration: line-through; }
+ .event-card.not-completed { border-left: 3px solid var(--ios-red); }
+ .event-card.unmarked-past { opacity: 0.7; }
+
+ /* Briefing action items */
+ .br-action-row {
+ display: flex; align-items: center; gap: 8px;
+ padding: 8px 0; border-bottom: 0.5px solid rgba(255,255,255,0.08);
+ }
+ .br-action-row:last-child { border-bottom: none; }
+ .br-action-row .br-ev-title {
+ flex: 1; font-size: 13px; color: rgba(255,255,255,0.85);
+ overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+ }
+ .br-action-row .br-mini-btn {
+ flex-shrink: 0; height: 26px; border-radius: 13px; border: none;
+ font-size: 11px; font-weight: 600; cursor: pointer;
+ padding: 0 12px; transition: all 0.12s;
+ }
+ .br-action-row .br-mini-btn:active { transform: scale(0.95); }
+ .br-action-row .br-mini-btn.done { background: var(--ios-green); color: #fff; }
+ .br-action-row .br-mini-btn.notdone { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); }
+ .br-action-row .br-mini-btn.reschedule { background: var(--ios-blue); color: #fff; }
+ .event-card .e-tags {
+ display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+ }
+ .e-tag {
+ font-size: 11px; font-weight: 500; padding: 2px 8px;
+ border-radius: 6px; line-height: 1.2;
+ display: flex; align-items: center; gap: 4px;
+ }
+ .e-tag.neutral { background: #F2F2F7; color: var(--ios-secondary); }
+ .e-tag.transit { background: #FFF9E6; color: #B87800; }
+ .e-tag.buffer { background: #FFEEED; color: #CC2F2A; }
+ .e-tag.online { background: #E8F2FF; color: #0055CC; }
+ .e-tag.social { background: #F3E8FA; color: #7C36B5; }
+ .e-tag.deep { background: #E8F8ED; color: #1B7D37; }
+ .e-tag.train { background: #FFF9E6; color: #B87800; }
+ .e-tag.suggest { background: #E8F8ED; color: #1B7D37; }
+ .e-tag.urgent { background: #FFEEED; color: #CC2F2A; }
+
+ /* Inline tag for compact time row */
+ .e-tag-inline {
+ font-size: 11px; font-weight: 500; padding: 2px 8px;
+ border-radius: 6px; line-height: 1.2;
+ display: inline-flex; align-items: center; gap: 3px;
+ margin-left: auto; vertical-align: middle;
+ white-space: nowrap;
+ }
+ .e-tag-inline.neutral { background: #F2F2F7; color: var(--ios-secondary); }
+ .e-tag-inline.transit { background: #FFF9E6; color: #B87800; }
+ .e-tag-inline.online { background: #E8F2FF; color: #0055CC; }
+ .e-tag-inline.social { background: #F3E8FA; color: #7C36B5; }
+ .e-tag-inline.deep { background: #E8F8ED; color: #1B7D37; }
+ .e-tag-inline.busy { background: #F2F2F7; color: var(--ios-secondary); }
+
+ /* Compact meta line (who+where) */
+ .event-card .e-meta {
+ font-size: 12px; color: var(--ios-secondary);
+ margin-top: 4px; line-height: 1.4;
+ overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+ }
+
+ .event-card .e-expand {
+ display: none; margin-top: 10px; padding-top: 10px;
+ border-top: 0.5px solid var(--ios-separator);
+ font-size: 13px; color: var(--ios-secondary); line-height: 1.6;
+ }
+ .event-card .e-expand.show { display: block; }
+ .e-expand .e-row { display: flex; justify-content: space-between; padding: 3px 0; }
+ .e-expand .e-label { color: var(--ios-secondary); }
+ .e-expand .e-val { font-weight: 500; color: var(--ios-text); }
+
+ /* Free slot suggestion */
+ .free-slot {
+ background: var(--ios-green-bg); border: 1.5px dashed var(--ios-green);
+ }
+ .free-slot-title {
+ font-size: 16px; font-weight: 600; margin: 4px 0 2px;
+ }
+ .free-slot-input {
+ width: 100%; font-size: 16px; font-weight: 600; border: 1.5px solid transparent;
+ background: transparent; padding: 4px 6px; border-radius: 6px; font-family: inherit;
+ color: inherit; outline: none; margin: 2px 0;
+ transition: border-color 0.15s, background 0.15s;
+ }
+ .free-slot-input:hover { background: rgba(0,0,0,0.03); }
+ .free-slot-input:focus {
+ border-color: var(--ios-blue); background: #fff;
+ box-shadow: 0 0 0 3px rgba(0,122,255,0.1);
+ }
+ .free-slot-actions {
+ display: flex; gap: 6px; margin-top: 8px;
+ }
+ .free-slot-actions .fs-btn {
+ flex: 1; height: 36px; border-radius: 10px; border: none;
+ font-size: 13px; font-weight: 600; cursor: pointer;
+ transition: all 0.12s;
+ }
+ .free-slot-actions .fs-btn:active { transform: scale(0.97); }
+ .free-slot-actions .fs-btn.accept { background: var(--ios-green); color: #fff; }
+ .free-slot-actions .fs-btn.dismiss { background: #F2F2F7; color: var(--ios-secondary); }
+
+ /* Pending card */
+ .pending-card {
+ background: var(--ios-card); border-radius: var(--radius-lg);
+ padding: 12px 14px; margin-bottom: 6px;
+ border-left: 3px solid var(--ios-orange);
+ }
+ .pending-card .p-deadline { font-size: 12px; color: var(--ios-red); font-weight: 600; }
+ .pending-card .p-title { font-size: 14px; font-weight: 500; margin-top: 2px; }
+ .pending-card .p-tags { display: flex; gap: 6px; margin-top: 6px; }
+ .pending-card { cursor: pointer; }
+ .pending-card:active { transform: scale(0.985); }
+ .p-action {
+ flex: 1; height: 30px; border-radius: 8px; border: none;
+ font-size: 12px; font-weight: 600; cursor: pointer;
+ transition: all 0.12s;
+ display: flex; align-items: center; justify-content: center; gap: 4px;
+ }
+ .p-action svg { flex-shrink: 0; }
+ .p-action:active { transform: scale(0.96); }
+ .p-action.dismiss { background: #F2F2F7; color: var(--ios-secondary); }
+ .p-action.done { background: var(--ios-green-bg); color: var(--ios-green); }
+
+ .pending-suggest { margin-top: 4px; }
+ .show-more-toggle {
+ font-size: 12px; color: var(--ios-blue); font-weight: 500;
+ padding: 8px 12px; cursor: pointer; margin-top: 4px;
+ border-radius: 8px; transition: background 0.12s;
+ }
+ .show-more-toggle:hover { background: var(--ios-blue-bg); }
+ .more-suggest { margin-top: 2px; }
+ .suggest-slot {
+ background: #F9F9FB; border-radius: 10px; padding: 12px 14px;
+ margin-top: 6px; cursor: pointer; transition: all 0.12s;
+ border: 1.5px solid transparent;
+ }
+ .suggest-slot:active { transform: scale(0.98); }
+ .suggest-slot.best { background: #E8F8ED; border-color: var(--ios-green); }
+ .suggest-slot .ss-time { font-size: 14px; font-weight: 600; }
+ .suggest-slot .ss-reason { font-size: 12px; color: var(--ios-secondary); margin-top: 2px; }
+ .suggest-slot .ss-row { display: flex; align-items: center; gap: 8px; }
+ .suggest-slot .ss-time-input {
+ flex: 1; font-size: 14px; font-weight: 600; border: 1.5px solid transparent;
+ background: transparent; padding: 4px 6px; border-radius: 6px; font-family: inherit;
+ color: inherit; min-width: 0; outline: none;
+ transition: border-color 0.15s, background 0.15s;
+ }
+ .suggest-slot .ss-time-input:hover { background: rgba(0,0,0,0.03); }
+ .suggest-slot .ss-time-input:focus {
+ border-color: var(--ios-blue); background: #fff;
+ box-shadow: 0 0 0 3px rgba(0,122,255,0.1);
+ }
+ .suggest-slot .ss-confirm-btn {
+ flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+ border: none; background: var(--ios-green); color: #fff;
+ font-size: 16px; font-weight: 700; cursor: pointer;
+ display: flex; align-items: center; justify-content: center;
+ transition: transform 0.12s, opacity 0.12s;
+ }
+ .suggest-slot .ss-confirm-btn:active { transform: scale(0.9); opacity: 0.8; }
+
+ /* Calendar */
+ .cal-header-row {
+ display: flex; align-items: center; justify-content: space-between;
+ margin-bottom: 8px;
+ }
+ .cal-header-row .cal-month {
+ font-size: 18px; font-weight: 700;
+ }
+ .cal-nav {
+ display: flex; gap: 4px;
+ }
+ .cal-nav button {
+ width: 32px; height: 32px; border-radius: 50%; border: none;
+ background: var(--ios-card); font-size: 14px; cursor: pointer;
+ display: flex; align-items: center; justify-content: center;
+ color: var(--ios-blue);
+ }
+ .cal-nav button:active { background: #E5E5EA; }
+
+ .cal-weekdays {
+ display: grid; grid-template-columns: repeat(7, 1fr);
+ text-align: center; margin-bottom: 2px;
+ }
+ .cal-weekdays span {
+ font-size: 11px; font-weight: 600; color: var(--ios-secondary);
+ padding: 6px 0;
+ }
+ .cal-grid {
+ display: grid; grid-template-columns: repeat(7, 1fr);
+ gap: 2px; text-align: center;
+ }
+ .cal-cell {
+ aspect-ratio: 1; display: flex; flex-direction: column;
+ align-items: center; justify-content: flex-start; padding-top: 4px;
+ border-radius: 10px; font-size: 14px; cursor: pointer; position: relative;
+ font-feature-settings: "tnum"; font-weight: 400;
+ }
+ .cal-cell:active { background: #E5E5EA; }
+ .cal-cell.today {
+ background: var(--ios-blue); color: #fff; font-weight: 600;
+ }
+ .cal-cell.other-month { color: #C7C7CC; pointer-events: none; }
+ .cal-cell.selected { background: var(--ios-blue-bg); color: var(--ios-blue); font-weight: 600; }
+ .cal-dots-row { display: flex; gap: 2px; margin-top: 2px; }
+ .cal-dot { width: 4px; height: 4px; border-radius: 50%; }
+ .cal-dot.busy { background: var(--ios-blue); }
+ .cal-dot.social { background: var(--ios-purple); }
+ .cal-dot.deep { background: var(--ios-green); }
+
+ /* Day detail panel */
+ .day-detail {
+ display: none; margin-top: 12px;
+ background: var(--ios-card); border-radius: var(--radius-lg);
+ padding: 18px 16px;
+ }
+ .day-detail.show { display: block; }
+ .day-detail .dd-header {
+ display: flex; justify-content: space-between; align-items: center;
+ margin-bottom: 12px;
+ }
+ .day-detail .dd-date { font-size: 18px; font-weight: 700; }
+ .day-detail .dd-close {
+ width: 28px; height: 28px; border-radius: 50%;
+ background: #F2F2F7; border: none; font-size: 14px; cursor: pointer;
+ display: flex; align-items: center; justify-content: center;
+ color: var(--ios-secondary);
+ }
+ .day-detail .dd-empty {
+ text-align: center; color: var(--ios-secondary); font-size: 14px;
+ padding: 20px 0;
+ }
+
+ /* Coordinate page */
+ .coord-prompt {
+ background: var(--ios-card); border-radius: var(--radius-lg);
+ padding: 16px; margin-bottom: 16px;
+ }
+ .coord-prompt .cp-label { font-size: 13px; color: var(--ios-secondary); margin-bottom: 8px; }
+ .coord-prompt .cp-row {
+ display: flex; align-items: center; justify-content: space-between;
+ padding: 10px 0; cursor: pointer;
+ }
+ .coord-prompt .cp-name { font-size: 16px; font-weight: 500; }
+ .coord-prompt .cp-arrow { color: var(--ios-secondary); font-size: 14px; }
+
+ .coord-result {
+ background: var(--ios-card); border-radius: var(--radius-lg);
+ padding: 16px; margin-bottom: 10px;
+ }
+ .coord-result.best { background: var(--ios-green-bg); border: 1.5px solid var(--ios-green); }
+ .coord-result .cr-badge {
+ display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px;
+ border-radius: 10px; margin-bottom: 8px;
+ }
+ .coord-result.best .cr-badge { background: var(--ios-green); color: #fff; }
+ .coord-result .cr-badge { background: #F2F2F7; color: var(--ios-secondary); }
+ .coord-result .cr-time { font-size: 16px; font-weight: 600; }
+ .coord-result .cr-desc { font-size: 13px; color: var(--ios-secondary); margin-top: 4px; line-height: 1.5; }
+ .coord-result .cr-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+ /* Coordinate editable time */
+ .coord-result .cr-time-input {
+ width: 100%; font-size: 16px; font-weight: 600; border: 1.5px solid transparent;
+ background: transparent; padding: 4px 6px; border-radius: 6px; font-family: inherit;
+ color: inherit; outline: none;
+ transition: border-color 0.15s, background 0.15s;
+ }
+ .coord-result .cr-time-input:hover { background: rgba(0,0,0,0.03); }
+ .coord-result .cr-time-input:focus {
+ border-color: var(--ios-blue); background: #fff;
+ box-shadow: 0 0 0 3px rgba(0,122,255,0.1);
+ }
+ .coord-result .cr-confirm-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+ .coord-result .cr-confirm-btn {
+ flex: 1; height: 40px; border-radius: 6px; border: none;
+ background: var(--ios-blue); color: #fff; font-size: 14px; font-weight: 600;
+ cursor: pointer; transition: all 0.15s;
+ }
+ .coord-result .cr-confirm-btn:active { transform: scale(0.97); opacity: 0.85; }
+ .coord-result .cr-confirm-btn.sent {
+ background: var(--ios-orange); pointer-events: none;
+ }
+ .coord-result .cr-confirm-btn.confirmed {
+ background: var(--ios-green); pointer-events: none;
+ }
+ .coord-result .cr-status {
+ font-size: 11px; font-weight: 600; color: var(--ios-secondary);
+ margin-top: 6px; display: flex; align-items: center; gap: 4px;
+ }
+ .coord-result .cr-status.confirmed { color: var(--ios-green); }
+ .coord-result.confirmed-card {
+ background: var(--ios-green-bg); border: 1.5px solid var(--ios-green);
+ pointer-events: none; opacity: 0.7;
+ }
+
+ /* Contact list */
+ .contact-row {
+ background: var(--ios-card); border-radius: var(--radius-lg);
+ padding: 12px 16px; margin-bottom: 8px;
+ display: flex; align-items: center; justify-content: space-between;
+ }
+ .contact-row .c-info { display: flex; align-items: center; gap: 12px; }
+ .contact-row .c-avatar {
+ width: 40px; height: 40px; border-radius: 50%;
+ display: flex; align-items: center; justify-content: center;
+ font-weight: 700; font-size: 15px; color: #fff;
+ }
+ .contact-row .c-name { font-size: 16px; font-weight: 500; }
+ .contact-row .c-meta { font-size: 12px; color: var(--ios-secondary); }
+ .contact-type-badge {
+ font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 10px;
+ }
+ .contact-type-badge.friend { background: var(--ios-blue-bg); color: var(--ios-blue); }
+ .contact-type-badge.temp { background: var(--ios-orange-bg); color: var(--ios-orange); }
+ .contact-type-badge.expired { background: #F2F2F7; color: #C7C7CC; }
+
+ /* Bottom bar: nav + record */
+ .bottom-bar {
+ flex-shrink: 0; background: rgba(246,246,248,0.92);
+ backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+ border-top: 0.5px solid rgba(0,0,0,0.1);
+ padding-bottom: var(--safe-bottom);
+ }
+ .record-strip {
+ padding: 8px 16px 4px;
+ display: flex; gap: 8px;
+ }
+ .record-btn {
+ flex: 1; height: 40px; border-radius: 10px;
+ background: var(--ios-blue); color: #fff; border: none;
+ font-size: 15px; font-weight: 600; cursor: pointer;
+ display: flex; align-items: center; justify-content: center; gap: 6px;
+ transition: all 0.15s ease-out;
+ letter-spacing: -0.2px;
+ }
+ .record-btn.secondary {
+ background: var(--ios-card); color: var(--ios-blue);
+ border: 1.5px solid var(--ios-blue);
+ font-size: 15px;
+ }
+ .record-btn:active { transform: scale(0.97); opacity: 0.85; }
+ .record-btn.recording {
+ background: var(--ios-red);
+ animation: iosPulse 1.1s ease-in-out infinite;
+ }
+
+ /* Screenshot preview in overlay */
+ .screenshot-preview {
+ width: 100%; max-height: 180px; object-fit: cover;
+ border-radius: var(--radius); margin-bottom: 16px;
+ border: 1px solid var(--ios-separator);
+ }
+ .screenshot-source {
+ font-size: 12px; color: var(--ios-secondary); text-align: center;
+ margin-bottom: 4px; font-style: italic;
+ }
+ .privacy-badge {
+ display: flex; align-items: center; gap: 6px;
+ font-size: 11px; color: var(--ios-secondary); text-align: center;
+ padding: 8px 12px; background: #F2F2F7; border-radius: 10px;
+ margin-top: 10px;
+ }
+ @keyframes iosPulse {
+ 0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,48,0.4); }
+ 50% { box-shadow: 0 0 0 12px rgba(255,59,48,0); }
+ }
+ .bottom-nav {
+ display: flex; padding: 0 4px 4px;
+ }
+ .nav-tab {
+ flex: 1; display: flex; flex-direction: column; align-items: center;
+ justify-content: center; padding: 6px 0 2px; cursor: pointer;
+ font-size: 10px; font-weight: 500; color: var(--ios-secondary);
+ gap: 3px; transition: color 0.15s; letter-spacing: -0.1px;
+ }
+ .nav-tab.active { color: var(--ios-blue); font-weight: 600; }
+ .nav-tab .nav-icon { width: 24px; height: 24px; flex-shrink: 0; }
+
+ /* Overlay */
+ .overlay {
+ position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+ background: rgba(0,0,0,0.45); z-index: 200;
+ display: none; align-items: flex-end; justify-content: center;
+ backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+ }
+ .overlay.show { display: flex; }
+ .overlay-sheet {
+ background: #F2F2F7; border-radius: 20px 20px 0 0;
+ width: 100%; max-width: var(--max-w); min-height: 300px;
+ padding: 12px 20px 28px;
+ animation: sheetUp 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+ }
+ @keyframes sheetUp {
+ from { transform: translateY(100%); }
+ to { transform: translateY(0); }
+ }
+
+ .sheet-handle {
+ width: 36px; height: 5px; border-radius: 3px;
+ background: #D1D1D6; margin: 0 auto 16px;
+ }
+
+ /* Voice UI */
+ .voice-ui { text-align: center; padding: 16px 0; }
+ .voice-ring {
+ width: 100px; height: 100px; border-radius: 50%;
+ margin: 0 auto 20px;
+ background: var(--ios-blue-bg);
+ display: flex; align-items: center; justify-content: center;
+ font-size: 44px;
+ }
+ .voice-ring.listening {
+ animation: ringPulse 0.8s ease-in-out infinite alternate;
+ }
+ @keyframes ringPulse {
+ from { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,122,255,0.2); }
+ to { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(0,122,255,0); }
+ }
+ .voice-hint { font-size: 14px; color: var(--ios-secondary); }
+
+ /* Parsed fields */
+ .parsed-block {
+ background: #fff; border-radius: var(--radius-lg); padding: 14px;
+ margin-bottom: 12px;
+ }
+ .parsed-block .p-raw {
+ font-size: 14px; line-height: 1.6; color: var(--ios-secondary);
+ padding: 10px; background: #F9F9FB; border-radius: 10px; margin-bottom: 12px;
+ }
+ .parsed-block .p-raw .hl-time { color: var(--ios-blue); font-weight: 600; }
+ .parsed-block .p-raw .hl-place { color: var(--ios-blue); font-weight: 600; }
+ .parsed-block .p-raw .hl-person { color: var(--ios-purple); font-weight: 600; }
+ .parsed-fields {
+ display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;
+ }
+ .parsed-field {
+ background: #F9F9FB; border-radius: 10px; padding: 10px 12px;
+ display: flex; align-items: center; gap: 8px; font-size: 14px;
+ }
+ .parsed-field.missing {
+ background: #FFEEED; border: 1.5px dashed var(--ios-red);
+ }
+ .parsed-field .pf-icon { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.6; }
+ .parsed-field .pf-val { font-weight: 500; }
+ .parsed-field.missing .pf-val { color: var(--ios-red); font-style: italic; }
+
+ .missing-alert {
+ background: #FFEEED; border-radius: 10px; padding: 12px 14px;
+ margin-bottom: 12px; font-size: 13px; color: #991B1B; font-weight: 500;
+ display: flex; align-items: flex-start; gap: 8px;
+ }
+ .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+ .chip {
+ padding: 9px 16px; border-radius: 6px; border: 1.5px solid #D1D1D6;
+ background: #fff; font-size: 13px; font-weight: 500; cursor: pointer;
+ transition: all 0.12s;
+ }
+ .chip:active { transform: scale(0.96); }
+ .chip.selected { background: var(--ios-blue); color: #fff; border-color: var(--ios-blue); }
+
+ /* Buttons */
+ .ios-btn {
+ width: 100%; height: 48px; border-radius: 12px; border: none;
+ font-size: 16px; font-weight: 600; cursor: pointer;
+ transition: opacity 0.12s; letter-spacing: -0.2px;
+ }
+ .ios-btn:active { opacity: 0.7; }
+ .ios-btn:disabled { opacity: 0.35; pointer-events: none; }
+ .ios-btn.primary { background: var(--ios-blue); color: #fff; }
+ .ios-btn.outline {
+ background: transparent; color: var(--ios-blue);
+ border: 1.5px solid var(--ios-blue);
+ }
+ .ios-btn.ghost { background: transparent; color: var(--ios-blue); }
+ .ios-btn.danger { background: var(--ios-red); color: #fff; }
+
+ /* Toast */
+ .toast {
+ position: fixed; bottom: 160px; left: 50%; transform: translateX(-50%);
+ background: rgba(0,0,0,0.82); color: #fff; padding: 11px 22px;
+ border-radius: 22px; font-size: 14px; font-weight: 500; z-index: 300;
+ opacity: 0; pointer-events: none;
+ transition: opacity 0.28s ease-out;
+ }
+ .toast.show { opacity: 1; }
+
+ /* Time update animation */
+ @keyframes fadeInUp {
+ from { opacity: 0; transform: translateY(8px); }
+ to { opacity: 1; transform: translateY(0); }
+ }
+ .anim-in { animation: fadeInUp 0.3s ease-out; }
+
+ /* Follow-up styles */
+ .e-tag.followup-needed { background: #FFF3E0; color: #B87800; }
+ .e-tag.followup-done { background: #E8F8ED; color: #1B7D37; }
+ .e-tag.participant { background: #E8F2FF; color: #0055CC; }
+
+ .followup-section { margin-top: 8px; padding-top: 10px; border-top: 0.5px solid var(--ios-separator); }
+ .followup-item {
+ display: flex; align-items: center; justify-content: space-between;
+ padding: 8px 0; gap: 10px;
+ }
+ .followup-item + .followup-item { border-top: 0.5px solid var(--ios-separator); }
+ .followup-item .fi-info { flex: 1; min-width: 0; }
+ .followup-item .fi-event { font-size: 13px; font-weight: 500; line-height: 1.3; }
+ .followup-item .fi-meta { font-size: 11px; color: var(--ios-secondary); margin-top: 2px; }
+ .followup-item .fi-deadline { font-size: 11px; color: var(--ios-red); font-weight: 600; }
+
+ .followup-badge {
+ display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px;
+ border-radius: 10px;
+ }
+ .followup-badge.pending { background: #FFF3E0; color: #B87800; }
+ .followup-badge.done { background: #E8F8ED; color: #1B7D37; }
+ .followup-badge.skipped { background: #F2F2F7; color: #C7C7CC; }
+
+ .followup-btn {
+ font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 16px;
+ border: none; cursor: pointer; line-height: 1.2;
+ }
+ .followup-btn.done { background: var(--ios-green); color: #fff; }
+ .followup-btn.skip { background: #F2F2F7; color: var(--ios-secondary); }
+ .followup-btn:active { opacity: 0.7; }
+
+ .followup-row {
+ display: flex; flex-direction: column; gap: 4px;
+ }
+
+ /* Compact follow-up list */
+ .followup-compact {
+ background: var(--ios-card); border-radius: var(--radius-lg);
+ padding: 0; margin-bottom: 8px; overflow: hidden;
+ }
+ .followup-compact .fc-header {
+ display: flex; align-items: center; justify-content: space-between;
+ padding: 14px 16px; cursor: pointer;
+ }
+ .followup-compact .fc-header:active { background: #F9F9FB; }
+ .followup-compact .fc-title { font-size: 14px; font-weight: 600; }
+ .followup-compact .fc-count { font-size: 12px; color: var(--ios-orange); font-weight: 600; }
+ .followup-compact .fc-chevron { font-size: 12px; color: var(--ios-secondary); transition: transform 0.2s; }
+ .followup-compact .fc-chevron.open { transform: rotate(180deg); }
+ .followup-compact .fc-body { display: none; }
+ .followup-compact .fc-body.show { display: block; }
+ .fc-row {
+ display: flex; align-items: center; padding: 10px 16px; gap: 10px;
+ border-top: 0.5px solid var(--ios-separator); transition: opacity 0.3s;
+ }
+ .fc-row .fc-deadline { font-size: 11px; color: var(--ios-red); font-weight: 600; white-space: nowrap; min-width: 55px; }
+ .fc-row .fc-event { font-size: 13px; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .fc-row .fc-actions { display: flex; gap: 4px; flex-shrink: 0; }
+ .fc-btn {
+ font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px;
+ border: none; cursor: pointer; line-height: 1.2;
+ }
+ .fc-btn.done { background: var(--ios-green); color: #fff; }
+ .fc-btn.skip { background: #F2F2F7; color: var(--ios-secondary); }
+ .fc-btn:active { opacity: 0.7; }
+
+ /* Reschedule section */
+ .reschedule-section {
+ margin-top: 10px; padding-top: 10px;
+ border-top: 0.5px solid var(--ios-separator);
+ }
+ .reschedule-btn {
+ width: 100%; height: 36px; border-radius: 10px; border: 1.5px solid var(--ios-blue);
+ background: transparent; color: var(--ios-blue); font-size: 13px; font-weight: 600;
+ cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+ }
+ .reschedule-btn:active { background: var(--ios-blue-bg); }
+ .reschedule-slots { display: none; margin-top: 8px; }
+ .reschedule-slots.show { display: block; }
+
+ /* Edit form */
+ .edit-section { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--ios-separator); }
+ .edit-btn {
+ width: 100%; height: 36px; border-radius: 10px; border: 1.5px solid var(--ios-secondary);
+ background: transparent; color: var(--ios-secondary); font-size: 13px; font-weight: 600;
+ cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+ }
+ .edit-btn:active { background: #F2F2F7; }
+ .delete-btn {
+ width: 100%; height: 36px; border-radius: 10px; border: 1.5px solid var(--ios-red);
+ background: transparent; color: var(--ios-red); font-size: 13px; font-weight: 600;
+ cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+ margin-top: 6px; transition: all 0.12s;
+ }
+ .delete-btn:active { background: var(--ios-red-bg); }
+ .edit-form { display: none; margin-top: 8px; }
+ .edit-form.show { display: block; }
+ .edit-field { margin-bottom: 8px; }
+ .edit-field label {
+ font-size: 11px; font-weight: 600; color: var(--ios-secondary);
+ display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.2px;
+ }
+ .edit-field input, .edit-field select {
+ width: 100%; height: 38px; border-radius: 10px; border: 1px solid #D1D1D6;
+ padding: 0 12px; font-size: 14px; font-family: inherit; background: #fff;
+ -webkit-appearance: none;
+ }
+ .edit-field input:focus, .edit-field select:focus { outline: none; border-color: var(--ios-blue); }
+ .edit-row { display: flex; gap: 6px; }
+ .edit-row .edit-field { flex: 1; }
+ .edit-actions { display: flex; gap: 8px; margin-top: 4px; }
+ .edit-actions button { flex: 1; height: 36px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+ .edit-actions .save { background: var(--ios-blue); color: #fff; }
+ .edit-actions .cancel { background: #F2F2F7; color: var(--ios-secondary); }
+ .edit-actions button:active { opacity: 0.7; }
+
+ /* Completion buttons */
+ .complete-btn {
+ font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 16px;
+ border: none; cursor: pointer; line-height: 1.2;
+ }
+ .complete-btn.done { background: var(--ios-green); color: #fff; }
+ .complete-btn.notdone { background: #FFEEED; color: var(--ios-red); }
+ .complete-btn:active { opacity: 0.7; }
+
+ /* Daily briefing card */
+ .briefing-card {
+ background: linear-gradient(135deg, #1C1C1E, #2C2C2E);
+ border-radius: var(--radius-lg); padding: 18px 20px; margin-top: 12px;
+ color: #fff;
+ }
+ .briefing-card .br-title {
+ font-size: 16px; font-weight: 700; margin-bottom: 10px;
+ display: flex; align-items: center; gap: 8px;
+ }
+ .briefing-card .br-date {
+ font-size: 12px; color: rgba(255,255,255,0.5); font-weight: 400;
+ }
+ .briefing-card .br-section {
+ margin-bottom: 10px;
+ }
+ .briefing-card .br-label {
+ font-size: 11px; font-weight: 600; text-transform: uppercase;
+ letter-spacing: 0.3px; margin-bottom: 6px;
+ }
+ .briefing-card .br-label.green { color: var(--ios-green); }
+ .briefing-card .br-label.red { color: var(--ios-red); }
+ .briefing-card .br-label.amber { color: var(--ios-orange); }
+ .briefing-card .br-item {
+ font-size: 13px; padding: 4px 0; display: flex; align-items: center; gap: 6px;
+ color: rgba(255,255,255,0.8);
+ }
+ .briefing-card .br-stat-row {
+ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+ }
+ .briefing-card .br-stat {
+ background: rgba(255,255,255,0.08); border-radius: 10px;
+ padding: 10px 14px; flex: 1; min-width: 70px; text-align: center;
+ }
+ .briefing-card .br-stat-val {
+ font-size: 18px; font-weight: 700; font-feature-settings: "tnum";
+ }
+ .briefing-card .br-stat-label {
+ font-size: 10px; color: rgba(255,255,255,0.45); text-transform: uppercase;
+ letter-spacing: 0.2px; margin-top: 2px;
+ }
+
+ /* Analytics page */
+ .analytics-card {
+ background: var(--ios-card); border-radius: var(--radius-lg);
+ padding: 16px 18px; margin-bottom: 10px;
+ }
+ .analytics-card .an-title {
+ font-size: 14px; font-weight: 600; margin-bottom: 10px;
+ }
+ .analytics-bar-row {
+ display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+ }
+ .analytics-bar-row .an-label {
+ font-size: 12px; font-weight: 500; width: 70px; flex-shrink: 0;
+ color: var(--ios-secondary);
+ }
+ .analytics-bar-row .an-bar-wrap {
+ flex: 1; height: 20px; background: #F2F2F7; border-radius: 10px;
+ overflow: hidden; position: relative;
+ }
+ .analytics-bar-row .an-bar {
+ height: 100%; border-radius: 10px; transition: width 0.5s ease-out;
+ }
+ .analytics-bar-row .an-bar.deep { background: var(--ios-green); }
+ .analytics-bar-row .an-bar.busy { background: var(--ios-blue); }
+ .analytics-bar-row .an-bar.transit { background: #FF9500; }
+ .analytics-bar-row .an-bar.social { background: var(--ios-purple); }
+ .analytics-bar-row .an-bar.buffer { background: #C7C7CC; }
+ .analytics-bar-row .an-pct {
+ font-size: 12px; font-weight: 600; width: 60px; text-align: right;
+ font-feature-settings: "tnum";
+ }
+ .analytics-metric {
+ display: flex; align-items: baseline; justify-content: space-between;
+ padding: 8px 0;
+ }
+ .analytics-metric + .analytics-metric { border-top: 0.5px solid var(--ios-separator); }
+ .analytics-metric .am-label { font-size: 13px; color: var(--ios-secondary); }
+ .analytics-metric .am-val { font-size: 17px; font-weight: 700; font-feature-settings: "tnum"; }
+ .analytics-metric .am-sub { font-size: 11px; color: var(--ios-secondary); }
+ .analytics-pill {
+ display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px;
+ border-radius: 10px; margin-left: 6px;
+ }
+ .analytics-pill.up { background: #E8F8ED; color: #1B7D37; }
+ .analytics-pill.warn { background: #FFF3E0; color: #B87800; }
+
+ /* Scrollbar hide */
+ .main::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<!-- SVG Icon Sprite · Outlook Fluent-style -->
+<svg style="display:none" aria-hidden="true">
+ <defs>
+ <!-- ── Navigation 24×24 ── -->
+ <symbol id="icon-today" viewBox="0 0 24 24" fill="none">
+  <rect x="3" y="5" width="18" height="17" rx="2" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="16" cy="18" r="2.5" fill="currentColor"/>
+ </symbol>
+ <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none">
+  <rect x="3" y="5" width="18" height="17" rx="2" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-coordinate" viewBox="0 0 24 24" fill="none">
+  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M7 14l-2-2 2-2M17 10l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M5 12h8a3 3 0 0 0 0-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M19 12h-8a3 3 0 0 0 0 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-contacts" viewBox="0 0 24 24" fill="none">
+  <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-analytics" viewBox="0 0 24 24" fill="none">
+  <path d="M4 20h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <rect x="6" y="12" width="3" height="8" rx="0.5" fill="currentColor"/>
+  <rect x="10.5" y="7" width="3" height="13" rx="0.5" fill="currentColor"/>
+  <rect x="15" y="3" width="3" height="17" rx="0.5" fill="currentColor"/>
+ </symbol>
+ <!-- ── Field 20×20 ── -->
+ <symbol id="icon-field-date" viewBox="0 0 20 20" fill="none">
+  <rect x="2.5" y="3.5" width="15" height="15" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M2.5 8h15M6.5 2v3M13.5 2v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-field-time" viewBox="0 0 20 20" fill="none">
+  <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M10 6v5l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+ </symbol>
+ <symbol id="icon-field-location" viewBox="0 0 20 20" fill="none">
+  <path d="M10 18s-6-4.5-6-9a6 6 0 1 1 12 0c0 4.5-6 9-6 9z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="10" cy="9" r="2" fill="currentColor"/>
+ </symbol>
+ <symbol id="icon-field-person" viewBox="0 0 20 20" fill="none">
+  <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M4 18v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-field-type" viewBox="0 0 20 20" fill="none">
+  <path d="M3 11L10 4h6v6l-7 7-6-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="13" cy="7" r="1" fill="currentColor"/>
+ </symbol>
+ <symbol id="icon-field-home" viewBox="0 0 20 20" fill="none">
+  <path d="M3 10l7-7 7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M5 8v9a1 1 0 0 0 1 1h2v-5h4v5h2a1 1 0 0 0 1-1V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+ </symbol>
+ <symbol id="icon-field-transit" viewBox="0 0 20 20" fill="none">
+  <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M14 7l1.5 1.5L14 10M6 13l-1.5-1.5L6 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15.5 8.5H12a2 2 0 0 0 0 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M4.5 11.5H8a2 2 0 0 0 0-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-field-source" viewBox="0 0 20 20" fill="none">
+  <path d="M4 5h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-6l-3 3V6a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+ </symbol>
+ <!-- ── Action 20×20 ── -->
+ <symbol id="icon-camera" viewBox="0 0 20 20" fill="none">
+  <rect x="2" y="5" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="10" cy="11" r="3" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="10" cy="11" r="1" fill="currentColor"/>
+ </symbol>
+ <symbol id="icon-mic" viewBox="0 0 20 20" fill="none">
+  <rect x="7" y="2" width="6" height="10" rx="3" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M4 10a6 6 0 0 0 12 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M10 14v4M7 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-sun" viewBox="0 0 20 20" fill="none">
+  <circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-moon" viewBox="0 0 20 20" fill="none">
+  <path d="M16 12a6 6 0 0 1-8-8 7 7 0 0 0 8 8z" fill="currentColor"/>
+ </symbol>
+ <!-- ── Alert/Status 20×20 ── -->
+ <symbol id="icon-bell" viewBox="0 0 20 20" fill="none">
+  <path d="M8 16a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M5 8a5 5 0 0 1 10 0v4l2 2H3l2-2V8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+ </symbol>
+ <symbol id="icon-trash" viewBox="0 0 20 20" fill="none">
+  <path d="M4 6h12M8 6V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2M6 6v11a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8 9v7M12 9v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ <symbol id="icon-pencil" viewBox="0 0 20 20" fill="none">
+  <path d="M13 4l3 3-10 10H3v-3L13 4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M10 7l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+ </symbol>
+ <!-- ── Utility 16×16 ── -->
+ <symbol id="icon-check-sm" viewBox="0 0 16 16" fill="none">
+  <path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+ </symbol>
+ <symbol id="icon-dismiss-sm" viewBox="0 0 16 16" fill="none">
+  <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+ </symbol>
+ </defs>
+</svg>
+
+<div class="phone-frame" id="app">
+ <!-- Status bar -->
+ <div class="status-bar">
+ <span class="time" id="statusTime">9:41</span>
+ <span class="status-icons">●●●●○ ▮▮▮</span>
+ </div>
+
+ <!-- Nav bar -->
+ <div class="navbar" id="navbarMain">
+ <div>
+ <div class="navbar-title">Today</div>
+ <div class="navbar-subtitle" id="pageSubtitle">Saturday, June 6, 2026</div>
+ </div>
+ <div class="navbar-avatar" onclick="switchPage('contacts', document.querySelector('[data-page=contacts]'))">W</div>
+ </div>
+
+ <!-- Main -->
+ <div class="main">
+
+ <!-- PAGE: Today -->
+ <div class="page active" id="page-today">
+ <div id="todayContent"></div>
+ </div>
+
+ <!-- PAGE: Calendar -->
+ <div class="page" id="page-calendar">
+ <div class="cal-header-row">
+ <div class="cal-month" id="calMonthLabel">June 2026</div>
+ <div class="cal-nav">
+ <button onclick="calShift(-1)">◀</button>
+ <button onclick="calShift(1)">▶</button>
+ </div>
+ </div>
+ <div class="cal-weekdays">
+ <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+ </div>
+ <div class="cal-grid" id="calGrid"></div>
+
+ <div class="day-detail" id="dayDetail">
+ <div class="dd-header">
+ <div class="dd-date" id="ddDate"></div>
+ <button class="dd-close" onclick="closeDayDetail()"></button>
+ </div>
+ <div id="ddContent"></div>
+ <button class="ios-btn outline" style="margin-top:12px;height:42px;font-size:14px;" onclick="quickAddToDay()">
+ Add Event to This Day
+ </button>
+ </div>
+ </div>
+
+ <!-- PAGE: Coordinate -->
+ <div class="page" id="page-coordinate">
+ <div class="section-header">Schedule with someone</div>
+ <div class="coord-prompt">
+ <div class="cp-label">Your contacts with shared calendars</div>
+ <div class="cp-row" onclick="showCoord('Lukas (NEUR.ON CTO)')" style="border-bottom:0.5px solid var(--ios-separator);">
+ <div><div class="cp-name">Lukas · NEUR.ON CTO</div><div style="font-size:12px;color:var(--ios-secondary);">Calendar Friend</div></div>
+ <span class="cp-arrow">→</span>
+ </div>
+ <div class="cp-row" onclick="showCoord('Marie (SLTA President)')" style="border-bottom:0.5px solid var(--ios-separator);">
+ <div><div class="cp-name">Marie · SLTA President</div><div style="font-size:12px;color:var(--ios-secondary);">Calendar Friend</div></div>
+ <span class="cp-arrow">→</span>
+ </div>
+ <div class="cp-row" onclick="showCoord('Thomas (Swiss AI Center)')">
+ <div><div class="cp-name">Thomas · Swiss AI Center</div><div style="font-size:12px;color:var(--ios-secondary);">Calendar Friend</div></div>
+ <span class="cp-arrow">→</span>
+ </div>
+ </div>
+
+ <div id="coordResults" style="display:none;"></div>
+
+ <div class="section-header" style="margin-top:18px;">Multi-person</div>
+ <div class="coord-prompt">
+ <div class="cp-row" onclick="showMultiCoord()">
+ <div><div class="cp-name">+ Add a third person (demo)</div><div style="font-size:12px;color:var(--ios-secondary);">3-way agent negotiation</div></div>
+ <span class="cp-arrow">→</span>
+ </div>
+ </div>
+ <div id="multiCoordResult" style="display:none;"></div>
+
+ <div class="section-header" style="margin-top:18px;">Temporary link</div>
+ <div class="coord-prompt">
+ <div class="cp-row" onclick="genTempLink()" style="justify-content:flex-start;gap:12px;">
+ <span style="font-size:24px;"></span>
+ <div>
+ <div class="cp-name">Generate one-time scheduling link</div>
+ <div style="font-size:12px;color:var(--ios-secondary);">Share via message. Expires in 7 days.</div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- PAGE: Contacts -->
+ <div class="page" id="page-contacts">
+ <div class="section-header">Calendar Friends · Shared Availability</div>
+
+ <div class="contact-row">
+ <div class="c-info">
+ <div class="c-avatar" style="background:linear-gradient(135deg,#007AFF,#5856D6);">L</div>
+ <div><div class="c-name">Lukas · NEUR.ON CTO</div><div class="c-meta">Co-founder · auto-shares free/busy</div></div>
+ </div>
+ <span class="contact-type-badge friend">Friend</span>
+ </div>
+
+ <div class="contact-row">
+ <div class="c-info">
+ <div class="c-avatar" style="background:linear-gradient(135deg,#AF52DE,#FF375F);">M</div>
+ <div><div class="c-name">Marie · SLTA President</div><div class="c-meta">Board colleague · auto-shares free/busy</div></div>
+ </div>
+ <span class="contact-type-badge friend">Friend</span>
+ </div>
+
+ <div class="contact-row">
+ <div class="c-info">
+ <div class="c-avatar" style="background:linear-gradient(135deg,#34C759,#30B0C7);">T</div>
+ <div><div class="c-name">Thomas · Swiss AI Center</div><div class="c-meta">Board colleague · auto-shares free/busy</div></div>
+ </div>
+ <span class="contact-type-badge friend">Friend</span>
+ </div>
+
+ <div class="section-header" style="margin-top:18px;">Temporary Links</div>
+
+ <div class="contact-row">
+ <div class="c-info">
+ <div class="c-avatar" style="background:linear-gradient(135deg,#FF9500,#FF3B30);">A</div>
+ <div><div class="c-name">Anna · met at SIX AI Event</div><div class="c-meta">Snowflake speaker · Link expires Jun 13</div></div>
+ </div>
+ <span class="contact-type-badge temp">Temp</span>
+ </div>
+
+ <div class="contact-row" style="opacity:0.5;">
+ <div class="c-info">
+ <div class="c-avatar" style="background:#C7C7CC;">P</div>
+ <div><div class="c-name">Prof. Meier · Uni Genève</div><div class="c-meta">Swiss SF panel guest · Link expired Jun 1</div></div>
+ </div>
+ <span class="contact-type-badge expired">Expired</span>
+ </div>
+
+ <button class="ios-btn outline" style="margin-top:18px;height:46px;font-size:15px;" onclick="genTempLink()">
+ Generate New Temporary Link
+ </button>
+ </div>
+
+ <!-- PAGE: Analytics -->
+ <div class="page" id="page-analytics">
+ <div id="analyticsContent"></div>
+ </div>
+ </div>
+
+ <!-- Bottom bar -->
+ <div class="bottom-bar">
+ <div class="record-strip">
+ <button class="record-btn secondary" id="screenshotBtn" onclick="startScreenshotCapture()">
+ <svg width="18" height="18" style="flex-shrink:0;"><use href="#icon-camera"/></svg>
+ Screenshot
+ </button>
+ <button class="record-btn" id="recordBtn" onclick="startCapture()">
+ <svg width="18" height="18" style="flex-shrink:0;"><use href="#icon-mic"/></svg>
+ Voice
+ </button>
+ <input type="file" id="screenshotInput" accept="image/*" style="display:none;" onchange="handleScreenshotSelect(event)">
+ </div>
+ <div class="bottom-nav">
+ <div class="nav-tab active" data-page="today" onclick="switchPage('today', this)">
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-today"/></svg>Today
+ </div>
+ <div class="nav-tab" data-page="calendar" onclick="switchPage('calendar', this)">
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-calendar"/></svg>Calendar
+ </div>
+ <div class="nav-tab" data-page="coordinate" onclick="switchPage('coordinate', this)">
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-coordinate"/></svg>Coordinate
+ </div>
+ <div class="nav-tab" data-page="contacts" onclick="switchPage('contacts', this)">
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-contacts"/></svg>Contacts
+ </div>
+ <div class="nav-tab" data-page="analytics" onclick="switchPage('analytics', this)">
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-analytics"/></svg>Analytics
+ </div>
+ </div>
+ </div>
+</div>
+
+<!-- Overlay: Capture flow -->
+<div class="overlay" id="captureOverlay">
+ <div class="overlay-sheet" id="captureContent">
+ <div class="sheet-handle"></div>
+
+ <!-- Step 0: Listening -->
+ <div id="captureStep0">
+ <div id="voiceContext" style="display:none;text-align:center;font-size:13px;color:var(--ios-blue);font-weight:500;margin-bottom:10px;"></div>
+ <div class="voice-ui">
+ <div class="voice-ring listening">&#9679;</div>
+ <div class="voice-hint">Listening... release to finish</div>
+ </div>
+ <button class="ios-btn primary" style="margin-top:12px;" onclick="simulateCapture()">
+ Done Recording (Mock)
+ </button>
+ <button class="ios-btn ghost" style="margin-top:6px;height:40px;font-size:14px;" onclick="closeCapture()">Cancel</button>
+ </div>
+
+ <!-- Step 0.5: Screenshot analysis -->
+ <div id="captureStepScreenshot" style="display:none;">
+ <div style="font-size:17px;font-weight:600;margin-bottom:12px;">Screenshot Analysis</div>
+ <img id="screenshotPreviewImg" class="screenshot-preview" src="" alt="Screenshot preview" style="display:none;">
+ <div id="screenshotSourceEl" class="screenshot-source" style="display:none;">Source: WhatsApp chat</div>
+ <div class="voice-ui">
+ <div class="voice-ring listening" style="background:var(--ios-purple-bg);"></div>
+ <div class="voice-hint">Reading text from image...</div>
+ </div>
+ <div class="privacy-badge">🔒 Screenshots processed locally. Chat content never leaves your device.</div>
+ <button class="ios-btn primary" style="margin-top:12px;" id="screenshotAnalyzeBtn" onclick="simulateScreenshotAnalysis()">
+ Analyze Screenshot
+ </button>
+ <button class="ios-btn ghost" style="margin-top:6px;height:40px;font-size:14px;" onclick="closeCapture()">Cancel</button>
+ </div>
+
+ <!-- Step 1: Parse result -->
+ <div id="captureStep1" style="display:none;">
+ <div style="font-size:17px;font-weight:600;margin-bottom:10px;">Parsed</div>
+ <div class="parsed-block">
+ <div class="p-raw" id="parseRawText">
+ "Next Wednesday <span class="hl-time">2:00–3:00 PM</span> meet
+ <span class="hl-person">Michael</span> at
+ <span class="hl-place">Bahnhofstrasse, Zurich</span>"
+ </div>
+ <div style="font-size:12px;font-weight:600;color:var(--ios-secondary);margin-bottom:6px;">Extracted</div>
+ <div class="parsed-fields" id="parseFields">
+ <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">Wed, Jun 10</span></div>
+ <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-time"/></svg><span class="pf-val">2:00 – 3:00 PM</span></div>
+ <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-location"/></svg><span class="pf-val">Bahnhofstrasse</span></div>
+ <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-person"/></svg><span class="pf-val">Michael</span></div>
+ <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-type"/></svg><span class="pf-val">In-person meeting</span></div>
+ <div class="parsed-field missing"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-home"/></svg><span class="pf-val">Depart from?</span></div>
+ <div class="parsed-field missing"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-transit"/></svg><span class="pf-val">Transit mode?</span></div>
+ </div>
+
+ <div class="missing-alert" id="missingAlert">
+ <span></span>
+ <span id="missingText">Need 2 more details:<br>1. Where are you departing from?<br>2. How are you getting there?</span>
+ </div>
+
+ <div style="font-size:12px;font-weight:600;color:var(--ios-secondary);margin-bottom:6px;">Quick select</div>
+ <div class="chip-row" id="chipRow1">
+ <span class="chip" onclick="selectChip(this, 'Home', 'origin')">Home</span>
+ <span class="chip" onclick="selectChip(this, 'Office', 'origin')">Office</span>
+ </div>
+ <div class="chip-row" id="chipRow2" style="display:none;">
+ <span class="chip" onclick="selectChip(this, 'Train', 'transit')">Train</span>
+ <span class="chip" onclick="selectChip(this, 'Tram', 'transit')">Tram</span>
+ <span class="chip" onclick="selectChip(this, 'Walk', 'transit')">Walk</span>
+ <span class="chip" onclick="selectChip(this, 'Car', 'transit')">Car</span>
+ </div>
+
+ <div id="classifySection" style="display:none;margin-top:12px;">
+ <div style="font-size:12px;font-weight:600;color:var(--ios-secondary);margin-bottom:6px;">Eisenhower Classification <span style="font-weight:400;font-size:10px;">(Suggestions · tap to change)</span></div>
+ <div style="font-size:11px;color:var(--ios-secondary);margin-bottom:4px;">Importance</div>
+ <div class="chip-row" id="chipRowImportance">
+ <span class="chip" onclick="selectChip(this, 'high', 'importance')">High</span>
+ <span class="chip" onclick="selectChip(this, 'medium', 'importance')">Medium</span>
+ <span class="chip" onclick="selectChip(this, 'low', 'importance')">Low</span>
+ </div>
+ <div style="font-size:11px;color:var(--ios-secondary);margin-bottom:4px;margin-top:8px;">Urgency</div>
+ <div class="chip-row" id="chipRowUrgency">
+ <span class="chip" onclick="selectChip(this, 'high', 'urgency')">High</span>
+ <span class="chip" onclick="selectChip(this, 'medium', 'urgency')">Medium</span>
+ <span class="chip" onclick="selectChip(this, 'low', 'urgency')">Low</span>
+ </div>
+ </div>
+ </div>
+
+ <button class="ios-btn primary" id="confirmParseBtn" onclick="confirmParse()" disabled>
+ Fill missing details
+ </button>
+ <button class="ios-btn ghost" style="margin-top:6px;height:40px;font-size:14px;" onclick="closeCapture()">Cancel</button>
+ </div>
+
+ <!-- Step 2: Confirmed -->
+ <div id="captureStep2" style="display:none;">
+ <div class="voice-ui">
+ <div class="voice-ring" style="background:#E8F8ED;"></div>
+ <div style="font-size:17px;font-weight:700;">Added to timeline</div>
+ <div style="font-size:14px;color:var(--ios-secondary);margin-top:4px;">Wednesday, June 10</div>
+ </div>
+ <div class="parsed-block" style="font-size:14px;line-height:1.7;">
+ <div><b>1:38–1:50 PM</b> &nbsp; Train to Bahnhofstrasse</div>
+ <div><b>1:50–1:55 PM</b> &nbsp; Arrive early</div>
+ <div><b>1:55–2:00 PM</b> &nbsp; Buffer</div>
+ <div style="color:var(--ios-green);font-weight:600;"><b>2:00–3:00 PM</b> &nbsp; Meet Michael</div>
+ <div><b>3:00–3:12 PM</b> &nbsp; Train back home</div>
+ <div style="margin-top:6px;font-size:12px;color:var(--ios-secondary);">
+ Train rides marked as available for calls
+ </div>
+ </div>
+ <button class="ios-btn primary" style="margin-top:12px;" onclick="closeCapture()">Done</button>
+ </div>
+ </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ====== PAGE SWITCHING ======
+function switchPage(page, el) {
+ document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+ document.getElementById('page-' + page).classList.add('active');
+ document.querySelectorAll('.nav-tab').forEach(n => n.classList.remove('active'));
+ el.classList.add('active');
+
+ // Reset calendar context when leaving calendar page
+ if (page !== 'calendar') {
+ closeDayDetail();
+ }
+
+ // Update navbar title
+ const titles = { today: 'Today', calendar: 'Calendar', coordinate: 'Coordinate', contacts: 'Contacts', analytics: 'Analytics' };
+ document.querySelector('.navbar-title').textContent = titles[page] || page;
+
+ const d = new Date(2026, 5, 5);
+ const subs = {
+ today: d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'}),
+ calendar: 'Tap a day to see events',
+ coordinate: 'Schedule with anyone',
+ contacts: 'Calendar friends & links',
+ analytics: 'Week of Jun 1–7, 2026'
+ };
+ document.getElementById('pageSubtitle').textContent = subs[page] || '';
+
+ // Render analytics page when switching to it
+ if (page === 'analytics') {
+ renderAnalyticsPage();
+ }
+
+ document.querySelector('.main').scrollTop = 0;
+}
+
+// ====== EVENT EXPAND ======
+function toggleExpand(card) {
+ const ex = card.querySelector('.e-expand');
+ if (ex) ex.classList.toggle('show');
+}
+
+// ====== CAPTURE FLOW ======
+let capState = {};
+let selectedDay = null; // calendar day context for contextual capture
+
+function startCapture() {
+ // Context-aware: if an event card is expanded, voice-edit it instead of creating new
+ const expandedCard = document.querySelector('.event-card .e-expand.show');
+ if (expandedCard) {
+ const card = expandedCard.closest('.event-card');
+ const eventId = card ? card.dataset.eventId : null;
+ if (eventId) {
+ startVoiceEdit(eventId);
+ return;
+ }
+ }
+
+ const btn = document.getElementById('recordBtn');
+ btn.classList.add('recording');
+ btn.innerHTML = 'Listening... release to finish';
+
+ document.getElementById('captureOverlay').classList.add('show');
+ document.getElementById('captureStep0').style.display = 'block';
+ document.getElementById('captureStepScreenshot').style.display = 'none';
+ document.getElementById('captureStep1').style.display = 'none';
+ document.getElementById('captureStep2').style.display = 'none';
+ capState = { captureMode: 'voice' };
+
+ // If user was viewing a specific calendar day, show context
+ if (selectedDay) {
+ const ctxEl = document.getElementById('voiceContext');
+ if (ctxEl) {
+ const d = new Date(selectedDay.year, selectedDay.month-1, selectedDay.day);
+ ctxEl.textContent = 'Adding to ' + d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+ ctxEl.style.display = 'block';
+ }
+ } else {
+ const ctxEl = document.getElementById('voiceContext');
+ if (ctxEl) ctxEl.style.display = 'none';
+ }
+
+ setTimeout(() => { btn.classList.remove('recording'); btn.innerHTML = 'Voice'; }, 1800);
+}
+
+function simulateCapture() {
+ document.getElementById('recordBtn').classList.remove('recording');
+ document.getElementById('recordBtn').innerHTML = 'Voice';
+
+ document.getElementById('captureStep0').style.display = 'none';
+ document.getElementById('captureStep1').style.display = 'block';
+ document.getElementById('captureStep2').style.display = 'none';
+ capState = {};
+
+ // Use calendar context if a day is selected
+ if (selectedDay) {
+ const d = new Date(selectedDay.year, selectedDay.month-1, selectedDay.day);
+ const dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+ capState.date = dateStr;
+ // Update parse display to show selected date
+ const dateField = document.querySelector('#parseFields .parsed-field:first-child .pf-val');
+ if (dateField) dateField.textContent = dateStr;
+ const timeField = document.querySelector('#parseFields .parsed-field:nth-child(2) .pf-val');
+ if (timeField) timeField.textContent = 'Time? (say in recording)';
+ // Update raw text
+ const raw = document.getElementById('parseRawText');
+ if (raw) raw.innerHTML = '"Meet <span class="hl-person">someone</span> at <span class="hl-place">[location]</span> on <span class="hl-time">' + dateStr + '</span>"';
+ } else {
+ // Default: next Wednesday
+ capState.date = 'Wed, Jun 10';
+ }
+
+ updateParseState();
+}
+
+function closeCapture() {
+ document.getElementById('captureOverlay').classList.remove('show');
+ document.getElementById('recordBtn').classList.remove('recording');
+ document.getElementById('recordBtn').innerHTML = 'Voice';
+ // Reset screenshot input
+ const fileInput = document.getElementById('screenshotInput');
+ if (fileInput) fileInput.value = '';
+ // Hide all steps
+ document.getElementById('captureStep0').style.display = 'none';
+ document.getElementById('captureStepScreenshot').style.display = 'none';
+ document.getElementById('captureStep1').style.display = 'none';
+ document.getElementById('captureStep2').style.display = 'none';
+}
+
+// ====== SCREENSHOT CAPTURE ======
+function startScreenshotCapture() {
+ document.getElementById('screenshotInput').click();
+}
+
+function handleScreenshotSelect(event) {
+ const file = event.target.files[0];
+ if (!file) return;
+
+ // Show overlay with screenshot preview
+ document.getElementById('captureOverlay').classList.add('show');
+ document.getElementById('captureStep0').style.display = 'none';
+ document.getElementById('captureStepScreenshot').style.display = 'block';
+ document.getElementById('captureStep1').style.display = 'none';
+ document.getElementById('captureStep2').style.display = 'none';
+ capState = { captureMode: 'screenshot' };
+
+ // Read file as data URL for preview
+ const reader = new FileReader();
+ reader.onload = function(e) {
+ const previewImg = document.getElementById('screenshotPreviewImg');
+ previewImg.src = e.target.result;
+ previewImg.style.display = 'block';
+ document.getElementById('screenshotSourceEl').style.display = 'block';
+ };
+ reader.readAsDataURL(file);
+
+ // Calendar context
+ if (selectedDay) {
+ const ctxEl = document.getElementById('voiceContext');
+ if (ctxEl) {
+ const d = new Date(selectedDay.year, selectedDay.month-1, selectedDay.day);
+ ctxEl.textContent = 'Adding to ' + d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+ ctxEl.style.display = 'block';
+ }
+ }
+
+ // Auto-trigger analysis after short delay for demo
+ setTimeout(() => {
+ const analyzeBtn = document.getElementById('screenshotAnalyzeBtn');
+ if (analyzeBtn) analyzeBtn.textContent = 'Analyze Screenshot';
+ }, 400);
+}
+
+function simulateScreenshotAnalysis() {
+ document.getElementById('captureStepScreenshot').style.display = 'none';
+ document.getElementById('captureStep0').style.display = 'none';
+ document.getElementById('captureStep1').style.display = 'block';
+ document.getElementById('captureStep2').style.display = 'none';
+
+ // Mock: WhatsApp chat screenshot → extract event
+ // Show chat source context
+ const raw = document.getElementById('parseRawText');
+ raw.innerHTML = '<div style="font-size:11px;color:var(--ios-purple);font-weight:600;margin-bottom:6px;"> From WhatsApp · Marie (SLTA President)</div>'+
+ '"Let\'s meet <span class="hl-time">next Wednesday 3pm</span> at <span class="hl-place">Uni Zürich, main building café</span>. '+
+ 'We need to discuss the <span class="hl-person">SLTA newsletter</span> before the board meeting."';
+
+ // Fill parsed fields
+ document.getElementById('parseFields').innerHTML =
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">Wed, Jun 10</span></div>'+
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-time"/></svg><span class="pf-val">3:00 – 3:30 PM</span></div>'+
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-location"/></svg><span class="pf-val">Uni Zürich Café</span></div>'+
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-person"/></svg><span class="pf-val">Marie (SLTA President)</span></div>'+
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-type"/></svg><span class="pf-val">☕ Coffee meeting</span></div>'+
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-source"/></svg><span class="pf-val">From WhatsApp chat</span></div>'+
+ '<div class="parsed-field missing"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-home"/></svg><span class="pf-val">Depart from?</span></div>'+
+ '<div class="parsed-field missing"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-transit"/></svg><span class="pf-val">Transit mode?</span></div>';
+
+ capState.date = 'Wed, Jun 10';
+ capState.captureMode = 'screenshot';
+ capState.origin = null;
+ capState.transit = null;
+
+ document.getElementById('missingAlert').style.display = 'flex';
+ document.getElementById('missingText').innerHTML = 'Need 2 more details:<br>1. Where are you departing from?<br>2. How are you getting there?';
+ document.getElementById('confirmParseBtn').disabled = true;
+ document.getElementById('confirmParseBtn').textContent = 'Fill missing details';
+ document.getElementById('chipRow1').style.display = 'flex';
+ document.getElementById('chipRow2').style.display = 'none';
+}
+
+function selectChip(el, value, field) {
+ el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+ el.classList.add('selected');
+
+ if (field === 'origin') {
+ capState.origin = value;
+ document.getElementById('chipRow2').style.display = 'flex';
+ } else if (field === 'transit') {
+ capState.transit = value;
+ } else if (field === 'importance') {
+ capState.importance = value;
+ } else if (field === 'urgency') {
+ capState.urgency = value;
+ }
+ updateParseState();
+}
+
+function updateParseState() {
+ const fields = document.querySelectorAll('#parseFields .parsed-field');
+ const alert = document.getElementById('missingAlert');
+ const text = document.getElementById('missingText');
+ const btn = document.getElementById('confirmParseBtn');
+
+ if (capState.origin) {
+ fields[5].classList.remove('missing');
+ fields[5].querySelector('.pf-val').textContent = ' ' + capState.origin;
+ }
+ if (capState.transit) {
+ fields[6].classList.remove('missing');
+ fields[6].querySelector('.pf-val').textContent = 'Train: ' + capState.transit;
+ }
+
+ const missing = [];
+ if (!capState.origin) missing.push('departure point');
+ if (!capState.transit) missing.push('transit mode');
+
+ if (missing.length === 0) {
+ alert.style.display = 'none';
+ // Show classification section
+ const classifySection = document.getElementById('classifySection');
+ if (classifySection) classifySection.style.display = 'block';
+ // Auto-suggest classification based on context
+ if (!capState.importance || !capState.urgency) {
+ suggestClassification();
+ }
+ btn.disabled = false;
+ btn.textContent = 'Confirm · Add to Timeline';
+ } else {
+ alert.style.display = 'flex';
+ text.innerHTML = 'Need ' + missing.length + ' more detail' + (missing.length>1?'s':'') + ':<br>' +
+ missing.map((m,i) => (i+1)+'. '+m.charAt(0).toUpperCase()+m.slice(1)).join('<br>');
+ btn.disabled = true;
+ btn.textContent = 'Fill missing details';
+ // Hide classification until missing fields are done
+ const classifySection = document.getElementById('classifySection');
+ if (classifySection) classifySection.style.display = 'none';
+ }
+}
+
+function suggestClassification() {
+ // Suggestions based on context: screenshots of chats = important, voice captions = context-dependent
+ const isFromChat = capState.captureMode === 'screenshot';
+ const defaultImp = isFromChat ? 'high' : 'medium';
+ const defaultUrg = isFromChat ? 'high' : 'medium';
+ capState.importance = defaultImp;
+ capState.urgency = defaultUrg;
+ // Visually select defaults
+ const impChips = document.querySelectorAll('#chipRowImportance .chip');
+ const urgChips = document.querySelectorAll('#chipRowUrgency .chip');
+ impChips.forEach(c => {
+ c.classList.remove('selected');
+ if (c.textContent.toLowerCase().includes(defaultImp)) c.classList.add('selected');
+ });
+ urgChips.forEach(c => {
+ c.classList.remove('selected');
+ if (c.textContent.toLowerCase().includes(defaultUrg)) c.classList.add('selected');
+ });
+}
+
+function confirmParse() {
+ document.getElementById('captureStep1').style.display = 'none';
+ document.getElementById('captureStep2').style.display = 'block';
+}
+
+// ====== COORDINATE ======
+// ====== COORDINATE ======
+let currentCoordPerson = '';
+
+const coordSuggestions = {
+ 'Lukas (NEUR.ON CTO)': {
+ slots: [
+ { time:'Friday, Jun 12 · 10:00–10:30 AM', best:true, desc:'NEUR.ON Office, Zürich<br>Train: 12 min · Lukas: on-site<br>Both morning free · ideal deep-discussion slot' },
+ { time:'Monday, Jun 8 · 2:00–2:30 PM', best:false, desc:'Online (Zoom)<br>After his standup, before your afternoon block<br>Quick sync, no transit needed' },
+ { time:'Thursday, Jun 11 · 4:30–5:00 PM', best:false, desc:'Starbucks Bahnhofstrasse<br>Walk: 5 min · Lukas: 8 min<br>End-of-day coffee meeting, relaxed' }
+ ]
+ },
+ 'Marie (SLTA President)': {
+ slots: [
+ { time:'Tuesday, Jun 9 · 11:00–11:30 AM', best:true, desc:'SLTA Office, Lausanne<br>Train: 55 min (workable) · Marie: on-site<br>Her office hours, guaranteed availability' },
+ { time:'Wednesday, Jun 10 · 3:00–3:30 PM', best:false, desc:'Online (Zoom)<br>Right after her board meeting, context fresh<br>Best if you need board-related decisions' },
+ { time:'Friday, Jun 12 · 9:00–9:30 AM', best:false, desc:'Online (Zoom)<br>Before her flight to Berlin at 11 AM<br>Tight window but doable for urgent items' }
+ ]
+ },
+ 'Thomas (Swiss AI Center)': {
+ slots: [
+ { time:'Thursday, Jun 11 · 3:00–3:30 PM', best:true, desc:'ETH AI Center, Zürich<br>Walk: 8 min · Thomas: on-site<br>Campus visit day, he is on-site for workshops' },
+ { time:'Monday, Jun 8 · 4:00–4:30 PM', best:false, desc:'Online (Zoom)<br>After his lab hours, good for technical deep-dive<br>He prefers afternoons for external meetings' },
+ { time:'Wednesday, Jun 10 · 11:00–11:30 AM', best:false, desc:'Online (Zoom)<br>Mid-week check-in slot<br>Short and focused, good for status updates' }
+ ]
+ }
+};
+
+function showCoord(name) {
+ const container = document.getElementById('coordResults');
+
+ // Toggle: same person clicked again → hide
+ if (currentCoordPerson === name) {
+ container.style.display = 'none';
+ currentCoordPerson = '';
+ return;
+ }
+
+ currentCoordPerson = name;
+ const data = coordSuggestions[name];
+ if (!data) return;
+
+ // Build header
+ let html = '<div style="font-size:13px;color:var(--ios-secondary);margin-bottom:6px;display:flex;align-items:center;gap:6px;">'+
+ '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--ios-blue);border-top-color:transparent;animation:spin 0.8s linear infinite;"></span>'+
+ 'Negotiating with <span style="font-weight:600;color:var(--ios-text);">'+name+'</span>\'s Agent…'+
+ '</div>'+
+ '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>'+
+ '<div style="font-size:11px;color:var(--ios-secondary);margin-bottom:10px;">Found 3 overlapping free slots. Tap to edit, then confirm.</div>';
+
+ // Build slots
+ data.slots.forEach((s, i) => {
+ html += '<div class="coord-result'+(s.best?' best':'')+'" id="coordSlot'+i+'" onclick="event.stopPropagation()">'+
+ '<div class="cr-badge">'+(s.best?'Best Match':'Alternative')+'</div>'+
+ '<input class="cr-time-input" id="coordInput'+i+'" value="'+s.time+'" onfocus="this.select();moveBestSlot(this)">'+
+ '<div class="cr-desc">'+s.desc+'</div>'+
+ '<div class="cr-confirm-row">'+
+ '<button class="cr-confirm-btn" id="coordBtn'+i+'" onclick="confirmCoord('+i+',\''+name.replace(/'/g,"\\'")+'\')">Confirm · Send to '+name.split('(')[0].trim()+'</button>'+
+ '</div>'+
+ '<div class="cr-status" id="coordStatus'+i+'"></div>'+
+ '</div>';
+ });
+
+ container.innerHTML = html;
+ container.style.display = 'block';
+ container.scrollIntoView({behavior:'smooth'});
+}
+
+function confirmCoord(idx, name) {
+ const input = document.getElementById('coordInput'+idx);
+ const btn = document.getElementById('coordBtn'+idx);
+ const status = document.getElementById('coordStatus'+idx);
+ const card = document.getElementById('coordSlot'+idx);
+ const time = input ? input.value : '';
+ const shortName = name.split('(')[0].trim();
+
+ // Generate mock Calendly-style link
+ const linkId = Math.random().toString(36).substring(2,8);
+ const link = 'https://schedule.agent/s/'+linkId;
+
+ // Disable all other slots
+ for (let i = 0; i < 3; i++) {
+ if (i !== idx) {
+ const otherCard = document.getElementById('coordSlot'+i);
+ if (otherCard) { otherCard.style.opacity = '0.35'; otherCard.style.pointerEvents = 'none'; }
+ }
+ }
+
+ // Phase 1: Link generated + copied
+ btn.textContent = 'Sent · '+shortName;
+ btn.classList.add('sent');
+ status.innerHTML = '<div style="margin-top:8px;background:#F2F2F7;border-radius:10px;padding:12px;font-size:12px;color:var(--ios-secondary);">'+
+ '<div style="font-weight:600;color:var(--ios-text);margin-bottom:6px;">Share this link with '+shortName+':</div>'+
+ '<code style="display:block;background:#fff;padding:8px 10px;border-radius:6px;font-size:12px;color:var(--ios-blue);word-break:break-all;">'+link+'</code>'+
+ '<div style="margin-top:8px;font-size:11px;">They\'ll see:<br>• Event: "<span style="color:var(--ios-text);">Schedule with Monica</span>"<br>• Time: "<span style="color:var(--ios-text);">'+time+'</span>"<br>• Option to add a note<br>• [Confirm] or [Suggest another time]</div>'+
+ '</div>';
+ status.className = 'cr-status';
+
+ // Copy to clipboard
+ navigator.clipboard?.writeText(link).then(() => {
+ showToast('Link copied. Send to '+shortName+'.');
+ }).catch(() => showToast('Link: '+link));
+
+ // Phase 2: Simulate other person confirming after a few seconds
+ setTimeout(() => {
+ btn.textContent = ' '+shortName+' Confirmed · Added to Calendars';
+ btn.classList.remove('sent');
+ btn.classList.add('confirmed');
+ status.innerHTML = '<div style="margin-top:6px;font-size:12px;"> '+shortName+' opened the link and confirmed. Event added to both calendars. </div>';
+ status.className = 'cr-status confirmed';
+ if (card) card.classList.add('confirmed-card');
+ showToast(' '+shortName+' confirmed: '+time);
+ }, 3500);
+}
+
+function showMultiCoord() {
+ const div = document.getElementById('multiCoordResult');
+ div.style.display = 'block';
+ div.innerHTML = `
+ <div class="coord-result" style="margin-top:10px;border:1.5px solid var(--ios-blue);">
+ <div class="cr-badge" style="background:var(--ios-blue);color:#fff;">3-way Match</div>
+ <div class="cr-time">Wednesday, June 10 · 4:00 – 4:30 PM</div>
+ <div class="cr-desc">
+ ETH Main Building Cafe<br>
+ Train: 12 min · Lukas: 8 min walk · Marie: 15 min drive<br>
+ Only slot that works for all three
+ </div>
+ <div class="cr-actions">
+ <button class="ios-btn primary" style="flex:1;height:42px;font-size:14px;" onclick="showToast('Sent to Lukas & Marie for confirmation')">Confirm & Notify All</button>
+ </div>
+ </div>
+ `;
+ div.scrollIntoView({behavior:'smooth'});
+}
+
+// ====== TOAST ======
+function showToast(msg) {
+ const t = document.getElementById('toast');
+ t.textContent = msg; t.classList.add('show');
+ setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ====== TEMP LINK ======
+function genTempLink() {
+ const link = 'https://schedule.agent/s/7dKx9m';
+ navigator.clipboard?.writeText(link).then(() => {
+ showToast('Link copied. Expires in 7 days.');
+ }).catch(() => showToast('Link: '+link+' (7-day expiry)'));
+}
+
+// ====== CALENDAR ======
+let calYear=2026, calMonth=6;
+
+// ====== EVENT ID HELPER ======
+function evId(day,seq){return 'evt-202606'+(day<10?'0':'')+day+'-'+String(seq).padStart(2,'0');}
+
+// ====== ENRICHED EVENT DATABASE ======
+// Schema: id, t, type, title, time, startTime, endTime, duration,
+// loc, locationShort, participants[], transitMode, transitDuration,
+// transitWorkable, bufferBefore, bufferAfter, context, agentNote,
+// dressCode, returnInfo, followUpNeeded, followUpBy, followUpStatus, followUpNote
+const eventsDB = {
+ '2026-6': {
+ // ── Jun 1 (Mon) ──
+ 1: [
+ {id:evId(1,1),t:'deep',type:'deep',title:'NEUR.ON Q3 Roadmap Draft',time:'8:00–11:00 AM',startTime:'08:00',endTime:'11:00',duration:'3h',loc:'Home · Fribourg',locationShort:'Home',participants:[],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'First draft of Q3 product roadmap · new features + timeline',agentNote:'Monday morning = best deep-work window. Protected by preference learning.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(1,2),t:'online',type:'online',title:'Noxtua Legal Team Sync',time:'2:00–2:45 PM',startTime:'14:00',endTime:'14:45',duration:'45m',loc:'Zoom',locationShort:'Zoom',participants:['Noxtua Legal Engineering team'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Weekly sync · Noxtua legal AI product update',agentNote:'Online = no transit. 2 min buffer before/after.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 2 (Tue) ──
+ 2: [
+ {id:evId(2,1),t:'busy',type:'busy',title:'SLTA Board Prep · Agenda & Slides',time:'9:00–10:30 AM',startTime:'09:00',endTime:'10:30',duration:'1h 30m',loc:'Home · Fribourg',locationShort:'Home',participants:[],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Prepare agenda + slide deck for Wednesday SLTA board meeting',agentNote:'Day before board meeting · prep block is essential.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(2,2),t:'online',type:'online',title:'Investor Update · Series A Pipeline',time:'4:00–4:30 PM',startTime:'16:00',endTime:'16:30',duration:'30m',loc:'Zoom',locationShort:'Zoom',participants:['Potential investors (Series A)'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Update investors on NEUR.ON Series A progress and pipeline',agentNote:'Short call. Keep it tight · 30 min is enough.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-09',followUpStatus:'pending',followUpNote:'Send updated deck to investors'}
+ ],
+ // ── Jun 3 (Wed) ──
+ 3: [
+ {id:evId(3,1),t:'transit',type:'transit',title:'Train: Fribourg → Zurich',time:'8:30–9:15 AM',startTime:'08:30',endTime:'09:15',duration:'45m',loc:'Fribourg HB → Zurich HB',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:0,bufferAfter:0,context:'Travel to Zurich for SLTA board meeting',agentNote:'Train = productive time. You often take calls on this route.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(3,2),t:'busy',type:'busy',title:'SLTA Board Meeting',time:'10:00 AM–12:30 PM',startTime:'10:00',endTime:'12:30',duration:'2h 30m',loc:'Zurich · SLTA Office',locationShort:'SLTA Office, Zurich',participants:['Marie (SLTA President)','SLTA Board Members'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:45,bufferAfter:0,context:'Monthly SLTA board meeting · strategy, membership, events',agentNote:'Buffer before = 45 min (train arrival + walk to office).',dressCode:'Business formal',returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-10',followUpStatus:'pending',followUpNote:'Circulate board minutes + action items'},
+ {id:evId(3,3),t:'social',type:'social',title:'Lunch with SLTA President',time:'12:30–1:45 PM',startTime:'12:30',endTime:'13:45',duration:'1h 15m',loc:'Restaurant Bärengasse',locationShort:'Bärengasse, Zurich',participants:['Marie (SLTA President)'],transitMode:'walk',transitDuration:'5 min',transitWorkable:false,bufferBefore:0,bufferAfter:15,context:'Post-meeting lunch · discuss Swiss LegalTech strategy',agentNote:'Walking distance from SLTA office. Buffer after for wrap-up.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(3,4),t:'transit',type:'transit',title:'Train: Zurich → Fribourg',time:'2:30–3:15 PM',startTime:'14:30',endTime:'15:15',duration:'45m',loc:'Zurich HB → Fribourg HB',locationShort:'Zurich HB',participants:[],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:30,bufferAfter:0,context:'Return to Fribourg after board meeting and lunch',agentNote:'Buffer before = walk to station + platform time.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 4 (Thu) ──
+ 4: [
+ {id:evId(4,1),t:'deep',type:'deep',title:'NEUR.ON · Product Spec Review',time:'9:00–11:00 AM',startTime:'09:00',endTime:'11:00',duration:'2h',loc:'Home · Fribourg',locationShort:'Home',participants:['Lukas (NEUR.ON CTO)'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Review product spec for NEUR.ON legal translation platform v2',agentNote:'Co-founder working session. Deep focus needed.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-11',followUpStatus:'pending',followUpNote:'Finalize spec changes from review'},
+ {id:evId(4,2),t:'online',type:'online',title:'Noxtua Legal Engineering Standup',time:'2:00–2:30 PM',startTime:'14:00',endTime:'14:30',duration:'30m',loc:'Zoom',locationShort:'Zoom',participants:['Noxtua Engineering team'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Bi-weekly engineering standup · Noxtua legal AI platform',agentNote:'Quick sync. Online = no transit overhead.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(4,3),t:'transit',type:'transit',title:'Train: Fribourg → Zurich',time:'4:30–5:15 PM',startTime:'16:30',endTime:'17:15',duration:'45m',loc:'Fribourg → Zurich HB',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:15,bufferAfter:15,context:'Travel to Zurich for SIX AI event',agentNote:'Train ride = usable for calls or quick email triage.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(4,4),t:'social',type:'social',title:'SIX AI in Finance · Speaker Event',time:'5:30–9:00 PM',startTime:'17:30',endTime:'21:00',duration:'3h 30m',loc:'SIX HQ · Zurich',locationShort:'SIX HQ, Zurich',participants:['Industry attendees'],transitMode:'walk',transitDuration:'10 min',transitWorkable:false,bufferBefore:15,bufferAfter:0,context:'Keynote + panel · AI applications in Swiss finance sector',agentNote:'Buffer before = walk from Zurich HB to SIX HQ. Networking event · expect to run late.',dressCode:'Business formal',returnInfo:'Last train to Fribourg ~11:30 PM',followUpNeeded:true,followUpBy:'2026-06-11',followUpStatus:'pending',followUpNote:'Follow up with new contacts from event'}
+ ],
+ // ── Jun 5 (Fri) ──
+ 5: [
+ {id:evId(5,1),t:'online',type:'online',title:'NEUR.ON Client Demo · Law Firm Zürich',time:'10:00–11:00 AM',startTime:'10:00',endTime:'11:00',duration:'1h',loc:'Zoom · Client: MLL Legal',locationShort:'Zoom (MLL Legal)',participants:['MLL Legal partners'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Demo NEUR.ON platform to MLL Legal · potential enterprise client',agentNote:'High-stakes demo. Prepare slides + test environment beforehand.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-12',followUpStatus:'pending',followUpNote:'Send proposal + pricing to MLL Legal'},
+ {id:evId(5,2),t:'online',type:'online',title:'Swiss AI Center · SME Workshop Planning',time:'1:00–2:00 PM',startTime:'13:00',endTime:'14:00',duration:'1h',loc:'Zoom',locationShort:'Zoom',participants:['Thomas (Swiss AI Center)'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Plan workshop content for upcoming SME AI adoption workshop',agentNote:'Online prep call · light cognitive load is fine post-lunch.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(5,3),t:'transit',type:'transit',title:'Train: Fribourg → Lausanne',time:'3:30–4:05 PM',startTime:'15:30',endTime:'16:05',duration:'35m',loc:'Fribourg → Lausanne',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'35 min',transitWorkable:true,bufferBefore:15,bufferAfter:15,context:'Travel to Lausanne for Swiss AI Center board meeting',agentNote:'Short train. Can use for quick calls.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(5,4),t:'busy',type:'busy',title:'Swiss AI Center Industrial Board',time:'4:30–6:00 PM',startTime:'16:30',endTime:'18:00',duration:'1h 30m',loc:'EPFL Innovation Park',locationShort:'EPFL, Lausanne',participants:['Thomas (Swiss AI Center)','Board members','EPFL faculty'],transitMode:'walk',transitDuration:'10 min',transitWorkable:false,bufferBefore:15,bufferAfter:0,context:'Quarterly industrial board meeting · Swiss AI Center strategy',agentNote:'Buffer before = walk from Lausanne station to EPFL.',dressCode:'Business casual',returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-12',followUpStatus:'pending',followUpNote:'Share board presentation with Thomas'},
+ {id:evId(5,5),t:'transit',type:'transit',title:'Train: Lausanne → Fribourg',time:'6:30–7:05 PM',startTime:'18:30',endTime:'19:05',duration:'35m',loc:'Lausanne → Fribourg',locationShort:'Lausanne HB',participants:[],transitMode:'train',transitDuration:'35 min',transitWorkable:true,bufferBefore:30,bufferAfter:0,context:'Return to Fribourg',agentNote:'Buffer before = walk to station + platform. Evening train · quieter, good for reading.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 6 (Sat) · TODAY ──
+ 6: [
+ {id:evId(6,1),t:'deep',type:'deep',title:'NEUR.ON Q3 Product Roadmap',time:'7:30–9:00 AM',startTime:'07:30',endTime:'09:00',duration:'1h 30m',loc:'Home · Fribourg',locationShort:'Home',participants:[],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Finalize Q3 product roadmap for NEUR.ON platform',agentNote:'Saturday morning · best focus window. Protected by preference learning.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(6,2),t:'online',type:'online',title:'Noxtua Engineering Sync',time:'9:00–9:30 AM',startTime:'09:00',endTime:'09:30',duration:'30m',loc:'Zoom',locationShort:'Zoom',participants:['Noxtua Engineering team'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Weekly sync · Noxtua legal AI product update',agentNote:'You take this from home. Online → no transit needed.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(6,3),t:'transit',type:'transit',title:'Train: Fribourg → Zurich HB',time:'5:00–5:45 PM',startTime:'17:00',endTime:'17:45',duration:'45m',loc:'Fribourg → Zurich',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:15,bufferAfter:0,context:'Travel to Zurich for alumni dinner',agentNote:'Train = productive time. You\'ve taken calls on this route before.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(6,4),t:'transit',type:'transit',title:'Walk: Zurich HB → Kronenhalle',time:'5:45–6:00 PM',startTime:'17:45',endTime:'18:00',duration:'15m',loc:'Zurich HB → Kronenhalle',locationShort:'Zurich HB',participants:[],transitMode:'walk',transitDuration:'15 min',transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Walk from station to restaurant',agentNote:'Walking = unavailable. Short walk through Zurich old town.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(6,5),t:'social',type:'social',title:'Swiss Study Foundation Alumni Dinner',time:'6:00–9:30 PM',startTime:'18:00',endTime:'21:30',duration:'3h 30m',loc:'Kronenhalle · Zurich',locationShort:'Kronenhalle, Zurich',participants:['Swiss Study Foundation alumni'],transitMode:'walk',transitDuration:'15 min',transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Annual alumni gathering · good networking',agentNote:'Expected to run late. Social event · enjoy.',dressCode:'Business casual',returnInfo:'Last train to Fribourg ~11:30 PM',followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 8 (Mon) ──
+ 8: [
+ {id:evId(8,1),t:'busy',type:'busy',title:'NEUR.ON All-Hands · Monthly',time:'10:00–11:30 AM',startTime:'10:00',endTime:'11:30',duration:'1h 30m',loc:'Fribourg Office',locationShort:'Fribourg Office',participants:['NEUR.ON team'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Monthly all-hands · company updates, roadmap, Q&A',agentNote:'In-office meeting. No transit needed if working from Fribourg.',dressCode:'Casual',returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(8,2),t:'online',type:'online',title:'LegalTech Startup Pitch Practice',time:'1:00–2:00 PM',startTime:'13:00',endTime:'14:00',duration:'1h',loc:'Zoom',locationShort:'Zoom',participants:['Other LegalTech founders'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Pitch practice session with peer LegalTech founders',agentNote:'Good for networking + refining NEUR.ON pitch.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 9 (Tue) ──
+ 9: [
+ {id:evId(9,1),t:'deep',type:'deep',title:'Series A Deck · First Draft',time:'8:00 AM–12:00 PM',startTime:'08:00',endTime:'12:00',duration:'4h',loc:'Home · Fribourg',locationShort:'Home',participants:[],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Create first draft of NEUR.ON Series A investor deck',agentNote:'Massive deep-work block. Protected. No interruptions.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-16',followUpStatus:'pending',followUpNote:'Send draft to Lukas for review'},
+ {id:evId(9,2),t:'busy',type:'busy',title:'1:1 with Lukas (NEUR.ON CTO)',time:'2:00–2:45 PM',startTime:'14:00',endTime:'14:45',duration:'45m',loc:'Fribourg Office',locationShort:'Fribourg Office',participants:['Lukas (NEUR.ON CTO)'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Weekly 1:1 · engineering progress, blockers, priorities',agentNote:'Keep it focused. Lukas prefers short, structured 1:1s.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 10 (Wed) ──
+ 10: [
+ {id:evId(10,1),t:'transit',type:'transit',title:'Train: Fribourg → Geneva',time:'8:30–9:45 AM',startTime:'08:30',endTime:'09:45',duration:'1h 15m',loc:'Fribourg → Geneva',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'1h 15m',transitWorkable:true,bufferBefore:15,bufferAfter:15,context:'Travel to Geneva for Swiss Study Foundation panel',agentNote:'Long train = excellent deep-work window. Use for deck review.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(10,2),t:'busy',type:'busy',title:'Swiss Study Foundation · Mentorship Panel',time:'10:30 AM–12:00 PM',startTime:'10:30',endTime:'12:00',duration:'1h 30m',loc:'Uni Genève',locationShort:'Uni Genève',participants:['Prof. Meier','Swiss SF fellows','Panelists'],transitMode:'walk',transitDuration:'10 min',transitWorkable:false,bufferBefore:30,bufferAfter:0,context:'Panel discussion · career paths in legal tech and AI',agentNote:'Buffer before = walk from Geneva station to university.',dressCode:'Business casual',returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-17',followUpStatus:'pending',followUpNote:'Connect with fellows on LinkedIn'},
+ {id:evId(10,3),t:'social',type:'social',title:'Lunch with Swiss SF Fellows',time:'12:00–1:30 PM',startTime:'12:00',endTime:'13:30',duration:'1h 30m',loc:'Les Armures · Geneva',locationShort:'Les Armures, Geneva',participants:['Swiss Study Foundation fellows'],transitMode:'walk',transitDuration:'5 min',transitWorkable:false,bufferBefore:0,bufferAfter:30,context:'Post-panel lunch with fellows · informal networking',agentNote:'Buffer after = walk back to station + platform time.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(10,4),t:'transit',type:'transit',title:'Train: Geneva → Fribourg',time:'2:15–3:30 PM',startTime:'14:15',endTime:'15:30',duration:'1h 15m',loc:'Geneva → Fribourg',locationShort:'Geneva HB',participants:[],transitMode:'train',transitDuration:'1h 15m',transitWorkable:true,bufferBefore:15,bufferAfter:0,context:'Return to Fribourg',agentNote:'Long train back. Good for catching up on emails or deck work.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 11 (Thu) ──
+ 11: [
+ {id:evId(11,1),t:'online',type:'online',title:'Investor Call · Redalpine VC',time:'10:00–10:45 AM',startTime:'10:00',endTime:'10:45',duration:'45m',loc:'Zoom',locationShort:'Zoom',participants:['Redalpine VC partners'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Pitch NEUR.ON to Redalpine · Series A lead investor prospect',agentNote:'High-stakes call. Prepare thoroughly. 2 min buffer before.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-13',followUpStatus:'pending',followUpNote:'Send deck + financials to Redalpine'},
+ {id:evId(11,2),t:'online',type:'online',title:'SLTA Executive Committee',time:'3:00–4:30 PM',startTime:'15:00',endTime:'16:30',duration:'1h 30m',loc:'Zoom',locationShort:'Zoom',participants:['Marie (SLTA President)','SLTA Executive Committee'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Monthly executive committee · governance, budget, events',agentNote:'Online. Prepare committee briefing doc beforehand.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-18',followUpStatus:'pending',followUpNote:'Update committee action tracker'}
+ ],
+ // ── Jun 12 (Fri) ──
+ 12: [
+ {id:evId(12,1),t:'deep',type:'deep',title:'NEUR.ON Legal NLP Model Review',time:'9:00 AM–12:00 PM',startTime:'09:00',endTime:'12:00',duration:'3h',loc:'Fribourg Office',locationShort:'Fribourg Office',participants:['Lukas (NEUR.ON CTO)'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Technical deep-dive · NLP model accuracy for legal translation',agentNote:'Co-working session with Lukas. Deep technical focus required.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-19',followUpStatus:'pending',followUpNote:'Document model improvements + benchmarks'},
+ {id:evId(12,2),t:'transit',type:'transit',title:'Train: Fribourg → Zurich',time:'2:00–2:45 PM',startTime:'14:00',endTime:'14:45',duration:'45m',loc:'Fribourg → Zurich',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:15,bufferAfter:30,context:'Travel to Zurich for LegalTech Roundtable',agentNote:'Train = productive time. Buffer after for walk to Wenger Vieli.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(12,3),t:'busy',type:'busy',title:'Swiss LegalTech Roundtable',time:'3:30–6:00 PM',startTime:'15:30',endTime:'18:00',duration:'2h 30m',loc:'Zurich · Wenger Vieli',locationShort:'Wenger Vieli, Zurich',participants:['Swiss LegalTech leaders','Wenger Vieli partners'],transitMode:'walk',transitDuration:'10 min',transitWorkable:false,bufferBefore:15,bufferAfter:0,context:'Quarterly roundtable · legal tech trends in Switzerland',agentNote:'Buffer before = walk from Zurich HB to Wenger Vieli office.',dressCode:'Business formal',returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-19',followUpStatus:'pending',followUpNote:'Circulate roundtable notes to participants'},
+ {id:evId(12,4),t:'social',type:'social',title:'LegalTech Networking Apéro',time:'6:00–8:00 PM',startTime:'18:00',endTime:'20:00',duration:'2h',loc:'Metropol · Zurich',locationShort:'Metropol, Zurich',participants:['Swiss LegalTech community'],transitMode:'walk',transitDuration:'5 min',transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Post-roundtable networking · drinks and connections',agentNote:'Casual networking. Good for relationship building.',dressCode:'Business casual',returnInfo:'Train back to Fribourg available until midnight',followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 15 (Mon) ──
+ 15: [
+ {id:evId(15,1),t:'deep',type:'deep',title:'Investor Deck v2 · Incorporate Feedback',time:'8:00 AM–12:00 PM',startTime:'08:00',endTime:'12:00',duration:'4h',loc:'Home · Fribourg',locationShort:'Home',participants:[],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Revise Series A deck based on investor feedback from calls',agentNote:'Deep-work block. Incorporate Redalpine feedback.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-18',followUpStatus:'pending',followUpNote:'Share v2 with Lukas for review'},
+ {id:evId(15,2),t:'online',type:'online',title:'Noxtua Product Review',time:'3:00–4:00 PM',startTime:'15:00',endTime:'16:00',duration:'1h',loc:'Zoom',locationShort:'Zoom',participants:['Noxtua Product team'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Monthly product review · Noxtua legal AI features',agentNote:'Online. Light cognitive load after deep-work morning.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 16 (Tue) ──
+ 16: [
+ {id:evId(16,1),t:'online',type:'online',title:'NEUR.ON Partner Call · Deloitte Legal',time:'11:00–11:45 AM',startTime:'11:00',endTime:'11:45',duration:'45m',loc:'Zoom',locationShort:'Zoom',participants:['Deloitte Legal partners'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Partnership discussion · Deloitte Legal as channel partner',agentNote:'Strategic call. Prepare value proposition for channel partnership.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-23',followUpStatus:'pending',followUpNote:'Send partnership proposal to Deloitte'}
+ ],
+ // ── Jun 17 (Wed) ──
+ 17: [
+ {id:evId(17,1),t:'transit',type:'transit',title:'Train: Fribourg → Lausanne',time:'8:30–9:05 AM',startTime:'08:30',endTime:'09:05',duration:'35m',loc:'Fribourg → Lausanne',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'35 min',transitWorkable:true,bufferBefore:15,bufferAfter:15,context:'Travel to Lausanne for Swiss AI Center workshop',agentNote:'Morning train. Can review workshop materials en route.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(17,2),t:'busy',type:'busy',title:'Swiss AI Center · Board Workshop',time:'9:30 AM–1:00 PM',startTime:'09:30',endTime:'13:00',duration:'3h 30m',loc:'EPFL · Lausanne',locationShort:'EPFL, Lausanne',participants:['Thomas (Swiss AI Center)','Board members','EPFL researchers'],transitMode:'walk',transitDuration:'10 min',transitWorkable:false,bufferBefore:15,bufferAfter:0,context:'Full board workshop · Swiss AI Center strategy and initiatives',agentNote:'Buffer before = walk from Lausanne station to EPFL. Long workshop · stay hydrated.',dressCode:'Business casual',returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-24',followUpStatus:'pending',followUpNote:'Distribute workshop summary to board'},
+ {id:evId(17,3),t:'social',type:'social',title:'Lunch with EPFL AI Researchers',time:'1:00–2:00 PM',startTime:'13:00',endTime:'14:00',duration:'1h',loc:'EPFL Campus',locationShort:'EPFL Campus',participants:['EPFL AI researchers'],transitMode:'walk',transitDuration:'5 min',transitWorkable:false,bufferBefore:0,bufferAfter:30,context:'Post-workshop lunch · explore research collaboration opportunities',agentNote:'Buffer after = walk back to station.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(17,4),t:'transit',type:'transit',title:'Train: Lausanne → Fribourg',time:'2:30–3:05 PM',startTime:'14:30',endTime:'15:05',duration:'35m',loc:'Lausanne → Fribourg',locationShort:'Lausanne HB',participants:[],transitMode:'train',transitDuration:'35 min',transitWorkable:true,bufferBefore:30,bufferAfter:0,context:'Return to Fribourg',agentNote:'Buffer before = walk from EPFL to Lausanne station.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(17,5),t:'online',type:'online',title:'LP Update Call · Series A',time:'4:00–4:45 PM',startTime:'16:00',endTime:'16:45',duration:'45m',loc:'Zoom',locationShort:'Zoom',participants:['Limited Partners (Series A)'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Update LPs on Series A fundraising progress',agentNote:'Online call from home after return from Lausanne.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-19',followUpStatus:'pending',followUpNote:'Send LP update memo'}
+ ],
+ // ── Jun 18 (Thu) ──
+ 18: [
+ {id:evId(18,1),t:'deep',type:'deep',title:'SLTA Newsletter · Final Draft',time:'9:00–11:00 AM',startTime:'09:00',endTime:'11:00',duration:'2h',loc:'Home · Fribourg',locationShort:'Home',participants:[],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Finalize SLTA quarterly newsletter for member distribution',agentNote:'Quiet morning · good for writing and editing.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-20',followUpStatus:'pending',followUpNote:'Send newsletter to Marie for final approval'}
+ ],
+ // ── Jun 19 (Thu) ──
+ 19: [
+ {id:evId(19,1),t:'online',type:'online',title:'Noxtua Board Update',time:'10:00–11:00 AM',startTime:'10:00',endTime:'11:00',duration:'1h',loc:'Zoom',locationShort:'Zoom',participants:['Noxtua Board members'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Quarterly board update · Noxtua legal AI progress',agentNote:'Prepare concise update. Board prefers metrics + milestones.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-26',followUpStatus:'pending',followUpNote:'Send board deck + minutes'},
+ {id:evId(19,2),t:'busy',type:'busy',title:'NEUR.ON Customer Advisory Board',time:'2:00–3:30 PM',startTime:'14:00',endTime:'15:30',duration:'1h 30m',loc:'Fribourg Office + Zoom',locationShort:'Fribourg Office + Zoom',participants:['NEUR.ON customers','Lukas (NEUR.ON CTO)'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Customer advisory board · product feedback and roadmap input',agentNote:'Hybrid meeting. Prepare demo of upcoming features.',dressCode:'Business casual',returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-26',followUpStatus:'pending',followUpNote:'Compile customer feedback into product backlog'}
+ ],
+ // ── Jun 22 (Mon) ──
+ 22: [
+ {id:evId(22,1),t:'deep',type:'deep',title:'Q3 Strategy · NEUR.ON Product Vision',time:'9:00 AM–3:00 PM',startTime:'09:00',endTime:'15:00',duration:'6h',loc:'Home · Fribourg',locationShort:'Home',participants:[],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Full-day strategy session · NEUR.ON product vision and Q3 goals',agentNote:'Massive protected block. No meetings. No interruptions.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-29',followUpStatus:'pending',followUpNote:'Share Q3 strategy doc with team'}
+ ],
+ // ── Jun 24 (Wed) ──
+ 24: [
+ {id:evId(24,1),t:'online',type:'online',title:'SLTA General Assembly Prep',time:'10:00–11:30 AM',startTime:'10:00',endTime:'11:30',duration:'1h 30m',loc:'Zoom',locationShort:'Zoom',participants:['Marie (SLTA President)','SLTA team'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Prepare materials for upcoming SLTA General Assembly',agentNote:'Online prep session. Have draft agenda and slides ready.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(24,2),t:'social',type:'social',title:'Swiss LegalTech Drinks',time:'6:00–8:30 PM',startTime:'18:00',endTime:'20:30',duration:'2h 30m',loc:'Zurich West',locationShort:'Zurich West',participants:['Swiss LegalTech community'],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:60,bufferAfter:0,context:'Monthly LegalTech community drinks · casual networking',agentNote:'Buffer before = train to Zurich. Train ride is workable.',dressCode:'Casual',returnInfo:'Last train back ~11:00 PM',followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ ],
+ // ── Jun 25 (Thu) ──
+ 25: [
+ {id:evId(25,1),t:'online',type:'online',title:'NEUR.ON Demo Day · Y Combinator Alumni',time:'2:00–3:30 PM',startTime:'14:00',endTime:'15:30',duration:'1h 30m',loc:'Zoom',locationShort:'Zoom',participants:['YC alumni founders'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Demo NEUR.ON to YC alumni network · potential investors and advisors',agentNote:'Important visibility opportunity. Polish demo flow.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-06-30',followUpStatus:'pending',followUpNote:'Follow up with interested YC alumni'}
+ ],
+ // ── Jun 26 (Fri) ──
+ 26: [
+ {id:evId(26,1),t:'transit',type:'transit',title:'Train: Fribourg → Zurich',time:'9:30–10:15 AM',startTime:'09:30',endTime:'10:15',duration:'45m',loc:'Fribourg → Zurich',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:15,bufferAfter:15,context:'Travel to Zurich for Noxtua offsite',agentNote:'Train = productive time. Review offsite agenda en route.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(26,2),t:'busy',type:'busy',title:'Noxtua Product Offsite',time:'10:30 AM–4:00 PM',startTime:'10:30',endTime:'16:00',duration:'5h 30m',loc:'Zurich Office',locationShort:'Zurich Office',participants:['Noxtua Product team','Noxtua Leadership'],transitMode:'walk',transitDuration:'10 min',transitWorkable:false,bufferBefore:15,bufferAfter:0,context:'Full-day product offsite · Noxtua roadmap and strategy',agentNote:'Buffer before = walk from Zurich HB to office. Long day · pace yourself.',dressCode:'Business casual',returnInfo:null,followUpNeeded:true,followUpBy:'2026-07-03',followUpStatus:'pending',followUpNote:'Circulate offsite summary + action items'}
+ ],
+ // ── Jun 29 (Mon) ──
+ 29: [
+ {id:evId(29,1),t:'online',type:'online',title:'Advisor Call · Swiss LegalTech Market',time:'11:00–11:45 AM',startTime:'11:00',endTime:'11:45',duration:'45m',loc:'Zoom',locationShort:'Zoom',participants:['LegalTech market advisor'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Market intelligence · Swiss legal tech landscape and opportunities',agentNote:'Take notes. Advisor insights feed into Q3 strategy.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-07-03',followUpStatus:'pending',followUpNote:'Incorporate advisor feedback into strategy'},
+ {id:evId(29,2),t:'busy',type:'busy',title:'NEUR.ON Engineering Retrospective',time:'2:00–3:30 PM',startTime:'14:00',endTime:'15:30',duration:'1h 30m',loc:'Fribourg Office',locationShort:'Fribourg Office',participants:['Lukas (NEUR.ON CTO)','NEUR.ON engineering team'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Sprint retrospective · what went well, what to improve',agentNote:'In-office. Team culture · keep it constructive.',dressCode:null,returnInfo:null,followUpNeeded:true,followUpBy:'2026-07-01',followUpStatus:'pending',followUpNote:'Update sprint process based on retro findings'}
+ ]
+ }
+};
+
+// ====== COMPLETION TRACKING (demo) ======
+// Maps event IDs to completion status: true=done, false=not done, missing=unmarked
+const completionDB = {
+ // Jun 1
+ 'evt-20260601-01': true, 'evt-20260601-02': true,
+ // Jun 2
+ 'evt-20260602-01': true, 'evt-20260602-02': true,
+ // Jun 3
+ 'evt-20260603-01': true, 'evt-20260603-02': true, 'evt-20260603-03': true, 'evt-20260603-04': true,
+ // Jun 4 · Product Spec Review NOT completed
+ 'evt-20260604-01': false, 'evt-20260604-02': true, 'evt-20260604-03': true, 'evt-20260604-04': true,
+ // Jun 5 · Swiss AI Board NOT completed
+ 'evt-20260605-01': true, 'evt-20260605-02': true, 'evt-20260605-03': true, 'evt-20260605-04': false, 'evt-20260605-05': true,
+ // Jun 6 today (morning done)
+ 'evt-20260606-01': true, 'evt-20260606-02': true
+};
+
+// Runtime events created by user actions (accepting suggestions, etc.)
+// findEventById checks this before searching eventsDB
+const runtimeEvents = {};
+
+function getCompletion(event) {
+ if (completionDB.hasOwnProperty(event.id)) return completionDB[event.id];
+ return null; // unmarked
+}
+
+function getTodayDate() { return 6; } // June 6 demo fixed
+
+function parseDurationHours(durStr) {
+ if (!durStr) return 0;
+ let h = 0;
+ const hMatch = durStr.match(/(\d+)\s*h/);
+ const mMatch = durStr.match(/(\d+)\s*m/);
+ if (hMatch) h += parseInt(hMatch[1]);
+ if (mMatch) h += parseInt(mMatch[1]) / 60;
+ return Math.round(h * 10) / 10;
+}
+
+// ====== TODAY FREE SLOTS (demo) ======
+const todayFreeSlots = [
+ { id:'fs1', startTime:'13:00', endTime:'16:00', suggestedTitle:'Draft SLTA Newsletter',
+ agentReasoning:'Deadline Monday. Large block = ideal for writing.',
+ suggestedBy: 'Agent' },
+ { id:'fs2', startTime:'13:00', endTime:'14:30', suggestedTitle:'NEUR.ON investor deck revision',
+ agentReasoning:'Shorter focus block. Aligns with post-lunch energy.',
+ suggestedBy: 'Agent' },
+ { id:'fs3', startTime:'15:00', endTime:'16:00', suggestedTitle:'Review Noxtua product spec',
+ agentReasoning:'Light cognitive load. Good for review work after lunch.',
+ suggestedBy: 'Agent' }
+];
+
+// ====== PENDING TASKS (demo) ======
+const pendingTasksDB = [
+ { id:'p1', title:'Finalize SLTA quarterly newsletter · send to members',
+ deadline:'Monday, Jun 8', priority:'High', estTime:'~2h',
+ importance:'high', urgency:'high', // Important + Urgent · Do First
+ suggestions: [
+ { slot:'Sunday, Jun 7 · 9:00–11:00 AM', reason:'Best deep-work window. No transit. Home all morning.', best:true },
+ { slot:'Monday, Jun 8 · 7:00–9:00 AM', reason:'Last chance before deadline. Tight but doable.', best:false }
+ ]
+ },
+ { id:'p2', title:'NEUR.ON Series A investor deck · draft for review',
+ deadline:'Wednesday, Jun 10', priority:'High', estTime:'~3h',
+ importance:'high', urgency:'medium', // Important, Not Urgent · Schedule
+ suggestions: [
+ { slot:'Monday, Jun 8 · 8:00–11:00 AM', reason:'3h deep-work block. No meetings. Home office.', best:true },
+ { slot:'Sunday, Jun 7 · 1:00–4:00 PM', reason:'Free afternoon. Agent will protect from interruptions.', best:false },
+ { slot:'Tuesday, Jun 9 · 6:00–9:00 AM', reason:'Early start. You\'re sharpest in the morning.', best:false }
+ ]
+ },
+ { id:'p3', title:'Swiss AI Center · board briefing for SME workshop',
+ deadline:'Thursday, Jun 11', priority:'Medium', estTime:'~1.5h',
+ importance:'medium', urgency:'low', // Not Important, Not Urgent · Do Later
+ suggestions: [
+ { slot:'Monday, Jun 8 · 4:00–5:30 PM', reason:'After your last call. Good wind-down task.', best:true },
+ { slot:'Tuesday, Jun 9 · 1:00–2:30 PM', reason:'Post-lunch. Light cognitive load is fine for briefing prep.', best:false }
+ ]
+ },
+ { id:'p4', title:'Reply to Anna · SIX AI Event follow-up',
+ deadline:'Sunday, Jun 7', priority:'Medium', estTime:'~15m',
+ importance:'low', urgency:'high', // Not Important, Urgent · Delegate/Quick
+ suggestions: [
+ { slot:'Today · 12:30–12:45 PM', reason:'Quick reply. 15 min between lunch and next block.', best:true },
+ { slot:'Today · 4:00–4:15 PM', reason:'End of afternoon lull. Knock it out fast.', best:false }
+ ]
+ }
+];
+
+// ====== SHARED EVENT RENDERING ======
+function getTypeInfo(event) {
+ const map = {
+ deep: {label:'Deep Work',cls:'deep',icon:''},
+ online:{label:'Online',cls:'online',icon:''},
+ social:{label:'Social',cls:'social',icon:''},
+ busy:{label:'Meeting',cls:'neutral',icon:''},
+ transit:{label:'Transit',cls:'transit',icon:''},
+ train:{label:'Train',cls:'transit',icon:''},
+ buffer:{label:'Buffer',cls:'buffer',icon:''}
+ };
+ return map[event.type] || map['busy'];
+}
+
+function getDisplayTitle(event, compact) {
+ if (!compact || event.type !== 'transit' || !event.transitMode) return event.title;
+ const durLabel = event.transitDuration ? ' · '+event.transitDuration : '';
+ const workLabel = event.transitWorkable ? 'Workable' : 'Unavailable';
+ return event.title + durLabel + ' · ' + workLabel;
+}
+
+function renderCompactMeta(event) {
+ let parts = [];
+ if (event.participants && event.participants.length > 0) {
+ parts.push(event.participants.join(', '));
+ }
+ if (event.locationShort) {
+ parts.push(event.locationShort);
+ }
+ return parts.length > 0 ? parts.join(' · ') : '';
+}
+
+function renderEventTags(event, opts) {
+ const ti = getTypeInfo(event);
+ let html = '<span class="e-tag '+ti.cls+'">'+ti.label+'</span>';
+ html += '<span class="e-tag neutral">'+event.locationShort+'</span>';
+ if (event.transitMode) {
+ const icons = {train:'',tram:'',walk:'',car:'',bus:''};
+ const icon = icons[event.transitMode] || '';
+ const label = event.transitDuration
+ ? icon+' '+event.transitMode.charAt(0).toUpperCase()+event.transitMode.slice(1)+' · '+event.transitDuration
+ : icon+' '+event.transitMode.charAt(0).toUpperCase()+event.transitMode.slice(1);
+ const workable = event.transitWorkable ? ' Workable' : 'Unavailable';
+ html += '<span class="e-tag transit">'+label+'</span>';
+ html += '<span class="e-tag neutral">'+workable+'</span>';
+ }
+ if (event.participants && event.participants.length > 0) {
+ event.participants.forEach(p => {
+ html += '<span class="e-tag participant">'+p+'</span>';
+ });
+ }
+ if (event.bufferBefore || event.bufferAfter) {
+ const parts = [];
+ if (event.bufferBefore) parts.push(event.bufferBefore+'min before');
+ if (event.bufferAfter) parts.push(event.bufferAfter+'min after');
+ html += '<span class="e-tag buffer"> '+parts.join(' / ')+'</span>';
+ }
+ if (event.followUpNeeded && event.followUpStatus === 'pending') {
+ const byDate = event.followUpBy ? ' by '+new Date(event.followUpBy+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+ html += '<span class="e-tag followup-needed">Follow-up'+byDate+'</span>';
+ }
+ if (event.followUpNeeded && event.followUpStatus === 'done') {
+ html += '<span class="e-tag followup-done">Followed up</span>';
+ }
+ return html;
+}
+
+function renderEventExpand(event, options) {
+ options = options || {};
+ let html = '';
+ // Location
+ if (event.loc) {
+ html += '<div class="e-row"><span class="e-label">Location</span><span class="e-val">'+event.loc+'</span></div>';
+ }
+ // Transit details
+ if (event.transitMode) {
+ html += '<div class="e-row"><span class="e-label">Transit</span><span class="e-val">'+event.transitMode.charAt(0).toUpperCase()+event.transitMode.slice(1)+(event.transitDuration?' · '+event.transitDuration:'')+'</span></div>';
+ html += '<div class="e-row"><span class="e-label">During transit</span><span class="e-val">'+(event.transitWorkable?'Can take calls / work':'Unavailable · walking/driving')+'</span></div>';
+ }
+ // Participants
+ if (event.participants && event.participants.length > 0) {
+ html += '<div class="e-row"><span class="e-label">Participants</span><span class="e-val">'+event.participants.join(', ')+'</span></div>';
+ }
+ // Duration
+ if (event.duration) {
+ html += '<div class="e-row"><span class="e-label">Duration</span><span class="e-val">'+event.duration+'</span></div>';
+ }
+ // Context
+ if (event.context) {
+ html += '<div class="e-row"><span class="e-label">Context</span><span class="e-val">'+event.context+'</span></div>';
+ }
+ // Agent note
+ if (event.agentNote) {
+ html += '<div class="e-row"><span class="e-label">Note</span><span class="e-val">'+event.agentNote+'</span></div>';
+ }
+ // Dress code
+ if (event.dressCode) {
+ html += '<div class="e-row"><span class="e-label">Dress code</span><span class="e-val">'+event.dressCode+'</span></div>';
+ }
+ // Return info
+ if (event.returnInfo) {
+ html += '<div class="e-row"><span class="e-label">Return</span><span class="e-val">'+event.returnInfo+'</span></div>';
+ }
+ // Completion status for past events
+ if (options.isPast && options.showCompletion !== false) {
+ const comp = getCompletion(event);
+ if (comp === true) {
+ html += '<div class="e-row"><span class="e-label">Status</span><span class="e-val" style="color:var(--ios-green);">Completed</span></div>';
+ } else if (comp === false) {
+ html += '<div class="e-row" style="align-items:flex-start;"><span class="e-label">Status</span><span class="e-val" style="color:var(--ios-red);"> Not completed</span></div>';
+ html += '<div class="completion-actions" style="margin-top:6px;display:flex;gap:6px;">'+
+ '<button class="complete-btn done" onclick="event.stopPropagation();markComplete(\''+event.id+'\',true)">Mark Done</button>'+
+ '</div>';
+ } else {
+ // Unmarked past event
+ html += '<div class="e-row"><span class="e-label">Status</span><span class="e-val" style="color:var(--ios-orange);">Unmarked</span></div>';
+ html += '<div class="completion-actions" style="margin-top:6px;display:flex;gap:6px;">'+
+ '<button class="complete-btn done" onclick="event.stopPropagation();markComplete(\''+event.id+'\',true)">Done</button>'+
+ '<button class="complete-btn notdone" onclick="event.stopPropagation();markComplete(\''+event.id+'\',false)">Not Done</button>'+
+ '</div>';
+ }
+ }
+ // Reschedule for all task-like events (past or future)
+ if (['deep','busy','online'].includes(event.type)) {
+ const rsLabel = options.isPast ? 'This event has passed. Reschedule?' : 'Need a different time?';
+ html += '<div class="reschedule-section">'+
+ '<div style="font-size:11px;font-weight:600;color:var(--ios-secondary);margin-bottom:6px;">'+rsLabel+'</div>'+
+ '<button class="reschedule-btn" onclick="event.stopPropagation();rescheduleEvent(\''+event.id+'\')">Find New Time</button>'+
+ '<div class="reschedule-slots" id="rs-slots-'+event.id+'"></div>'+
+ '</div>';
+ }
+ // Edit button for calendar view
+ if (options.showEdit) {
+ html += '<div class="edit-section">'+
+ '<button class="edit-btn" onclick="event.stopPropagation();startEditEvent(\''+event.id+'\')"><svg width="15" height="15"><use href="#icon-pencil"/></svg> Edit</button>'+
+ '<div class="edit-form" id="edit-form-'+event.id+'" onclick="event.stopPropagation()"></div>'+
+ '</div>'+
+ '<button class="delete-btn" onclick="event.stopPropagation();deleteEvent(\''+event.id+'\')"><svg width="15" height="15"><use href="#icon-trash"/></svg> Delete Event</button>';
+ }
+ return html;
+}
+
+function renderEventCard(event, options) {
+ options = options || {};
+ const isPast = options.isPast || false;
+ const isFreeSlot = options.isFreeSlot || false;
+
+ // Determine completion state for visual treatment
+ let compState = '';
+ if (isPast && !isFreeSlot) {
+ const comp = getCompletion(event);
+ if (comp === true) compState = 'completed';
+ else if (comp === false) compState = 'not-completed';
+ else compState = 'unmarked-past';
+ }
+
+ const cls = (isFreeSlot?'free-slot ':'') + (isPast?'past ':'') + compState + ' anim-in';
+ const expandHtml = renderEventExpand(event, options);
+
+ // Build time row extras (compact mode: type tag inline)
+ let timeExtras = '';
+ if (options.compact) {
+ const ti = getTypeInfo(event);
+ timeExtras += '<span class="e-tag-inline '+ti.cls+'">'+ti.label+'</span>';
+ }
+
+ const dataAttrs = 'data-event-id="'+(event.id||'')+'"'+
+ (isPast?' data-is-past="true"':'')+
+ (options.showEdit?' data-show-edit="true"':'');
+
+ const startTime = event.time.split('–')[0].trim();
+ const endTime = event.time.split('–')[1]?.trim() || '';
+
+ const displayTitle = getDisplayTitle(event, options.compact);
+
+ // Compact: minimal who+where meta line; Full: complete tags
+ const tagsOrMeta = options.compact
+ ? renderCompactMeta(event)
+ : renderEventTags(event);
+ const tagsHtml = tagsOrMeta
+ ? (options.compact ? '<div class="e-meta">'+tagsOrMeta+'</div>' : '<div class="e-tags">'+tagsOrMeta+'</div>')
+ : '';
+
+ return '<div class="event-card '+cls.trim()+'" id="card-'+(event.id||'')+'" onclick="toggleExpand(this)" '+dataAttrs+'>'+
+ '<div class="e-time-row"><span class="e-time">'+startTime+'</span><span class="e-duration">– '+endTime+'</span>'+timeExtras+'</div>'+
+ '<div class="e-title">'+displayTitle+'</div>'+
+ tagsHtml+
+ '<div class="e-expand">'+expandHtml+'</div>'+
+ '</div>';
+}
+
+function findEventById(id) {
+ // Check runtime events first (accepted suggestions, etc.)
+ if (runtimeEvents[id]) return {event: runtimeEvents[id], monthKey: null, dayKey: null, idx: -1, isRuntime: true};
+ for (const monthKey of Object.keys(eventsDB)) {
+ const month = eventsDB[monthKey];
+ for (const dayKey of Object.keys(month)) {
+ const evts = month[dayKey];
+ for (let i=0; i<evts.length; i++) {
+ if (evts[i].id === id) return {event:evts[i], monthKey, dayKey, idx:i};
+ }
+ }
+ }
+ return null;
+}
+
+function renderCal() {
+ document.getElementById('calMonthLabel').textContent =
+ new Date(calYear,calMonth-1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+ const grid = document.getElementById('calGrid');
+ const firstDay = new Date(calYear,calMonth-1,1).getDay();
+ const daysInMonth = new Date(calYear,calMonth,0).getDate();
+ const prevDays = new Date(calYear,calMonth-1,0).getDate();
+ const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+
+ grid.innerHTML = '';
+
+ // Prev month
+ for (let i = startOffset - 1; i >= 0; i--) {
+ grid.innerHTML += '<div class="cal-cell other-month"><div style="margin-top:4px">'+(prevDays-i)+'</div></div>';
+ }
+
+ // Current month
+ const today = 6; // June 6 fixed for demo
+ const key = calYear+'-'+calMonth;
+ const monthData = eventsDB[key]||{};
+
+ for (let d=1; d<=daysInMonth; d++) {
+ let cls = 'cal-cell anim-in';
+ if (d===today && calYear===2026 && calMonth===6) cls += ' today';
+ const evts = monthData[d]||[];
+ const dotsHtml = evts.length>0
+ ? '<div class="cal-dots-row">'+evts.map(e=>'<div class="cal-dot '+e.t+'"></div>').join('')+'</div>'
+ : '';
+ grid.innerHTML += '<div class="'+cls+'" onclick="openDay('+d+')"><div style="margin-top:4px">'+d+'</div>'+dotsHtml+'</div>';
+ }
+
+ // Next month padding
+ const total = startOffset + daysInMonth;
+ const rem = total%7===0?0:7-(total%7);
+ for (let i=1;i<=rem;i++) {
+ grid.innerHTML += '<div class="cal-cell other-month"><div style="margin-top:4px">'+i+'</div></div>';
+ }
+}
+
+function calShift(dir) {
+ calMonth+=dir;
+ if (calMonth>12){calMonth=1;calYear++;}
+ if (calMonth<1){calMonth=12;calYear--;}
+ closeDayDetail();
+ renderCal();
+}
+
+function openDay(day) {
+ selectedDay = { year: calYear, month: calMonth, day: day };
+ const key = calYear+'-'+calMonth;
+ const evts = (eventsDB[key]||{})[day]||[];
+
+ document.getElementById('ddDate').textContent =
+ new Date(calYear,calMonth-1,day).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+
+ const content = document.getElementById('ddContent');
+
+ if (evts.length===0) {
+ content.innerHTML = '<div class="dd-empty">No events scheduled</div>';
+ } else {
+ // Sort by startTime
+ const sorted = [...evts].sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
+ const today = 6; // June 6 demo fixed
+ const isPastDay = day < today;
+ content.innerHTML = sorted.map(e => renderEventCard(e, {isPast: isPastDay, compact: true, showEdit: true})).join('');
+ }
+
+ document.getElementById('dayDetail').classList.add('show');
+ document.getElementById('dayDetail').scrollIntoView({behavior:'smooth'});
+}
+
+function closeDayDetail() {
+ document.getElementById('dayDetail').classList.remove('show');
+ selectedDay = null;
+}
+
+function quickAddToDay() {
+ if (!selectedDay) return;
+ // Close day detail, open capture with day context
+ document.getElementById('dayDetail').classList.remove('show');
+ startCapture();
+}
+
+// ====== TODAY PAGE RENDERING ======
+function renderTodayPage() {
+ const today = 6; // June 6 fixed for demo
+ const key = '2026-6';
+ const evts = (eventsDB[key]||{})[today]||[];
+ const sorted = [...evts].sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
+
+ // Simulated "now" for past/future distinction: ~11:00 AM
+ const simNow = '11:00';
+
+ const morning = sorted.filter(e => (e.startTime||'') < '12:00');
+ const afternoon = sorted.filter(e => (e.startTime||'') >= '12:00' && (e.startTime||'') < '17:00');
+ const evening = sorted.filter(e => (e.startTime||'') >= '17:00');
+
+ let html = '';
+
+ // ═══ PENDING FIRST · most urgent ═══
+ html += renderPendingCards();
+
+ // Morning
+ if (morning.length > 0) {
+ html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-sun"/></svg> Morning</div>';
+ morning.forEach(e => {
+ html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true});
+ });
+ }
+
+ // Afternoon · with free slot
+ html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-sun"/></svg> Afternoon</div>';
+ if (afternoon.length > 0) {
+ afternoon.forEach(e => {
+ html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true});
+ });
+ }
+ // Agent suggestions
+ if (todayFreeSlots.length > 0) {
+ html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-chart"/></svg> Agent suggestions</div>';
+ html += '<div class="pending-card anim-in" id="agentSuggestCard" style="border-left-color:var(--ios-green);">'+
+ '<div style="font-size:12px;color:var(--ios-secondary);margin-bottom:6px;">AI found '+todayFreeSlots.length+' ways to use your free afternoon</div>';
+
+ // Best suggestion · always visible, labeled "Suggested"
+ const fs0 = todayFreeSlots[0];
+ const durH0 = parseInt(fs0.endTime.split(':')[0]) - parseInt(fs0.startTime.split(':')[0]);
+ html += '<div class="suggest-slot best" id="freeSlot-0" onclick="event.stopPropagation()">'+
+ '<div class="ss-row">'+
+ '<input class="ss-time-input" id="fs-time-0" value="Suggested · '+fs0.startTime.replace(':00','')+' – '+fs0.endTime.replace(':00','')+' · '+durH0+'h" onfocus="this.select()">'+
+ ''+
+ '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot(0)" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+ '</div>'+
+ '<input class="ss-time-input" id="fs-title-0" value="'+fs0.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
+ '<div class="ss-reason">'+fs0.agentReasoning+'</div></div>';
+
+ // Show more toggle (if there are other suggestions)
+ if (todayFreeSlots.length > 1) {
+ html += '<div class="show-more-toggle" id="agent-toggle-more" onclick="event.stopPropagation();toggleAgentSuggest()">'+
+ 'Show ' + (todayFreeSlots.length - 1) + ' more option' + (todayFreeSlots.length > 2 ? 's' : '') +
+ '</div>';
+ }
+
+ // Hidden other suggestions
+ html += '<div class="more-suggest" id="agent-more-suggest" style="display:none;">';
+ for (let fi = 1; fi < todayFreeSlots.length; fi++) {
+ const fs = todayFreeSlots[fi];
+ const durH = parseInt(fs.endTime.split(':')[0]) - parseInt(fs.startTime.split(':')[0]);
+ html += '<div class="suggest-slot" id="freeSlot-'+fi+'" onclick="event.stopPropagation()">'+
+ '<div class="ss-row">'+
+ '<input class="ss-time-input" id="fs-time-'+fi+'" value="'+fs.startTime.replace(':00','')+' – '+fs.endTime.replace(':00','')+' · '+durH+'h" onfocus="this.select()">'+
+ ''+
+ '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot('+fi+')" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+ '</div>'+
+ '<input class="ss-time-input" id="fs-title-'+fi+'" value="'+fs.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
+ '<div class="ss-reason">'+fs.agentReasoning+'</div></div>';
+ }
+ html += '</div>';
+
+ html += '<div class="pending-actions" style="display:flex;gap:6px;margin-top:8px;">'+
+ '<button class="p-action dismiss" onclick="event.stopPropagation();dismissAllFreeSlots()"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Dismiss all</button>'+
+ '</div>'+
+ '</div>';
+ }
+
+ // Evening
+ if (evening.length > 0) {
+ html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-moon"/></svg> Evening</div>';
+ evening.forEach(e => {
+ html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true});
+ });
+ }
+
+ // ═══ DAILY BRIEFING ═══
+ html += renderDailyBriefing();
+
+ document.getElementById('todayContent').innerHTML = html;
+}
+
+
+function renderPendingCards() {
+ let html = '<div class="section-header" style="color:var(--ios-red);font-size:14px;"><svg width="15" height="15"><use href="#icon-bell"/></svg> '+pendingTasksDB.length+' tasks to schedule</div>';
+
+ pendingTasksDB.forEach((task, idx) => {
+ const taskIdx = idx + 1;
+ const pid = 'pending'+taskIdx;
+ const imp = task.importance || 'medium';
+ const urg = task.urgency || 'medium';
+ let borderColor;
+ if (imp === 'high' && urg === 'high') borderColor = 'var(--ios-red)';
+ else if (imp === 'high' && urg !== 'high') borderColor = '#B87800';
+ else if (imp !== 'high' && urg === 'high') borderColor = 'var(--ios-orange)';
+ else borderColor = '#C7C7CC';
+
+ html += '<div class="pending-card anim-in" id="'+pid+'" style="border-left-color:'+borderColor+';">'+
+ '<div class="p-deadline">Due '+task.deadline.replace(/^\w+,\s*/,'')+' · '+task.estTime+'</div>'+
+ '<div class="p-title">'+task.title+'</div>'+
+ '<div class="pending-suggest" id="pendingSuggest'+taskIdx+'" style="display:none;">'+
+ '<div style="font-size:11px;font-weight:600;color:var(--ios-secondary);margin-top:10px;text-transform:uppercase;letter-spacing:0.3px;">Suggestions</div>';
+ task.suggestions.forEach((s, si) => {
+ const suggestInputId = 'p-input-'+taskIdx+'-'+si;
+ html += '<div class="suggest-slot'+(s.best?' best':'')+'" onclick="event.stopPropagation();moveBestSlot(this)">'+
+ '<div class="ss-row">'+
+ '<input class="ss-time-input" id="'+suggestInputId+'" value="'+(s.best?'Best · ':'')+s.slot+'" onfocus="this.select();moveBestSlot(this)">'+
+ '<button class="ss-confirm-btn" onclick="event.stopPropagation();schedulePending(\''+pid+'\','+taskIdx+','+si+')" title="Confirm"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+ '</div>'+
+ '<div class="ss-reason">'+s.reason+'</div></div>';
+ });
+ html += '</div>'+
+ '<div class="pending-actions" style="display:none;gap:6px;margin-top:8px;">'+
+ '<button class="p-action dismiss" onclick="event.stopPropagation();dismissPending(\''+pid+'\')"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Dismiss</button>'+
+ '<button class="p-action done" onclick="event.stopPropagation();markPendingDone(\''+pid+'\')"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Already Done</button>'+
+ '</div>'+
+ '</div>';
+ });
+ return html;
+}
+
+// ====== PENDING SCHEDULING ======
+function schedulePending(cardId, taskIdx, si) {
+ const card = document.getElementById(cardId);
+ if (!card) return;
+
+ // Read edited time from input
+ const input = document.getElementById('p-input-'+taskIdx+'-'+si);
+ const slot = input ? input.value.replace(/^Best · /, '') : '';
+ const slotTime = slot.split(' · ')[1]?.trim() || slot;
+
+ // Transform to "Scheduled" state
+ const deadline = card.querySelector('.p-deadline');
+ const title = card.querySelector('.p-title');
+ const tags = card.querySelector('.p-tags');
+ const suggest = document.getElementById('pendingSuggest'+taskIdx);
+
+ if (deadline) deadline.textContent = 'Scheduled · '+slotTime;
+ if (title) { title.style.textDecoration = 'line-through'; title.style.color = 'var(--ios-secondary)'; }
+ if (tags) tags.style.display = 'none';
+ if (suggest) suggest.style.display = 'none';
+ card.style.background = '#E8F8ED';
+ card.style.borderLeftColor = 'var(--ios-green)';
+ card.style.pointerEvents = 'none';
+
+ // Collapse and remove after delay
+ setTimeout(() => {
+ card.style.transition = 'opacity 0.4s, max-height 0.4s, margin 0.4s, padding 0.4s';
+ card.style.maxHeight = card.offsetHeight + 'px';
+ card.style.overflow = 'hidden';
+ requestAnimationFrame(() => {
+ card.style.opacity = '0';
+ card.style.maxHeight = '0';
+ card.style.marginTop = '0';
+ card.style.marginBottom = '0';
+ card.style.paddingTop = '0';
+ card.style.paddingBottom = '0';
+ card.style.borderWidth = '0';
+ });
+ setTimeout(() => card.remove(), 450);
+ }, 1200);
+
+ showToast(' Scheduled: ' + slotTime + ' · Added to timeline');
+}
+
+function confirmFreeSlot(fi) {
+ const titleInput = document.getElementById('fs-title-'+fi);
+ const title = titleInput ? titleInput.value : todayFreeSlots[fi].suggestedTitle;
+ const startTime = todayFreeSlots[fi].startTime;
+ const endTime = todayFreeSlots[fi].endTime;
+
+ // Build event in same format as eventsDB entries
+ const evId = 'fs-accepted-' + fi + '-' + Date.now();
+ const event = {
+  id: evId,
+  t: 'deep',
+  type: 'deep',
+  title: title,
+  time: startTime + ' – ' + endTime,
+  startTime: startTime,
+  endTime: endTime,
+  duration: (parseInt(endTime) - parseInt(startTime)) + 'h',
+  loc: '',
+  locationShort: '',
+  participants: [],
+  transitMode: null,
+  transitDuration: null,
+  transitWorkable: false,
+  bufferBefore: 0,
+  bufferAfter: 0,
+  context: '',
+  agentNote: 'Accepted from agent suggestion.',
+  dressCode: null,
+  returnInfo: null,
+  followUpNeeded: false,
+  followUpBy: null,
+  followUpStatus: 'pending',
+  followUpNote: '',
+ };
+
+ // Add to eventsDB for today (June 6)
+ if (!eventsDB['2026-6']) eventsDB['2026-6'] = {};
+ if (!eventsDB['2026-6'][6]) eventsDB['2026-6'][6] = [];
+ eventsDB['2026-6'][6].push(event);
+
+ // Also store in runtimeEvents for findEventById (belt-and-suspenders)
+ runtimeEvents[evId] = event;
+
+ // Remove accepted slot and all conflicting slots from free slots
+ const accStart = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
+ const accEnd = parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]);
+ for (let i = todayFreeSlots.length - 1; i >= 0; i--) {
+  const sStart = parseInt(todayFreeSlots[i].startTime.split(':')[0]) * 60 + parseInt(todayFreeSlots[i].startTime.split(':')[1]);
+  const sEnd = parseInt(todayFreeSlots[i].endTime.split(':')[0]) * 60 + parseInt(todayFreeSlots[i].endTime.split(':')[1]);
+  if (sStart < accEnd && sEnd > accStart) {
+   todayFreeSlots.splice(i, 1);
+  }
+ }
+
+ // Re-render the Today page
+ renderTodayPage();
+
+ showToast('Accepted: ' + title + ' - Added to calendar');
+}
+
+function rerenderCurrentView() {
+ // Re-render whichever page is currently visible
+ const todayPage = document.getElementById('page-today');
+ if (todayPage && todayPage.classList.contains('active')) {
+  renderTodayPage();
+ } else {
+  // Calendar view — refresh calendar dots + day detail in-place (do NOT close)
+  const sd = selectedDay;
+  renderCal();
+  if (sd) { refreshDayDetail(sd.year, sd.month, sd.day); }
+ }
+}
+
+function refreshDayDetail(year, month, day) {
+ const key = year + '-' + month;
+ const evts = (eventsDB[key] || {})[day] || [];
+ const content = document.getElementById('ddContent');
+ const ddDate = document.getElementById('ddDate');
+ if (!content) return;
+
+ if (evts.length === 0) {
+  // Last event deleted — show empty state then close
+  content.innerHTML = '<div class="dd-empty">No events scheduled</div>';
+  setTimeout(() => { closeDayDetail(); }, 800);
+ } else {
+  const sorted = [...evts].sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
+  const today = 6; // June 6 demo fixed
+  const isPastDay = day < today;
+  content.innerHTML = sorted.map(e => renderEventCard(e, {isPast: isPastDay, compact: true, showEdit: true})).join('');
+ }
+ if (ddDate) {
+  ddDate.textContent = new Date(year, month-1, day).toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+ }
+}
+
+function deleteEvent(eventId) {
+ // Find and remove from eventsDB
+ for (const monthKey of Object.keys(eventsDB)) {
+  for (const dayKey of Object.keys(eventsDB[monthKey])) {
+   const arr = eventsDB[monthKey][dayKey];
+   const idx = arr.findIndex(e => e.id === eventId);
+   if (idx !== -1) {
+    const deleted = arr[idx];
+    arr.splice(idx, 1);
+    // Clean empty entries
+    if (arr.length === 0) delete eventsDB[monthKey][dayKey];
+    if (Object.keys(eventsDB[monthKey]).length === 0) delete eventsDB[monthKey];
+    // Also remove from runtimeEvents
+    delete runtimeEvents[eventId];
+    // Collapse card with animation before re-render
+    const card = document.getElementById('card-'+eventId);
+    if (card) {
+     card.style.transition = 'opacity 0.3s, max-height 0.3s, margin 0.3s, padding 0.3s';
+     card.style.maxHeight = card.offsetHeight + 'px';
+     card.style.overflow = 'hidden';
+     requestAnimationFrame(() => {
+      card.style.opacity = '0';
+      card.style.maxHeight = '0';
+      card.style.marginTop = '0';
+      card.style.marginBottom = '0';
+      card.style.paddingTop = '0';
+      card.style.paddingBottom = '0';
+     });
+    }
+    setTimeout(() => {
+     rerenderCurrentView();
+     showToast('Deleted: ' + (deleted.title || 'Event'));
+    }, 320);
+    return;
+   }
+  }
+ }
+ // Check runtimeEvents only
+ if (runtimeEvents[eventId]) {
+  const deleted = runtimeEvents[eventId];
+  delete runtimeEvents[eventId];
+  const card = document.getElementById('card-'+eventId);
+  if (card) {
+   card.style.transition = 'opacity 0.3s, max-height 0.3s, margin 0.3s, padding 0.3s';
+   card.style.maxHeight = card.offsetHeight + 'px';
+   card.style.overflow = 'hidden';
+   requestAnimationFrame(() => {
+    card.style.opacity = '0';
+    card.style.maxHeight = '0';
+    card.style.marginTop = '0';
+    card.style.marginBottom = '0';
+    card.style.paddingTop = '0';
+    card.style.paddingBottom = '0';
+   });
+  }
+  setTimeout(() => {
+   rerenderCurrentView();
+   showToast('Deleted: ' + (deleted.title || 'Event'));
+  }, 320);
+ }
+}
+
+function dismissAllFreeSlots() {
+ const container = document.getElementById('agentSuggestCard');
+ if (!container) return;
+ const slots = container.querySelectorAll('.suggest-slot');
+ if (slots.length === 0) return;
+ // Dismiss each slot with animation
+ slots.forEach(s => {
+ s.style.transition = 'opacity 0.25s, max-height 0.25s, margin 0.25s, padding 0.25s';
+ s.style.maxHeight = s.offsetHeight + 'px';
+ s.style.overflow = 'hidden';
+ });
+ requestAnimationFrame(() => {
+ slots.forEach(s => {
+ s.style.opacity = '0';
+ s.style.maxHeight = '0';
+ s.style.marginTop = '0';
+ s.style.marginBottom = '0';
+ s.style.paddingTop = '0';
+ s.style.paddingBottom = '0';
+ });
+ });
+ setTimeout(() => {
+ slots.forEach(s => s.remove());
+ // Remove the container if empty
+ const actions = container.querySelector('.pending-actions');
+ if (actions) actions.style.display = 'none';
+ const label = container.querySelector('div');
+ if (label) label.textContent = 'No open suggestions';
+ }, 300);
+ showToast('Suggestions dismissed');
+}
+
+function voiceEditSuggestion(fi) {
+ return; /* voice edit removed - mic buttons removed from agent suggestions */
+}
+
+function toggleAgentSuggest() {
+ const moreEl = document.getElementById('agent-more-suggest');
+ const toggleEl = document.getElementById('agent-toggle-more');
+ if (!moreEl || !toggleEl) return;
+ const opening = moreEl.style.display !== 'block';
+ moreEl.style.display = opening ? 'block' : 'none';
+ toggleEl.textContent = opening ? 'Show less' : 'Show ' + (todayFreeSlots.length - 1) + ' more option' + (todayFreeSlots.length > 2 ? 's' : '');
+}
+
+// ====== PENDING ACTIONS ======
+function dismissPending(cardId) {
+ const card = document.getElementById(cardId);
+ if (!card) return;
+ card.style.transition = 'opacity 0.3s, max-height 0.3s';
+ card.style.maxHeight = card.offsetHeight + 'px';
+ card.style.overflow = 'hidden';
+ requestAnimationFrame(() => {
+ card.style.opacity = '0';
+ card.style.maxHeight = '0';
+ card.style.marginTop = '0';
+ card.style.marginBottom = '0';
+ card.style.paddingTop = '0';
+ card.style.paddingBottom = '0';
+ });
+ setTimeout(() => card.remove(), 350);
+ showToast('Task dismissed');
+}
+
+function markPendingDone(cardId) {
+ const card = document.getElementById(cardId);
+ if (!card) return;
+ const deadline = card.querySelector('.p-deadline');
+ const title = card.querySelector('.p-title');
+ if (deadline) { deadline.textContent = 'Done'; deadline.style.color = 'var(--ios-green)'; }
+ if (title) { title.style.textDecoration = 'line-through'; title.style.color = 'var(--ios-secondary)'; }
+ card.style.background = '#E8F8ED';
+ card.style.borderLeftColor = 'var(--ios-green)';
+ card.style.pointerEvents = 'none';
+ // Collapse after delay
+ setTimeout(() => {
+ card.style.transition = 'opacity 0.3s, max-height 0.3s';
+ card.style.maxHeight = card.offsetHeight + 'px';
+ card.style.overflow = 'hidden';
+ requestAnimationFrame(() => {
+ card.style.opacity = '0';
+ card.style.maxHeight = '0';
+ card.style.marginTop = '0';
+ card.style.marginBottom = '0';
+ card.style.paddingTop = '0';
+ card.style.paddingBottom = '0';
+ });
+ setTimeout(() => card.remove(), 350);
+ }, 800);
+ showToast(' Marked as done');
+}
+
+function moveBestSlot(inputEl) {
+ // Move .best highlight to the suggest-slot containing this input
+ const slot = inputEl.closest('.suggest-slot');
+ if (!slot || slot.classList.contains('best')) return;
+ // Remove .best from all siblings
+ const parent = slot.parentElement;
+ if (parent) {
+ parent.querySelectorAll('.suggest-slot.best').forEach(s => s.classList.remove('best'));
+ }
+ slot.classList.add('best');
+}
+
+// ====== RESCHEDULE ======
+function rescheduleEvent(eventId) {
+ const slotsEl = document.getElementById('rs-slots-'+eventId);
+ if (!slotsEl) return;
+
+ // Toggle visibility
+ if (slotsEl.classList.contains('show')) {
+ slotsEl.classList.remove('show');
+ return;
+ }
+
+ // Generate mock slots based on event
+ const slots = [
+ { slot:'Sunday, Jun 7 · 9:00–11:00 AM', reason:'Best deep-work window. No transit. Home all morning.', best:true },
+ { slot:'Monday, Jun 8 · 7:00–9:00 AM', reason:'Early start. Protected time before meetings kick in.', best:false },
+ { slot:'Monday, Jun 8 · 4:00–5:30 PM', reason:'Post-meeting slot. Light cognitive load is fine.', best:false }
+ ];
+
+ slotsEl.innerHTML = slots.map((s, i) =>
+ '<div class="suggest-slot'+(s.best?' best':'')+'" onclick="event.stopPropagation();moveBestSlot(this)">'+
+ '<div class="ss-row">'+
+ '<input class="ss-time-input" id="rs-input-'+eventId+'-'+i+'" value="'+(s.best?'Best · ':'')+s.slot+'" onfocus="this.select();moveBestSlot(this)">'+
+ '<button class="ss-confirm-btn" onclick="event.stopPropagation();pickRescheduleSlot(\''+eventId+'\','+i+')" title="Confirm"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+ '</div>'+
+ '<div class="ss-reason">'+s.reason+'</div></div>'
+ ).join('');
+
+ slotsEl.classList.add('show');
+}
+
+function pickRescheduleSlot(eventId, idx) {
+ const result = findEventById(eventId);
+ if (!result) return;
+
+ // Read edited time from input
+ const input = document.getElementById('rs-input-'+eventId+'-'+idx);
+ const slot = input ? input.value.replace(/^Best · /, '') : '';
+
+ // Hide slots
+ const slotsEl = document.getElementById('rs-slots-'+eventId);
+ if (slotsEl) slotsEl.classList.remove('show');
+
+ // Fade out the reschedule button area
+ const section = slotsEl.closest('.reschedule-section');
+ if (section) {
+ section.style.opacity = '0.4';
+ section.style.pointerEvents = 'none';
+ section.style.transition = 'opacity 0.3s';
+ }
+
+ showToast(' Rescheduled: ' + result.event.title + ' → ' + slot.split(' · ')[1]?.trim());
+}
+
+// ====== VOICE EDIT EVENT ======
+function startVoiceEdit(eventId) {
+ const result = findEventById(eventId);
+ if (!result) return;
+ const e = result.event;
+
+ // Find the mic button and animate
+ const card = document.querySelector('[data-event-id="'+eventId+'"]');
+ const micBtn = card ? card.querySelector('.ea-mic') : null;
+ if (micBtn) micBtn.classList.add('listening');
+
+ // Simulate voice recognition
+ setTimeout(() => {
+ if (micBtn) {
+ micBtn.classList.remove('listening');
+ micBtn.style.color = 'var(--ios-blue)';
+ setTimeout(() => { micBtn.style.color = ''; }, 600);
+ }
+
+ // Mock: AI parses voice and updates event fields
+ const voiceChanges = [
+ { startTime:'09:00', endTime:'10:00', title:'NEUR.ON Q3 Roadmap · extended review' },
+ { startTime:e.startTime, endTime:e.endTime, title:e.title.replace('Draft','Final Draft') },
+ { startTime:'15:00', endTime:'15:45', title:e.title+' · moved to afternoon' },
+ ];
+ const c = voiceChanges[Math.floor(Math.random() * voiceChanges.length)];
+
+ if (c.startTime) e.startTime = c.startTime;
+ if (c.endTime) e.endTime = c.endTime;
+ if (c.title) e.title = c.title;
+ e.time = (e.startTime||'') + ' – ' + (e.endTime||'');
+
+ // Update card DOM
+ if (card) {
+ const isPast = card.dataset.isPast === 'true';
+ const showEdit = card.dataset.showEdit === 'true';
+ const isCompact = card.querySelector('.e-meta') !== null || card.querySelector('.e-tag-inline') !== null;
+ const timeEl = card.querySelector('.e-time');
+ if (timeEl) timeEl.textContent = e.startTime || '';
+ const durEl = card.querySelector('.e-duration');
+ if (durEl) durEl.textContent = '– ' + (e.endTime || '');
+ const titleCardEl = card.querySelector('.e-title');
+ if (titleCardEl) titleCardEl.textContent = getDisplayTitle(e, isCompact);
+ const metaEl = card.querySelector('.e-meta');
+ if (metaEl) {
+ const newMeta = renderCompactMeta(e);
+ if (newMeta) metaEl.textContent = newMeta;
+ else metaEl.remove();
+ }
+ const tagsEl = card.querySelector('.e-tags');
+ if (tagsEl) tagsEl.innerHTML = renderEventTags(e);
+ const expandEl = card.querySelector('.e-expand');
+ if (expandEl) expandEl.innerHTML = renderEventExpand(e, {isPast, showEdit});
+ }
+
+ // Re-render cal dots
+ renderCal();
+
+ // Flash card
+ if (card) {
+ card.style.transition = 'background 0.2s';
+ card.style.background = 'var(--ios-blue-bg)';
+ setTimeout(() => { card.style.background = ''; }, 400);
+ }
+
+ showToast(' Updated via voice: ' + e.title);
+ }, 1200);
+}
+
+// ====== EDIT EVENT ======
+function startEditEvent(eventId) {
+ const result = findEventById(eventId);
+ if (!result) return;
+ const e = result.event;
+
+ const formEl = document.getElementById('edit-form-'+eventId);
+ if (!formEl) return;
+
+ // Toggle visibility
+ if (formEl.classList.contains('show')) {
+ formEl.classList.remove('show');
+ return;
+ }
+
+ // Expand the card so the form is visible
+ const card = document.querySelector('[data-event-id="'+eventId+'"]');
+ if (card) {
+ const ex = card.querySelector('.e-expand');
+ if (ex && !ex.classList.contains('show')) ex.classList.add('show');
+ }
+
+ // Close all other edit forms first
+ document.querySelectorAll('.edit-form.show').forEach(f => f.classList.remove('show'));
+
+ const types = ['deep','online','social','busy','transit'];
+ const transitModes = ['','train','tram','walk','car','bus'];
+
+ formEl.innerHTML =
+ '<div class="edit-field"><label>Title</label><input id="edit-title-'+eventId+'" value="'+e.title.replace(/"/g,'&quot;')+'"></div>'+
+ '<div class="edit-row">'+
+ '<div class="edit-field"><label>Start</label><input id="edit-start-'+eventId+'" value="'+(e.startTime||'')+'" type="time"></div>'+
+ '<div class="edit-field"><label>End</label><input id="edit-end-'+eventId+'" value="'+(e.endTime||'')+'" type="time"></div>'+
+ '</div>'+
+ '<div class="edit-field"><label>Location</label><input id="edit-loc-'+eventId+'" value="'+(e.locationShort||'').replace(/"/g,'&quot;')+'"></div>'+
+ '<div class="edit-row">'+
+ '<div class="edit-field"><label>Type</label><select id="edit-type-'+eventId+'">'+types.map(t=>'<option value="'+t+'"'+(e.type===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
+ '<div class="edit-field"><label>Transit</label><select id="edit-transit-'+eventId+'">'+transitModes.map(t=>'<option value="'+t+'"'+((e.transitMode||'')===t?' selected':'')+'>'+(t||'none')+'</option>').join('')+'</select></div>'+
+ '</div>'+
+ '<div class="edit-row">'+
+ '<div class="edit-field"><label>Follow-up?</label><select id="edit-fu-'+eventId+'"><option value="yes"'+(e.followUpNeeded?' selected':'')+'>Yes</option><option value="no"'+(e.followUpNeeded?'':' selected')+'>No</option></select></div>'+
+ '<div class="edit-field"><label>Deadline</label><input id="edit-fuDate-'+eventId+'" value="'+(e.followUpBy||'')+'" type="date"></div>'+
+ '</div>'+
+ '<div class="edit-actions">'+
+ '<button class="save" onclick="event.stopPropagation();saveEventEdit(\''+eventId+'\')">Save</button>'+
+ '<button class="cancel" onclick="event.stopPropagation();cancelEdit(\''+eventId+'\')">Cancel</button>'+
+ '</div>';
+
+ formEl.classList.add('show');
+}
+
+function saveEventEdit(eventId) {
+ const result = findEventById(eventId);
+ if (!result) return;
+ const e = result.event;
+
+ // Read form values
+ const titleEl = document.getElementById('edit-title-'+eventId);
+ const startEl = document.getElementById('edit-start-'+eventId);
+ const endEl = document.getElementById('edit-end-'+eventId);
+ const locEl = document.getElementById('edit-loc-'+eventId);
+ const typeEl = document.getElementById('edit-type-'+eventId);
+ const transitEl = document.getElementById('edit-transit-'+eventId);
+ const fuEl = document.getElementById('edit-fu-'+eventId);
+ const fuDateEl = document.getElementById('edit-fuDate-'+eventId);
+
+ if (titleEl) e.title = titleEl.value;
+ if (startEl) e.startTime = startEl.value;
+ if (endEl) e.endTime = endEl.value;
+ if (locEl) e.locationShort = locEl.value;
+ if (typeEl) e.type = typeEl.value;
+ if (transitEl) e.transitMode = transitEl.value || null;
+ if (fuEl) e.followUpNeeded = fuEl.value === 'yes';
+ if (fuDateEl) e.followUpBy = fuDateEl.value || null;
+
+ // Rebuild time display
+ e.time = (e.startTime||'') + ' – ' + (e.endTime||'');
+
+ // Re-render the card
+ const card = document.querySelector('[data-event-id="'+eventId+'"]');
+ if (card) {
+ const isPast = card.dataset.isPast === 'true';
+ const showEdit = card.dataset.showEdit === 'true';
+ const isCompact = card.querySelector('.e-meta') !== null || card.querySelector('.e-tag-inline') !== null;
+ // Update DOM directly for immediate feedback
+ const timeEl = card.querySelector('.e-time');
+ if (timeEl) timeEl.textContent = e.startTime || '';
+ const durEl = card.querySelector('.e-duration');
+ if (durEl) durEl.textContent = '– ' + (e.endTime || '');
+ const titleCardEl = card.querySelector('.e-title');
+ if (titleCardEl) titleCardEl.textContent = getDisplayTitle(e, isCompact);
+ // Update compact meta or full tags
+ const metaEl = card.querySelector('.e-meta');
+ if (metaEl) {
+ const newMeta = renderCompactMeta(e);
+ if (newMeta) metaEl.textContent = newMeta;
+ else metaEl.remove();
+ }
+ const tagsEl = card.querySelector('.e-tags');
+ if (tagsEl) tagsEl.innerHTML = renderEventTags(e);
+ const expandEl = card.querySelector('.e-expand');
+ if (expandEl) expandEl.innerHTML = renderEventExpand(e, {isPast, showEdit});
+ }
+
+ // Hide form
+ const formEl = document.getElementById('edit-form-'+eventId);
+ if (formEl) formEl.classList.remove('show');
+
+ // Re-render calendar dots
+ renderCal();
+
+ // Re-render Today page if active (to sync any changes)
+ if (document.getElementById('page-today').classList.contains('active')) {
+ renderTodayPage();
+ }
+
+ showToast(' Saved: ' + e.title);
+}
+
+function cancelEdit(eventId) {
+ const formEl = document.getElementById('edit-form-'+eventId);
+ if (formEl) formEl.classList.remove('show');
+}
+
+// ====== COMPLETION TRACKING ======
+function markComplete(eventId, status) {
+ completionDB[eventId] = status;
+
+ // Update the event card + visual state
+ const card = document.querySelector('[data-event-id="'+eventId+'"]');
+ if (card) {
+ // Update visual state class
+ card.classList.remove('completed','not-completed','unmarked-past');
+ if (card.dataset.isPast === 'true') {
+ if (status === true) card.classList.add('completed');
+ else if (status === false) card.classList.add('not-completed');
+ }
+ // Update expand content
+ const isPast = card.dataset.isPast === 'true';
+ const showEdit = card.dataset.showEdit === 'true';
+ const result = findEventById(eventId);
+ const expand = card.querySelector('.e-expand');
+ if (expand && result) {
+ expand.innerHTML = renderEventExpand(result.event, {isPast, showEdit, showCompletion: false});
+ }
+ }
+
+ // Re-render briefing
+ const briefingEl = document.getElementById('dailyBriefing');
+ if (briefingEl) {
+ briefingEl.outerHTML = renderDailyBriefing();
+ }
+
+ const verb = status ? 'marked as done' : 'marked as not done';
+ showToast(' ' + verb);
+}
+
+function markCompleteFromBriefing(eventId, status) {
+ markComplete(eventId, status);
+}
+
+function rescheduleFromBriefing(eventId) {
+ // Find the event card and scroll to it, then trigger reschedule
+ const card = document.querySelector('[data-event-id="'+eventId+'"]');
+ if (card) {
+ // Expand the card
+ toggleExpand(card);
+ card.scrollIntoView({behavior:'smooth',block:'center'});
+ // Trigger reschedule after a short delay for expand animation
+ setTimeout(() => rescheduleEvent(eventId), 400);
+ }
+}
+
+
+// ====== DAILY BRIEFING ======
+function renderDailyBriefing() {
+ const today = getTodayDate();
+ const key = '2026-6';
+ const simNow = '11:00';
+
+ // Gather all past events (all days before today + today's past events)
+ const allPastEvents = [];
+ const monthData = eventsDB[key] || {};
+
+ for (const dayKey of Object.keys(monthData)) {
+ const day = parseInt(dayKey);
+ const evts = monthData[day];
+ evts.forEach(e => {
+ const eventTime = e.startTime || '';
+ const isPast = day < today || (day === today && eventTime < simNow);
+ if (isPast && ['deep','busy','online'].includes(e.type)) {
+ allPastEvents.push({event:e, day});
+ }
+ });
+ }
+
+ const comp = getCompletion;
+ const done = allPastEvents.filter(x => comp(x.event) === true).length;
+ const notDone = allPastEvents.filter(x => comp(x.event) === false);
+ const unmarked = allPastEvents.filter(x => comp(x.event) === null);
+ const total = allPastEvents.length;
+
+ // Today's time stats (from today's events)
+ const todayEvents = (monthData[today] || []);
+ const timeByType = {};
+ todayEvents.forEach(e => {
+ const t = e.type || 'busy';
+ timeByType[t] = (timeByType[t] || 0) + parseDurationHours(e.duration);
+ });
+
+ let html = '<div class="briefing-card anim-in" id="dailyBriefing">';
+ html += '<div class="br-title">Daily Briefing<span class="br-date">Saturday, June 6</span></div>';
+
+ // Completion summary
+ html += '<div class="br-section">';
+ html += '<div class="br-label green">Completed ('+done+'/'+total+')</div>';
+ html += '</div>';
+
+ // ═══ NEEDS ATTENTION · unmarked past events ═══
+ if (unmarked.length > 0) {
+ html += '<div class="br-section">';
+ html += '<div class="br-label amber" style="margin-bottom:6px;">Needs Attention ('+unmarked.length+')</div>';
+ unmarked.forEach(x => {
+ const evDate = new Date(2026,5,x.day).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+ html += '<div class="br-action-row" id="br-row-'+x.event.id+'">'+
+ '<div class="br-ev-title">'+x.event.title+' <span style="font-size:10px;opacity:0.35;">'+evDate+'</span></div>'+
+ '<button class="br-mini-btn done" onclick="event.stopPropagation();markCompleteFromBriefing(\''+x.event.id+'\',true)">Done</button>'+
+ '<button class="br-mini-btn notdone" onclick="event.stopPropagation();markCompleteFromBriefing(\''+x.event.id+'\',false)">Not Done</button>'+
+ (['deep','busy','online'].includes(x.event.type)
+ ? '<button class="br-mini-btn reschedule" onclick="event.stopPropagation();rescheduleFromBriefing(\''+x.event.id+'\')">Reschedule</button>'
+ : '')+
+ '</div>';
+ });
+ html += '</div>';
+ }
+
+ if (notDone.length > 0) {
+ html += '<div class="br-section">';
+ html += '<div class="br-label red">Not Completed ('+notDone.length+')</div>';
+ notDone.forEach(x => {
+ const evDate = new Date(2026,5,x.day).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+ html += '<div class="br-item"> '+x.event.title+' <span style="font-size:11px;color:rgba(255,255,255,0.35);"> · from '+evDate+'</span></div>';
+ });
+ html += '</div>';
+ }
+
+ // Time stats
+ html += '<div class="br-stat-row">';
+ const typeLabels = {deep:'Deep',busy:'Meetings',online:'Online',social:'Social',transit:'Transit'};
+ for (const [type, label] of Object.entries(typeLabels)) {
+ const hrs = timeByType[type] || 0;
+ if (hrs > 0) {
+ html += '<div class="br-stat"><div class="br-stat-val">'+hrs+'h</div><div class="br-stat-label">'+label+'</div></div>';
+ }
+ }
+ html += '</div>';
+
+ html += '</div>';
+ return html;
+}
+
+// ====== ANALYTICS ======
+function renderAnalyticsPage() {
+ const content = document.getElementById('analyticsContent');
+ if (!content) return;
+
+ // Mock weekly data
+ const weeklyStats = [
+ {type:'Deep Work', hrs:18, pct:38, cls:'deep'},
+ {type:'Meetings', hrs:13, pct:28, cls:'busy'},
+ {type:'Transit', hrs:8.5, pct:18, cls:'transit'},
+ {type:'Social', hrs:5.5, pct:12, cls:'social'},
+ {type:'Buffer', hrs:2, pct:4, cls:'buffer'}
+ ];
+
+ let html = '';
+
+ // Time Distribution
+ html += '<div class="analytics-card anim-in">';
+ html += '<div class="an-title">Time Distribution · This Week</div>';
+ weeklyStats.forEach(s => {
+ html += '<div class="analytics-bar-row">'+
+ '<span class="an-label">'+s.type+'</span>'+
+ '<div class="an-bar-wrap"><div class="an-bar '+s.cls+'" style="width:'+s.pct+'%"></div></div>'+
+ '<span class="an-pct">'+s.pct+'% <span style="font-weight:400;color:var(--ios-secondary);">('+s.hrs+'h)</span></span>'+
+ '</div>';
+ });
+ html += '<div style="font-size:11px;color:var(--ios-secondary);margin-top:6px;">Total: 47h tracked</div>';
+ html += '</div>';
+
+ // Completion Rate
+ html += '<div class="analytics-card anim-in">';
+ html += '<div class="an-title">Completion Rate</div>';
+ html += '<div class="analytics-metric"><span class="am-label">This week</span><span class="am-val">78% <span class="analytics-pill up">↑ 13% vs last</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Mon</span><span class="am-val">2/2 <span class="am-sub">100%</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Tue</span><span class="am-val">2/2 <span class="am-sub">100%</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Wed</span><span class="am-val">4/4 <span class="am-sub">100%</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Thu</span><span class="am-val">3/4 <span class="am-sub">75%</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Fri</span><span class="am-val">3/4 <span class="am-sub">75%</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Today (so far)</span><span class="am-val">2/2 <span class="am-sub">100%</span></span></div>';
+ html += '</div>';
+
+ // Follow-up Health
+ let pendingCount = 0, overdueCount = 0;
+ for (const mk of Object.keys(eventsDB)) {
+ for (const dk of Object.keys(eventsDB[mk])) {
+ eventsDB[mk][dk].forEach(e => {
+ if (e.followUpNeeded && e.followUpStatus === 'pending') {
+ pendingCount++;
+ if (e.followUpBy && e.followUpBy < '2026-06-07') overdueCount++;
+ }
+ });
+ }
+ }
+ html += '<div class="analytics-card anim-in">';
+ html += '<div class="an-title">Follow-up Health</div>';
+ html += '<div class="analytics-metric"><span class="am-label">Pending</span><span class="am-val">'+pendingCount+'</span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Overdue</span><span class="am-val" style="color:var(--ios-red);">'+overdueCount+' <span class="analytics-pill warn">Action needed</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Avg response time</span><span class="am-val">2.3 days</span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Completed this week</span><span class="am-val">2</span></div>';
+ html += '</div>';
+
+ // Transit Efficiency
+ html += '<div class="analytics-card anim-in">';
+ html += '<div class="an-title">Transit Efficiency</div>';
+ html += '<div class="analytics-metric"><span class="am-label">Total transit time</span><span class="am-val">8.5h</span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Workable (train)</span><span class="am-val" style="color:var(--ios-green);">5.5h <span class="am-sub">65%</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Unavailable (walk/car)</span><span class="am-val" style="color:var(--ios-red);">3h <span class="am-sub">35%</span></span></div>';
+ html += '<div style="font-size:12px;color:var(--ios-secondary);margin-top:8px;">65% of your transit time is productive, above average. Consider shifting one walk leg to train for more.</div>';
+ html += '</div>';
+
+ content.innerHTML = html;
+}
+
+// ====== INIT ======
+function updateStatusTime() {
+ const now = new Date();
+ document.getElementById('statusTime').textContent =
+ now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:false});
+}
+updateStatusTime(); setInterval(updateStatusTime, 30000);
+renderCal();
+renderTodayPage();
+
+// Pending card click delegation · registered ONCE
+document.getElementById('todayContent').addEventListener('click', function(e) {
+ const card = e.target.closest('.pending-card');
+ if (!card || e.target.closest('.suggest-slot')) return;
+ const suggest = card.querySelector('.pending-suggest');
+ const actions = card.querySelector('.pending-actions');
+ if (suggest) {
+ document.querySelectorAll('.pending-suggest').forEach(s => { if (s !== suggest) s.style.display = 'none'; });
+ const expanding = suggest.style.display !== 'block';
+ suggest.style.display = expanding ? 'block' : 'none';
+ if (actions) actions.style.display = expanding ? 'flex' : 'none';
+ document.querySelectorAll('.pending-actions').forEach(a => { if (a !== actions) a.style.display = 'none'; });
+ }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+ if (e.key==='Escape') closeCapture();
+});
+</script>
+</body>
+</html>
