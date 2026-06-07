@@ -504,6 +504,67 @@
  }
  .onboard-dot.active { background: var(--ios-blue); width: 20px; border-radius: 4px; }
 
+ /* ── Conflict Detection (3A) ── */
+ .conflict-section {
+ background: #FFF5F5; border: 1px solid #FFD0D0; border-radius: var(--radius-lg);
+ padding: 16px; margin-bottom: 14px;
+ }
+ .conflict-header {
+ font-size: 14px; font-weight: 700; color: var(--ios-red);
+ display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+ }
+ .conflict-existing {
+ background: #fff; border: 1px solid #FFD0D0; border-radius: 10px;
+ padding: 12px 14px; margin-bottom: 12px; display: flex; gap: 10px;
+ }
+ .conflict-existing .ce-bar {
+ width: 3px; border-radius: 2px; background: var(--ios-red); flex-shrink: 0;
+ }
+ .conflict-existing .ce-time { font-size: 12px; color: var(--ios-red); font-weight: 600; }
+ .conflict-existing .ce-title { font-size: 14px; font-weight: 500; color: var(--ios-text); }
+ .conflict-existing .ce-meta { font-size: 12px; color: var(--ios-secondary); margin-top: 2px; }
+ .conflict-solutions { display: flex; flex-direction: column; gap: 8px; }
+ .cs-card {
+ background: #fff; border: 1px solid var(--ios-separator); border-radius: 10px;
+ padding: 12px 14px; cursor: pointer; transition: all 0.15s;
+ display: flex; align-items: flex-start; gap: 10px;
+ }
+ .cs-card:active { background: #f5f5f7; }
+ .cs-card.best { border-color: var(--ios-green); background: #f8fdf8; }
+ .cs-rank {
+ width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+ display: flex; align-items: center; justify-content: center;
+ font-size: 12px; font-weight: 700; color: #fff;
+ }
+ .cs-rank.gold { background: var(--ios-orange); }
+ .cs-rank.silver { background: #8E8E93; }
+ .cs-rank.bronze { background: #C7C7CC; color: var(--ios-text); }
+ .cs-body { flex: 1; }
+ .cs-time { font-size: 13px; font-weight: 600; color: var(--ios-text); }
+ .cs-reason { font-size: 12px; color: var(--ios-secondary); margin-top: 3px; line-height: 1.4; }
+ .cs-action {
+ margin-top: 6px; font-size: 13px; font-weight: 500; color: var(--ios-blue);
+ display: flex; align-items: center; gap: 4px;
+ }
+
+ /* ── Downstream shift preview ── */
+ .shift-preview {
+ background: #FFF9E6; border: 1px solid #FFE5A0; border-radius: 10px;
+ padding: 12px 14px; margin-top: 10px; font-size: 13px;
+ }
+ .shift-title {
+ font-weight: 600; color: #B87800; display: flex; align-items: center; gap: 6px;
+ margin-bottom: 8px;
+ }
+ .shift-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+ .shift-from {
+ font-size: 12px; color: var(--ios-secondary); text-decoration: line-through;
+ width: 100px; flex-shrink: 0;
+ }
+ .shift-arrow { color: var(--ios-secondary); flex-shrink: 0; }
+ .shift-to { font-size: 12px; font-weight: 500; color: var(--ios-text); width: 100px; }
+ .shift-name { font-size: 12px; color: var(--ios-text); }
+
  /* Coordinate page */
  .coord-prompt {
  background: var(--ios-card); border-radius: var(--radius-lg);
@@ -1340,14 +1401,14 @@
  <div style="font-size:17px;font-weight:600;margin-bottom:4px;">Agent understood</div>
  <div class="parsed-block">
  <div class="p-raw" id="parseRawText">
- "Next Wednesday <span class="hl-time">2:00–3:00 PM</span> meet
+ "Monday morning <span class="hl-time">10:00–11:00 AM</span> meet
  <span class="hl-person">Michael</span> at
  <span class="hl-place">Bahnhofstrasse, Zurich</span>"
  </div>
  <div style="font-size:12px;font-weight:600;color:var(--ios-secondary);margin:10px 0 6px;">Confirmed</div>
  <div class="parsed-fields" id="parseFields">
- <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">Wed, Jun 10</span></div>
- <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-time"/></svg><span class="pf-val">2:00 – 3:00 PM</span></div>
+ <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">Mon, Jun 8</span></div>
+ <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-time"/></svg><span class="pf-val">10:00 – 11:00 AM</span></div>
  <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-location"/></svg><span class="pf-val">Bahnhofstrasse</span></div>
  <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-person"/></svg><span class="pf-val">Michael</span></div>
  <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-type"/></svg><span class="pf-val">In-person meeting</span></div>
@@ -1384,6 +1445,23 @@
  </div>
  </div>
  <button class="ios-btn primary" style="margin-top:12px;" onclick="closeCapture()">Done</button>
+ </div>
+
+ <div id="captureStepConflict" style="display:none;">
+ <div class="conflict-section">
+  <div class="conflict-header">
+  <svg width="18" height="18"><use href="#icon-dismiss-sm"/></svg>
+  Time Conflict Detected
+  </div>
+  <div style="font-size:14px;font-weight:500;margin-bottom:10px;" id="conflictNewEventLabel"></div>
+  <div id="conflictExistingCard"></div>
+  <div class="conflict-solutions" id="conflictSolutions"></div>
+  <div id="shiftPreview"></div>
+ </div>
+ <div style="display:flex;gap:8px;margin-top:12px;">
+  <button class="ios-btn outline" style="flex:1;" onclick="skipConflict()">Keep anyway</button>
+  <button class="ios-btn primary" style="flex:1;" id="conflictConfirmBtn" onclick="applyConflictResolution()" disabled>Choose a solution</button>
+ </div>
  </div>
  </div>
 </div>
@@ -1460,6 +1538,7 @@ function startCapture() {
  document.getElementById('captureStepScreenshot').style.display = 'none';
  document.getElementById('captureStep1').style.display = 'none';
  document.getElementById('captureStep2').style.display = 'none';
+ document.getElementById('captureStepConflict').style.display = 'none';
  capState = { captureMode: 'voice' };
 
  // If user was viewing a specific calendar day, show context
@@ -1485,6 +1564,7 @@ function simulateCapture() {
  document.getElementById('captureStep0').style.display = 'none';
  document.getElementById('captureStep1').style.display = 'block';
  document.getElementById('captureStep2').style.display = 'none';
+ document.getElementById('captureStepConflict').style.display = 'none';
  capState = {};
 
  // Use calendar context if a day is selected
@@ -1502,7 +1582,7 @@ function simulateCapture() {
  if (raw) raw.innerHTML = '"Meet <span class="hl-person">someone</span> at <span class="hl-place">[location]</span> on <span class="hl-time">' + dateStr + '</span>"';
  } else {
  // Default: next Wednesday
- capState.date = 'Wed, Jun 10';
+ capState.date = 'Mon, Jun 8';
  }
 
  updateParseState();
@@ -1520,6 +1600,7 @@ function closeCapture() {
  document.getElementById('captureStepScreenshot').style.display = 'none';
  document.getElementById('captureStep1').style.display = 'none';
  document.getElementById('captureStep2').style.display = 'none';
+ document.getElementById('captureStepConflict').style.display = 'none';
 }
 
 // ====== SCREENSHOT CAPTURE ======
@@ -1537,6 +1618,7 @@ function handleScreenshotSelect(event) {
  document.getElementById('captureStepScreenshot').style.display = 'block';
  document.getElementById('captureStep1').style.display = 'none';
  document.getElementById('captureStep2').style.display = 'none';
+ document.getElementById('captureStepConflict').style.display = 'none';
  capState = { captureMode: 'screenshot' };
 
  // Read file as data URL for preview
@@ -1571,6 +1653,7 @@ function simulateScreenshotAnalysis() {
  document.getElementById('captureStep0').style.display = 'none';
  document.getElementById('captureStep1').style.display = 'block';
  document.getElementById('captureStep2').style.display = 'none';
+ document.getElementById('captureStepConflict').style.display = 'none';
 
  // Mock: WhatsApp chat screenshot → extract event
  // Show chat source context
@@ -1581,14 +1664,14 @@ function simulateScreenshotAnalysis() {
 
  // Fill parsed fields (confirmed only, 5 fields)
  document.getElementById('parseFields').innerHTML =
- '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">Wed, Jun 10</span></div>'+
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">Mon, Jun 8</span></div>'+
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-time"/></svg><span class="pf-val">3:00 – 3:30 PM</span></div>'+
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-location"/></svg><span class="pf-val">Uni Zürich Café</span></div>'+
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-person"/></svg><span class="pf-val">Marie (SLTA President)</span></div>'+
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-type"/></svg><span class="pf-val">Coffee meeting</span></div>'+
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-source"/></svg><span class="pf-val">From WhatsApp chat</span></div>';
 
- capState.date = 'Wed, Jun 10';
+ capState.date = 'Mon, Jun 8';
  capState.captureMode = 'screenshot';
  capState.origin = null;
  capState.transit = null;
@@ -1685,9 +1768,354 @@ function suggestClassification() {
  });
 }
 
-function confirmParse() {
+// ═══════════════════════════════════════
+// CONFLICT DETECTION & RESOLUTION (3A)
+// ═══════════════════════════════════════
+
+function parseDateStr(dateStr) {
+ // "Wed, Jun 10" → {month:6, day:10}
+ const months = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+ const m = dateStr.match(/([A-Z][a-z]{2})\s+(\d+)/);
+ if (!m) return null;
+ return { month: months[m[1]], day: parseInt(m[2]) };
+}
+
+function parseTimeStr(timeStr) {
+ // "2:00 – 3:00 PM" or "2:00 PM" → {startTime:"14:00", endTime:"15:00"}
+ // Handle both range and single time
+ const clean = timeStr.trim();
+ const rangeMatch = clean.match(/(\d+):(\d+)\s*(?:–|—|-|to)\s*(\d+):(\d+)\s*(AM|PM|am|pm)?/i);
+ if (rangeMatch) {
+  const sh = parseInt(rangeMatch[1]), sm = rangeMatch[2];
+  const eh = parseInt(rangeMatch[3]), em = rangeMatch[4];
+  const ampm = rangeMatch[5];
+  return {
+   startTime: fmt24(sh, sm, ampm),
+   endTime: fmt24(eh, em, ampm)
+  };
+ }
+ const singleMatch = clean.match(/(\d+):(\d+)\s*(AM|PM|am|pm)?/i);
+ if (singleMatch) {
+  const h = parseInt(singleMatch[1]), m2 = singleMatch[2];
+  const ampm2 = singleMatch[3];
+  const t = fmt24(h, m2, ampm2);
+  return { startTime: t, endTime: t };
+ }
+ return null;
+ function fmt24(h, m, ampm) {
+  if (!ampm) return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  const isPM = /pm/i.test(ampm);
+  let h24 = h;
+  if (isPM && h !== 12) h24 = h + 12;
+  if (!isPM && h === 12) h24 = 0;
+  return String(h24).padStart(2,'0')+':'+String(m).padStart(2,'0');
+ }
+}
+
+function buildEventFromCapState() {
+ // Build an event object from the capture state
+ const timeStrEl = document.querySelector('#parseFields .parsed-field:nth-child(2) .pf-val');
+ const locStrEl = document.querySelector('#parseFields .parsed-field:nth-child(3) .pf-val');
+ const personEl = document.querySelector('#parseFields .parsed-field:nth-child(4) .pf-val');
+ const typeEl = document.querySelector('#parseFields .parsed-field:nth-child(5) .pf-val');
+
+ const timeStr = timeStrEl ? timeStrEl.textContent : '12:00 – 12:30 PM';
+ const locStr = locStrEl ? locStrEl.textContent : '';
+ const person = personEl ? personEl.textContent : '';
+ const typeStr = typeEl ? typeEl.textContent : 'Meeting';
+ const title = person ? 'Meet ' + person : (typeStr || 'New Event');
+
+ const parsed = parseTimeStr(timeStr);
+ const startTime = parsed ? parsed.startTime : '12:00';
+ const endTime = parsed ? parsed.endTime : '12:30';
+
+ // Duration in minutes
+ const sMin = parseInt(startTime.split(':')[0])*60 + parseInt(startTime.split(':')[1]);
+ const eMin = parseInt(endTime.split(':')[0])*60 + parseInt(endTime.split(':')[1]);
+ const durMin = eMin - sMin;
+ const durH = Math.floor(durMin/60);
+ const durM = durMin % 60;
+ const durStr = (durH>0?durH+'h ':'')+(durM>0?durM+'m':'');
+
+ // Map type string to t value
+ const typeMap = {
+  'in-person meeting':'busy', 'coffee meeting':'social', 'online meeting':'online',
+  'deep work':'deep', 'transit':'transit', 'social':'social'
+ };
+ let t = 'busy';
+ const typeLower = typeStr.toLowerCase();
+ for (const [k,v] of Object.entries(typeMap)) {
+  if (typeLower.includes(k)) { t = v; break; }
+ }
+
+ const evId = 'C' + Date.now();
+ return {
+  id: evId,
+  t: t,
+  type: t,
+  title: title,
+  time: startTime.replace(':00','')+'–'+endTime.replace(':00','')+' '+durStr.trim(),
+  startTime: startTime,
+  endTime: endTime,
+  duration: durStr.trim(),
+  loc: locStr,
+  locationShort: locStr,
+  participants: person ? [person] : [],
+  transitMode: capState.transit ? capState.transit.toLowerCase() : null,
+  transitDuration: null,
+  transitWorkable: capState.transit === 'Train',
+  bufferBefore: 0,
+  bufferAfter: 0,
+  context: '',
+  agentNote: '',
+  dressCode: null,
+  returnInfo: null,
+  followUpNeeded: false,
+  followUpBy: null,
+  followUpStatus: 'pending',
+  followUpNote: '',
+  completed: false
+ };
+}
+
+function detectConflicts(monthKey, dayNum, startTime, endTime) {
+ const existing = (eventsDB[monthKey]||{})[dayNum]||[];
+ const sMin = parseInt(startTime.split(':')[0])*60 + parseInt(startTime.split(':')[1]);
+ const eMin = parseInt(endTime.split(':')[0])*60 + parseInt(endTime.split(':')[1]);
+ return existing.filter(e => {
+  const es = parseInt((e.startTime||'').split(':')[0])*60 + parseInt((e.startTime||'').split(':')[1]);
+  const ee = parseInt((e.endTime||'').split(':')[0])*60 + parseInt((e.endTime||'').split(':')[1]);
+  return sMin < ee && eMin > es; // overlap
+ });
+}
+
+function findConflictAlternatives(conflict, allEvents, durMin, monthKey, dayNum) {
+ const es = parseInt(conflict.startTime.split(':')[0])*60 + parseInt(conflict.startTime.split(':')[1]);
+ const ee = parseInt(conflict.endTime.split(':')[0])*60 + parseInt(conflict.endTime.split(':')[1]);
+
+ // Collect all busy intervals for the day
+ const busy = allEvents.map(e => ({
+  s: parseInt(e.startTime.split(':')[0])*60 + parseInt(e.startTime.split(':')[1]),
+  e: parseInt(e.endTime.split(':')[0])*60 + parseInt(e.endTime.split(':')[1])
+ })).sort((a,b) => a.s - b.s);
+
+ // Find free slot before the conflict
+ const beforeEnd = es;
+ let beforeStart = beforeEnd - durMin;
+ // Check if before slot is free
+ let beforeOk = beforeStart >= 0;
+ for (const b of busy) {
+  if (beforeStart < b.e && beforeEnd > b.s) { beforeOk = false; break; }
+ }
+
+ // Find free slot after the conflict
+ const afterStart = ee;
+ let afterEnd = afterStart + durMin;
+ let afterOk = afterEnd <= 24*60; // must be within the day
+ for (const b of busy) {
+  if (afterStart < b.e && afterEnd > b.s) { afterOk = false; break; }
+ }
+
+ const result = [];
+ if (beforeOk) {
+  result.push({
+   rank: 1, label: 'Before the conflict',
+   time: minToTimeStr(beforeStart)+' – '+minToTimeStr(beforeEnd),
+   reason: 'Window before '+conflict.title+'. Quick meet if kept tight.',
+   type: 'before',
+   newStart: minToTimeStr(beforeStart),
+   newEnd: minToTimeStr(beforeEnd)
+  });
+ }
+ if (afterOk) {
+  result.push({
+   rank: beforeOk ? 2 : 1, label: 'After the conflict',
+   time: minToTimeStr(afterStart)+' – '+minToTimeStr(afterEnd),
+   reason: 'Buffer after '+conflict.title+' ends. Good for focused follow-up.',
+   type: 'after',
+   newStart: minToTimeStr(afterStart),
+   newEnd: minToTimeStr(afterEnd)
+  });
+ }
+ // Negotiation always available
+ result.push({
+  rank: result.length + 1, label: 'Negotiate',
+  time: 'Find another time',
+  reason: 'Let the Agent negotiate with '+ (conflict.participants?.[0] || 'the other person') +' for a time that works for both.',
+  type: 'negotiate',
+  newStart: null, newEnd: null
+ });
+ return result;
+ function minToTimeStr(m) { return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+}
+
+let pendingConflictEvent = null;
+let pendingConflictResolutions = null;
+let chosenResolution = null;
+
+function showConflictStep(event, conflicts) {
+ pendingConflictEvent = event;
  document.getElementById('captureStep1').style.display = 'none';
+ document.getElementById('captureStepConflict').style.display = 'block';
+
+ // New event label
+ const labelEl = document.getElementById('conflictNewEventLabel');
+ labelEl.textContent = '"'+event.title+'" · '+event.time;
+
+ // Conflict card
+ const c = conflicts[0]; // show first (usually only one) conflict
+ const cardEl = document.getElementById('conflictExistingCard');
+ cardEl.innerHTML = '<div class="conflict-existing">'+
+  '<div class="ce-bar"></div>'+
+  '<div>'+
+   '<div class="ce-time">'+c.time+'</div>'+
+   '<div class="ce-title">'+c.title+'</div>'+
+   '<div class="ce-meta">'+c.loc+'</div>'+
+  '</div>'+
+ '</div>';
+
+ // Parse date for finding alternatives
+ const dateInfo = parseDateStr(capState.date);
+ if (!dateInfo) return;
+ const monthKey = '2026-'+dateInfo.month;
+ const allEvents = (eventsDB[monthKey]||{})[dateInfo.day]||[];
+ const durMin = parseInt(event.endTime.split(':')[0])*60 + parseInt(event.endTime.split(':')[1]) -
+  parseInt(event.startTime.split(':')[0])*60 - parseInt(event.startTime.split(':')[1]);
+
+ const alternatives = findConflictAlternatives(c, allEvents, durMin, monthKey, dateInfo.day);
+ pendingConflictResolutions = alternatives;
+
+ // Solution cards
+ const solEl = document.getElementById('conflictSolutions');
+ let solHTML = '';
+ alternatives.forEach((a, i) => {
+  const rankClass = a.rank === 1 ? 'gold' : (a.rank === 2 ? 'silver' : 'bronze');
+  const bestClass = a.rank === 1 ? ' best' : '';
+  solHTML += '<div class="cs-card'+bestClass+'" onclick="selectResolution('+i+', this)" id="csCard'+i+'">'+
+   '<div class="cs-rank '+rankClass+'">'+(a.type==='negotiate'?'N':a.rank)+'</div>'+
+   '<div class="cs-body">'+
+    '<div class="cs-time">'+a.time+'</div>'+
+    '<div class="cs-reason">'+a.reason+'</div>'+
+    (a.type !== 'negotiate' ? '<div class="cs-action"><svg width="12" height="12"><use href="#icon-check-sm"/></svg> Choose '+a.label.toLowerCase()+'</div>' :
+     '<div class="cs-action"><svg width="12" height="12"><use href="#icon-coordinate"/></svg> Start negotiation</div>')+
+   '</div>'+
+  '</div>';
+ });
+ solEl.innerHTML = solHTML;
+
+ // Reset choice
+ chosenResolution = null;
+ document.getElementById('conflictConfirmBtn').disabled = true;
+ document.getElementById('conflictConfirmBtn').textContent = 'Choose a solution';
+ document.getElementById('shiftPreview').innerHTML = '';
+}
+
+function selectResolution(idx, el) {
+ document.querySelectorAll('.cs-card').forEach(c => c.classList.remove('best'));
+ el.classList.add('best');
+ chosenResolution = idx;
+ const btn = document.getElementById('conflictConfirmBtn');
+ btn.disabled = false;
+ const alt = pendingConflictResolutions[idx];
+ if (alt.type === 'negotiate') {
+  btn.textContent = 'Open Meet Page';
+ } else {
+  btn.textContent = 'Reschedule · '+alt.time;
+ }
+}
+
+function applyConflictResolution() {
+ if (chosenResolution === null || !pendingConflictResolutions || !pendingConflictEvent) return;
+ const alt = pendingConflictResolutions[chosenResolution];
+ const event = pendingConflictEvent;
+
+ if (alt.type === 'negotiate') {
+  closeCapture();
+  switchPage('coordinate', document.querySelector('.nav-tab[data-page="coordinate"]'));
+  showToast('Opening Meet page for negotiation');
+  return;
+ }
+
+ // Apply the chosen time
+ event.startTime = alt.newStart;
+ event.endTime = alt.newEnd;
+ const sH = parseInt(alt.newStart.split(':')[0]);
+ const eH = parseInt(alt.newEnd.split(':')[0]);
+ const sM = parseInt(alt.newStart.split(':')[1]);
+ const eM = parseInt(alt.newEnd.split(':')[1]);
+ const durMin = (eH*60+eM) - (sH*60+sM);
+ const durH = Math.floor(durMin/60), durRest = durMin%60;
+ event.time = alt.newStart.replace(':00','')+'–'+alt.newEnd.replace(':00','')+' '+(durH>0?durH+'h ':'')+(durRest>0?durRest+'m':'');
+ event.duration = (durH>0?durH+'h ':'')+(durRest>0?durRest+'m':'');
+ event.agentNote = 'Rescheduled to avoid conflict with existing event.';
+
+ // Add event and show success
+ finalizeEvent(event);
+}
+
+function skipConflict() {
+ if (!pendingConflictEvent) return;
+ finalizeEvent(pendingConflictEvent);
+}
+
+function finalizeEvent(event) {
+ // Determine target date
+ const dateInfo = parseDateStr(capState.date);
+ let monthKey = '2026-6', dayNum = 6;
+ if (dateInfo) {
+  monthKey = '2026-'+dateInfo.month;
+  dayNum = dateInfo.day;
+ }
+
+ // Ensure eventsDB key exists
+ if (!eventsDB[monthKey]) eventsDB[monthKey] = {};
+ if (!eventsDB[monthKey][dayNum]) eventsDB[monthKey][dayNum] = [];
+
+ // Add event
+ eventsDB[monthKey][dayNum].push(event);
+
+ // Show success
+ document.getElementById('captureStepConflict').style.display = 'none';
+ // Update step2 with actual event info
+ const step2Date = document.querySelector('#captureStep2 .voice-ui div:last-child');
+ if (step2Date) {
+  const d = new Date(2026, dateInfo?dateInfo.month-1:5, dayNum);
+  step2Date.textContent = d.toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'});
+ }
+ const step2Details = document.querySelector('#captureStep2 .parsed-block');
+ if (step2Details) {
+  step2Details.innerHTML = '<div><b>'+event.time+'</b></div>'+
+   '<div style="color:var(--ios-green);font-weight:600;margin-top:4px;">'+event.title+'</div>'+
+   (event.loc ? '<div style="font-size:12px;color:var(--ios-secondary);margin-top:2px;">'+event.loc+'</div>' : '')+
+   (event.agentNote ? '<div style="margin-top:6px;font-size:12px;color:var(--ios-secondary);">'+event.agentNote+'</div>' : '');
+ }
  document.getElementById('captureStep2').style.display = 'block';
+
+ // If viewing Today page, re-render
+ const todayPage = document.getElementById('page-today');
+ if (todayPage && todayPage.classList.contains('active')) {
+  renderTodayPage();
+ }
+
+ showToast('Event added · '+event.title);
+}
+
+function confirmParse() {
+ // Build real event from capture state
+ const event = buildEventFromCapState();
+
+ // Detect conflicts
+ const dateInfo = parseDateStr(capState.date);
+ if (dateInfo) {
+  const monthKey = '2026-'+dateInfo.month;
+  const conflicts = detectConflicts(monthKey, dateInfo.day, event.startTime, event.endTime);
+  if (conflicts.length > 0) {
+   showConflictStep(event, conflicts);
+   return;
+  }
+ }
+ // No conflicts — add directly
+ finalizeEvent(event);
 }
 
 // ====== COORDINATE ======
