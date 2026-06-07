@@ -6,89 +6,73 @@ Not a calendar. Not a todo app. An **AI Agent** that understands your life rhyth
 
 ---
 
-## What This Prototype Shows
+## 🔴 Live Demo
 
-A mobile-first web app (375px–428px phone frame) demonstrating the core UX: capture intent → Agent parses → you confirm → timeline updates.
+**→ [scheduling-agent.vercel.app](https://scheduling-agent.vercel.app)** ←
 
-### 🔴 Live Demo
-
-Deployed on Vercel. Open the link on your phone or in a desktop browser (phone-frame emulation).
+Best viewed on mobile (375–428px) or desktop with phone-frame emulation.
 
 ---
 
-## Implemented Screens & Interactions
+## What's Inside
+
+A single-file (~3200 lines), zero-dependency prototype showing the full UX: capture intent → Agent parses → you confirm → timeline updates. All data is mock (hardcoded `eventsDB` for June 6, 2026).
 
 ### 📱 5 Navigation Tabs
 
 | Tab | Content |
 |-----|---------|
-| **Today** | Full day timeline: Morning / Afternoon / Evening events with transit buffers, AI-suggested free slots, pending tasks, follow-up tracker |
-| **Calendar** | Monthly heat-map grid. Tap any day → day detail panel with event cards |
-| **Coordinate** | Cross-person Agent ↔ Agent negotiation mockup. Shows suggested time slots after background negotiation |
-| **Contacts** | Calendar Friends list + one-time link generation for non-Agent users |
+| **Today** | Full timeline: Morning / Afternoon / Evening sections + transit buffers, AI-suggested free slots, pending tasks, follow-up tracker |
+| **Calendar** | Monthly dot-grid. Tap any day → day detail panel with event cards. In-place refresh on edit/delete |
+| **Coordinate** | Agent ↔ Agent cross-person negotiation demo. Background-free-slot exchange → ranked suggestions |
+| **Contacts** | Calendar Friends list + one-time scheduling link generation |
 | **Analytics** | Completion tracking, daily briefing cards, weekly stats |
 
-### 🎤 Capture Flow (3-step pipeline)
+### ✅ Feature Checklist
 
-```
-Hold mic button → speak "Friday 3pm coffee with Dr. Meier at ETH, train from home"
-       │
-       ▼
-🧠 Agent parses → extracts: date, time, person, location, transit, event type
-       │
-       ▼
-⚠️  Follow-up questions (asks 1–2 missing fields, e.g. "How should you get there?")
-       │
-       ▼
-📊 Timeline preview → ✅ confirm → event added with transit buffer
-```
-
-**Input modes implemented:**
-- 🎤 Voice (simulated — text input with parsing animation)
-- 📸 Screenshot upload (mock vision AI extraction flow)
-- ⌨️ Manual text input via capture overlay
-
-### 📋 Event Cards (expandable)
-
-Each event card shows:
-- **Compact view:** time, title, type tag, transit mode icon
-- **Expanded view:** location, participants, transit details, buffer before/after, dress code, agent reasoning note
-- **Actions:** Edit ✏️, Delete 🗑️ (with collapse animation), Mark Complete ✅, Reschedule 🔄
-
-### 🧠 Agent Suggestions
-
-AI-detected free time slots shown as editable suggestion cards:
-- Pre-filled with suggested activity type and title
-- Editable title before accepting
-- Accepting one slot auto-removes all conflicting (overlapping) suggestions
-- Accepted suggestions become real events in the timeline
-
-### 🔔 Follow-up Tracker
-
-Tasks needing follow-up shown with:
-- Overdue / Due Today / Upcoming status
-- Per-task Mark Complete / Snooze / Dismiss actions
-- Collapsible compact view
+| Feature | Detail |
+|---------|--------|
+| 🎤 **Capture overlay** | 3-step pipeline: voice/text input → Agent parsing animation → 1–2 follow-up questions → confirm → added to timeline |
+| 📸 **Screenshot input** | Mock vision AI. File picker → analysis animation → structured extraction → reuse parsing pipeline |
+| 📋 **Event cards** | Compact view (time + title + tags) → tap to expand (location, people, transit mode, buffer, dress code, agent note) |
+| ✏️ **Edit** | Inline edit form: title, time, location, transit mode, duration, buffer |
+| 🗑️ **Delete** | Red destructive button; opacity + max-height collapse animation; day detail refreshes in-place (doesn't close) |
+| ✅ **Mark complete** | Checkbox with visual confirmation |
+| 🔄 **Reschedule** | Suggest alternative time slots for task-type events |
+| 🧠 **Agent suggestions** | Free-slot detection → editable suggestion cards. Accepting one removes all time-overlapping suggestions. Accepted → becomes real event in eventsDB |
+| ⚠️ **Conflict detection** | Overlapping time = all conflicting slots removed when one is accepted |
+| 🔔 **Follow-ups** | Overdue / Due Today / Upcoming states. Collapsible. Per-item: mark done, snooze, dismiss |
+| 📊 **Analytics** | Completion rate, briefing cards, weekly stats panel |
+| 🍞 **Toast notifications** | Slide-in feedback for all actions (confirm, delete, complete) |
 
 ---
 
 ## Design System
 
 ### Icons
-**Outlook Fluent-style SVG sprite sheet** — 20+ custom icons with 1.5px stroke, rounded caps, `currentColor` theming. No emoji, no Unicode. All icons match the iOS/Outlook aesthetic.
+
+**Outlook Fluent-style SVG sprite sheet** — 20+ custom icons. No emoji, no Unicode. All icons: 1.5px stroke, rounded caps, `currentColor` theming.
+
+| Category | Icons | Size |
+|----------|-------|------|
+| Navigation | today, calendar, coordinate, contacts, analytics | 24×24 |
+| Form fields | date, time, location, person, type, home, transit, source | 18×18 |
+| Actions | camera, mic, sun, moon, bell, trash, pencil, chart | 18×18 |
+| Small indicators | check-sm, dismiss-sm | 14×14 |
 
 ### Visual Style
 - **Phone frame:** 390×844px centered with device bezel
-- **Theme:** iOS-inspired light mode (dark mode toggle ready with 🌙 icon)
+- **Theme:** iOS-inspired light mode (🌙 dark mode toggle ready)
 - **Typography:** System font stack, clean hierarchy
-- **Animations:** Card expand/collapse, toast notifications, staggered list reveals
+- **Animations:** Card expand/collapse (max-height + opacity), toast slide-in, staggered list reveals, delete collapse
 - **Colors:** iOS system palette — blue actions, red destructive, green confirmations
+- **Layout:** Morning / Afternoon / Evening sections with sun/moon icons
 
 ### Technical
-- **Zero dependencies.** Single `index.html` file (~3100 lines). Pure HTML + CSS + vanilla JS.
+- **Zero dependencies.** Single `index.html` (~3200 lines). Pure HTML + CSS + vanilla JS.
 - **No build step.** Open the file or deploy as-is.
-- **All data is mock.** `eventsDB` object with hardcoded demo events for June 6, 2026.
-- **CRLF line endings.** Windows-native encoding.
+- **All data is mock.** `eventsDB`, `pendingTasksDB`, `runtimeEvents`, `todayFreeSlots` — hardcoded for June 6, 2026.
+- **CRLF line endings.** Windows-native.
 
 ---
 
@@ -114,7 +98,7 @@ npx vercel --prod
 
 ## Future (Post-Prototype)
 
-See full PRD at `D:\My Second Brain\10-PROJECTS\scheduling-agent\_index.md` for:
+See the [full PRD](https://github.com/1yiwang/scheduling-agent) (also in Obsidian: `10-PROJECTS/scheduling-agent/_index.md`) for:
 
 | Module | Description |
 |--------|-------------|
@@ -145,6 +129,8 @@ We don't compete in the "calendar" category. We compete in the **"AI scheduling 
 
 ## Project Status
 
-- **Stage:** Interactive prototype (MVP frontend)
-- **Goal:** Validate UX with target users before building backend
+- **Stage:** Interactive prototype — complete (June 7, 2026)
+- **Next:** Collecting feedback from first users (Clark et al.) before deciding on backend MVP scope
+- **Goal:** Validate UX hypothesis before committing to real APIs, database, or backend
 - **Success criteria:** User understands the product in 10 seconds; completes the capture→confirm flow without friction; gives actionable feedback
+- **Full PRD:** [github.com/1yiwang/scheduling-agent](https://github.com/1yiwang/scheduling-agent) — `_index.md` in the repo, or `10-PROJECTS/scheduling-agent/_index.md` in Obsidian
