@@ -3166,29 +3166,10 @@ function renderTodayPage() {
  // ═══ 1. AGENT GREETING CARD ═══
  html += renderGreetingCard(unmarkedPast, pendingCount, freeHrs);
 
- // ═══ 2. PAST EVENTS (above the Now line) ═══
- if (pastEvents.length > 0) {
-  html += '<div class="timeline-block">';
-  pastEvents.forEach(e => {
-   html += renderEventCard(e, {isPast: true, compact: true, showEdit: true});
-  });
-  html += '</div>';
- }
+ // ═══ 2. PENDING TASKS ═══
+ html += renderPendingCards();
 
- // ═══ 3. NOW MARKER (divider between past and future) ═══
- html += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
-
- // ═══ 4. AFTERNOON (future) ═══
- if (futureAfternoon.length > 0) {
-  html += '<div class="timeline-block">';
-  html += '<div class="section-header" style="margin-left:-4px;"><svg width="15" height="15"><use href="#icon-sun"/></svg> Afternoon</div>';
-  futureAfternoon.forEach(e => {
-   html += renderEventCard(e, {isPast: false, compact: true, showEdit: true});
-  });
-  html += '</div>';
- }
-
- // ═══ 5. AGENT SUGGESTIONS · aggregated single card ═══
+ // ═══ 3. AGENT SUGGESTIONS · aggregated single card ═══
  if (todayFreeSlots.length > 0) {
   const fs0 = todayFreeSlots[0];
   const durH0 = parseInt(fs0.endTime.split(':')[0]) - parseInt(fs0.startTime.split(':')[0]);
@@ -3230,7 +3211,29 @@ function renderTodayPage() {
   '</div></div>';
  }
 
- // ═══ 6. EVENING ═══
+ // ═══ 4. PAST EVENTS (above the Now line) ═══
+ if (pastEvents.length > 0) {
+  html += '<div class="timeline-block">';
+  pastEvents.forEach(e => {
+   html += renderEventCard(e, {isPast: true, compact: true, showEdit: true});
+  });
+  html += '</div>';
+ }
+
+ // ═══ 5. NOW MARKER (divider between past and future) ═══
+ html += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
+
+ // ═══ 6. AFTERNOON (future) ═══
+ if (futureAfternoon.length > 0) {
+  html += '<div class="timeline-block">';
+  html += '<div class="section-header" style="margin-left:-4px;"><svg width="15" height="15"><use href="#icon-sun"/></svg> Afternoon</div>';
+  futureAfternoon.forEach(e => {
+   html += renderEventCard(e, {isPast: false, compact: true, showEdit: true});
+  });
+  html += '</div>';
+ }
+
+ // ═══ 7. EVENING ═══
  if (futureEvening.length > 0) {
   html += '<div class="timeline-block" style="margin-top:12px;">';
   html += '<div class="section-header" style="margin-left:-4px;"><svg width="15" height="15"><use href="#icon-moon"/></svg> Evening</div>';
@@ -3239,9 +3242,6 @@ function renderTodayPage() {
   });
   html += '</div>';
  }
-
- // ═══ 7. PENDING TASKS ═══
- html += renderPendingCards();
 
  // ═══ 8. DAILY BRIEFING ═══
  html += renderDailyBriefing();
