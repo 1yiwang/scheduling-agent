@@ -33,6 +33,94 @@
  --radius-lg: 10px;
  }
 
+ /* ── Dark mode ── */
+ [data-theme="dark"] {
+  --ios-bg: #1C1C1E;
+  --ios-card: #2C2C2E;
+  --ios-text: #F5F5F7;
+  --ios-secondary: #98989D;
+  --ios-separator: #38383A;
+  --ios-blue: #4A9EFF;
+  --ios-blue-bg: #1A2D4A;
+  --ios-green: #34C759;
+  --ios-green-bg: #1A2E24;
+  --ios-red: #FF453A;
+  --ios-red-bg: #2E1A1A;
+  --ios-orange: #FF9F0A;
+  --ios-orange-bg: #2E2410;
+  --ios-purple: #BF5AF2;
+  --ios-purple-bg: #262033;
+  --ios-indigo: #7B79F7;
+  --ios-teal: #64D2FF;
+ }
+ [data-theme="dark"] body { background: #000; }
+ [data-theme="dark"] .phone-frame { box-shadow: 0 0 0 0.5px rgba(255,255,255,0.08); }
+ @media (min-width: 431px) { [data-theme="dark"] .phone-frame { box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.1); } }
+ [data-theme="dark"] .bottom-bar { background: rgba(28,28,30,0.92); border-top-color: rgba(255,255,255,0.08); }
+ [data-theme="dark"] .overlay-sheet { background: #1C1C1E; }
+ [data-theme="dark"] .sheet-handle { background: #48484A; }
+ [data-theme="dark"] .record-btn.secondary { background: var(--ios-card); }
+ [data-theme="dark"] .greeting-card { background: linear-gradient(135deg, #2c2c2e 0%, #3c3c3e 100%); }
+ [data-theme="dark"] .e-tag.neutral { background: #38383A; color: #C7C7CC; }
+ [data-theme="dark"] .e-tag.transit, [data-theme="dark"] .e-tag.train { background: #332C10; color: #FFD60A; }
+ [data-theme="dark"] .e-tag.online { background: #152940; color: #4A9EFF; }
+ [data-theme="dark"] .e-tag.social { background: #2A1F33; color: #BF5AF2; }
+ [data-theme="dark"] .e-tag.deep, [data-theme="dark"] .e-tag.suggest { background: #1A2E24; color: #34C759; }
+ [data-theme="dark"] .e-tag.buffer { background: #2E1A1A; color: #FF6961; }
+ [data-theme="dark"] .e-tag.urgent { background: #2E1A1A; color: #FF6961; }
+ [data-theme="dark"] .e-tag-inline.neutral { background: #38383A; color: #C7C7CC; }
+ [data-theme="dark"] .e-tag-inline.transit { background: #332C10; color: #FFD60A; }
+ [data-theme="dark"] .e-tag-inline.online { background: #152940; color: #4A9EFF; }
+ [data-theme="dark"] .e-tag-inline.social { background: #2A1F33; color: #BF5AF2; }
+ [data-theme="dark"] .e-tag-inline.deep { background: #1A2E24; color: #34C759; }
+ [data-theme="dark"] .e-tag-inline.busy { background: #38383A; color: #C7C7CC; }
+ [data-theme="dark"] .skeleton { background: linear-gradient(90deg, var(--ios-card) 25%, #3a3a3c 37%, var(--ios-card) 63%); }
+ [data-theme="dark"] .conflict-section { background: #2E1A1A; border-color: #5C2020; }
+ [data-theme="dark"] .conflict-existing { background: #1C1C1E; border-color: #5C2020; }
+ [data-theme="dark"] .cs-card { background: #1C1C1E; }
+ [data-theme="dark"] .cs-card:active { background: #2C2C2E; }
+ [data-theme="dark"] .cs-card.best { background: #1A2E24; }
+ [data-theme="dark"] .shift-preview { background: #332C10; border-color: #5C5020; }
+ [data-theme="dark"] .error-banner { background: #2E1A1A; border-color: #5C2020; }
+ [data-theme="dark"] .empty-state-icon.sun { background: #332C10; }
+ [data-theme="dark"] .empty-state-icon.check { background: #1A2E24; }
+ [data-theme="dark"] .empty-state-icon.people { background: #152940; }
+ [data-theme="dark"] .free-slot { background: var(--ios-green-bg); }
+ [data-theme="dark"] .suggest-slot { background: #1C1C1E; }
+ [data-theme="dark"] .suggest-slot.best { background: #1A2E24; }
+ [data-theme="dark"] .coord-result { background: var(--ios-card); }
+ [data-theme="dark"] .coord-result.best { background: var(--ios-green-bg); }
+ [data-theme="dark"] .nego-checklist { background: var(--ios-card); }
+ [data-theme="dark"] .cr-transit-side { background: #1C1C1E; }
+ [data-theme="dark"] .day-detail { background: var(--ios-card); }
+ [data-theme="dark"] .cal-nav button { background: var(--ios-card); }
+ [data-theme="dark"] .cal-nav button:active { background: #38383A; }
+ [data-theme="dark"] .asc-more-toggle:hover { background: var(--ios-blue-bg); }
+ [data-theme="dark"] .cal-cell:active { background: #38383A; }
+ [data-theme="dark"] .contact-row { background: var(--ios-card); }
+ [data-theme="dark"] .contact-type-badge.expired { background: #38383A; color: #636366; }
+ [data-theme="dark"] .p-action.dismiss { background: #38383A; }
+ [data-theme="dark"] .p-action.done { background: var(--ios-green-bg); }
+ [data-theme="dark"] .coord-prompt { background: var(--ios-card); }
+ [data-theme="dark"] .free-slot-actions .fs-btn.dismiss { background: #38383A; }
+ [data-theme="dark"] .show-more-toggle:hover { background: var(--ios-blue-bg); }
+ [data-theme="dark"] .privacy-badge { background: #38383A; }
+ [data-theme="dark"] .day-detail .dd-close { background: #38383A; }
+ [data-theme="dark"] .timeline-block .event-card::before { border-color: var(--ios-bg); }
+ [data-theme="dark"] .event-card.completed { opacity: 0.4; }
+ [data-theme="dark"] .event-card.unmarked-past { opacity: 0.65; }
+
+ /* Theme toggle */
+ .theme-toggle {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: none; background: var(--ios-card);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  flex-shrink: 0;
+ }
+ .theme-toggle:active { transform: scale(0.9); opacity: 0.7; }
+ [data-theme="dark"] .theme-toggle { box-shadow: 0 1px 3px rgba(0,0,0,0.3); background: #38383A; }
+
  body {
  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
  background: #D1D1D6;
@@ -126,10 +214,34 @@
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
  }
 
+ /* Timeline vertical rule */
+ .timeline-block {
+  position: relative; padding-left: 16px; margin-left: 4px;
+  border-left: 1.5px solid var(--ios-separator);
+ }
+ .timeline-block .event-card {
+  position: relative;
+ }
+ .timeline-block .event-card::before {
+  content: ''; position: absolute;
+  left: -20.5px; top: 16px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ios-separator);
+  border: 2px solid var(--ios-bg);
+  z-index: 1;
+ }
+ .timeline-block .event-card.type-deep::before { background: var(--ios-purple); }
+ .timeline-block .event-card.type-busy::before { background: var(--ios-blue); }
+ .timeline-block .event-card.type-online::before { background: var(--ios-indigo); }
+ .timeline-block .event-card.type-social::before { background: var(--ios-purple); }
+ .timeline-block .event-card.completed::before { background: var(--ios-green); }
+ .timeline-block .event-card.not-completed::before { background: var(--ios-red); }
+ .timeline-block .event-card.unmarked-past::before { background: var(--ios-orange); }
+
  /* Now marker */
  .now-marker {
   display: flex; align-items: center; gap: 10px;
-  padding: 6px 0 8px; margin-bottom: 2px;
+  padding: 6px 0 8px; margin-bottom: 2px; margin-left: 4px; padding-left: 16px;
  }
  .now-line { flex: 1; height: 1px; background: var(--ios-separator); }
  .now-label { font-size: 12px; font-weight: 600; color: var(--ios-blue); white-space: nowrap; }
@@ -188,10 +300,29 @@
  }
 
  /* Event card completion states */
- .event-card.completed { opacity: 0.45; }
+ .event-card.completed { opacity: 0.45; border-left: 3px solid var(--ios-green); }
  .event-card.completed .e-title { text-decoration: line-through; }
  .event-card.not-completed { border-left: 3px solid var(--ios-red); }
- .event-card.unmarked-past { opacity: 0.7; }
+ .event-card.unmarked-past { opacity: 0.7; border-left: 3px solid var(--ios-orange); }
+
+ /* ── Event type visual weighting ── */
+ @keyframes overduePulse {
+  0%, 100% { border-left-color: var(--ios-orange); }
+  50% { border-left-color: #FF3B30; }
+ }
+ .event-card.unmarked-past.overdue { animation: overduePulse 2s ease-in-out infinite; }
+ /* Type classes — applied after completion states so completion borders win when both present */
+ .event-card.type-deep:not(.completed):not(.not-completed):not(.unmarked-past) { border-left: 3px solid var(--ios-purple); }
+ .event-card.type-deep .e-title { font-weight: 600; }
+ .event-card.type-busy:not(.completed):not(.not-completed):not(.unmarked-past) { border-left: 3px solid var(--ios-blue); }
+ .event-card.type-online:not(.completed):not(.not-completed):not(.unmarked-past) { border-left: 3px solid var(--ios-indigo); }
+ .event-card.type-social:not(.completed):not(.not-completed):not(.unmarked-past) { border-left: 3px solid var(--ios-purple); opacity: 0.92; }
+ .event-card.type-transit { opacity: 0.6; }
+ .event-card.type-transit .e-time { font-size: 14px; font-weight: 500; }
+ .event-card.type-transit .e-title { font-weight: 400; }
+ .event-card.type-buffer { opacity: 0.5; }
+ .event-card.type-buffer .e-time { font-size: 14px; font-weight: 500; }
+ .event-card.type-buffer .e-title { font-weight: 400; }
 
  /* Briefing action items */
  .br-action-row {
@@ -1241,7 +1372,12 @@
  <div class="navbar-title">Home</div>
  <div class="navbar-subtitle" id="pageSubtitle">Saturday, June 6, 2026</div>
  </div>
+ <div style="display:flex;align-items:center;gap:8px;">
+ <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" id="themeToggle">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+ </button>
  <div class="navbar-avatar" onclick="switchPage('contacts', document.querySelector('[data-page=contacts]'))">W</div>
+ </div>
  </div>
 
  <!-- Main -->
@@ -2722,7 +2858,7 @@ function renderEventCard(event, options) {
  else compState = 'unmarked-past';
  }
 
- const cls = (isFreeSlot?'free-slot ':'') + (isPast?'past ':'') + compState + ' anim-in';
+ const cls = (isFreeSlot?'free-slot ':'') + (isPast?'past ':'') + compState + ' type-'+event.type + ' anim-in';
  const expandHtml = renderEventExpand(event, options);
 
  // Build time row extras (compact mode: type tag inline)
@@ -3031,19 +3167,25 @@ function renderTodayPage() {
  html += renderGreetingCard(unmarkedPast, pendingCount, freeHrs);
 
  // ═══ 2. PAST EVENTS (above the Now line) ═══
- pastEvents.forEach(e => {
-  html += renderEventCard(e, {isPast: true, compact: true, showEdit: true});
- });
+ if (pastEvents.length > 0) {
+  html += '<div class="timeline-block">';
+  pastEvents.forEach(e => {
+   html += renderEventCard(e, {isPast: true, compact: true, showEdit: true});
+  });
+  html += '</div>';
+ }
 
  // ═══ 3. NOW MARKER (divider between past and future) ═══
  html += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
 
  // ═══ 4. AFTERNOON (future) ═══
  if (futureAfternoon.length > 0) {
-  html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-sun"/></svg> Afternoon</div>';
+  html += '<div class="timeline-block">';
+  html += '<div class="section-header" style="margin-left:-4px;"><svg width="15" height="15"><use href="#icon-sun"/></svg> Afternoon</div>';
   futureAfternoon.forEach(e => {
    html += renderEventCard(e, {isPast: false, compact: true, showEdit: true});
   });
+  html += '</div>';
  }
 
  // ═══ 5. AGENT SUGGESTIONS · aggregated single card ═══
@@ -3090,10 +3232,12 @@ function renderTodayPage() {
 
  // ═══ 6. EVENING ═══
  if (futureEvening.length > 0) {
-  html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-moon"/></svg> Evening</div>';
+  html += '<div class="timeline-block" style="margin-top:12px;">';
+  html += '<div class="section-header" style="margin-left:-4px;"><svg width="15" height="15"><use href="#icon-moon"/></svg> Evening</div>';
   futureEvening.forEach(e => {
    html += renderEventCard(e, {isPast: false, compact: true, showEdit: true});
   });
+  html += '</div>';
  }
 
  // ═══ 7. PENDING TASKS ═══
@@ -3920,6 +4064,41 @@ function renderAnalyticsPage() {
 
  content.innerHTML = html;
 }
+
+// ====== DARK MODE ======
+function getTheme() {
+ const stored = localStorage.getItem('scheduling-agent-theme');
+ if (stored) return stored;
+ return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme(theme) {
+ document.documentElement.setAttribute('data-theme', theme);
+ const icon = document.querySelector('#themeToggle svg');
+ if (icon) {
+  if (theme === 'dark') {
+   icon.innerHTML = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
+  } else {
+   icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  }
+ }
+ // Update tagline colors if there's a dot
+ const gcDots = document.querySelectorAll('.gc-dot');
+ if (gcDots.length === 0) return; // only if greeting card is visible
+}
+function toggleTheme() {
+ const current = document.documentElement.getAttribute('data-theme') || 'light';
+ const next = current === 'dark' ? 'light' : 'dark';
+ localStorage.setItem('scheduling-agent-theme', next);
+ applyTheme(next);
+}
+// Init theme on load
+applyTheme(getTheme());
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+ if (!localStorage.getItem('scheduling-agent-theme')) {
+  applyTheme(e.matches ? 'dark' : 'light');
+ }
+});
 
 // ====== INIT ======
 function updateStatusTime() {
