@@ -435,6 +435,73 @@
  pointer-events: none; opacity: 0.7;
  }
 
+ /* Negotiation checklist */
+ .nego-checklist {
+  background: var(--ios-card); border-radius: var(--radius-lg);
+  padding: 14px 16px; margin-bottom: 14px;
+ }
+ .nego-title {
+  font-size: 13px; font-weight: 600; color: var(--ios-text);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+ }
+ .nego-step {
+  font-size: 12px; color: var(--ios-secondary);
+  padding: 3px 0; display: flex; align-items: center; gap: 6px;
+ }
+ .nego-step svg { color: var(--ios-green); flex-shrink: 0; }
+
+ /* Best match label + card */
+ .coord-best-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--ios-green); margin-bottom: 6px;
+  display: flex; align-items: center; gap: 4px;
+ }
+ .coord-best {
+  border: 1.5px solid var(--ios-green); background: var(--ios-green-bg);
+ }
+ .cr-time-row { margin-bottom: 8px; }
+ .cr-location {
+  font-size: 13px; color: var(--ios-text); font-weight: 500;
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+ }
+ .cr-location svg { color: var(--ios-secondary); flex-shrink: 0; }
+ .cr-transit-dual {
+  display: flex; gap: 8px; margin-bottom: 8px;
+ }
+ .cr-transit-side {
+  flex: 1; background: #fff; border-radius: 8px; padding: 8px 10px;
+  font-size: 12px; color: var(--ios-text); display: flex; flex-direction: column; gap: 2px;
+ }
+ .cr-transit-who {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.3px; color: var(--ios-secondary);
+ }
+ .cr-why {
+  font-size: 12px; color: var(--ios-secondary); line-height: 1.5;
+  display: flex; align-items: flex-start; gap: 6px; margin-bottom: 4px;
+ }
+ .cr-why svg { color: var(--ios-blue); flex-shrink: 0; margin-top: 1px; }
+
+ /* Other options — collapsed */
+ .coord-others-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--ios-secondary); margin: 16px 0 6px;
+ }
+ .coord-other {
+  cursor: pointer; transition: all 0.15s;
+ }
+ .coord-other:active { opacity: 0.7; }
+ .coord-other-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+ }
+ .coord-other-chevron {
+  color: var(--ios-secondary); flex-shrink: 0; transition: transform 0.2s;
+ }
+ .coord-other-detail {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 0.5px solid var(--ios-separator);
+ }
+
  /* Contact list */
  .contact-row {
  background: var(--ios-card); border-radius: var(--radius-lg);
@@ -967,7 +1034,7 @@
  <!-- Nav bar -->
  <div class="navbar" id="navbarMain">
  <div>
- <div class="navbar-title">Today</div>
+ <div class="navbar-title">Home</div>
  <div class="navbar-subtitle" id="pageSubtitle">Saturday, June 6, 2026</div>
  </div>
  <div class="navbar-avatar" onclick="switchPage('contacts', document.querySelector('[data-page=contacts]'))">W</div>
@@ -1121,19 +1188,19 @@
  </div>
  <div class="bottom-nav">
  <div class="nav-tab active" data-page="today" onclick="switchPage('today', this)">
- <svg class="nav-icon" width="24" height="24"><use href="#icon-today"/></svg>Today
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-today"/></svg>Home
  </div>
  <div class="nav-tab" data-page="calendar" onclick="switchPage('calendar', this)">
- <svg class="nav-icon" width="24" height="24"><use href="#icon-calendar"/></svg>Calendar
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-calendar"/></svg>Timeline
  </div>
  <div class="nav-tab" data-page="coordinate" onclick="switchPage('coordinate', this)">
- <svg class="nav-icon" width="24" height="24"><use href="#icon-coordinate"/></svg>Coordinate
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-coordinate"/></svg>Meet
  </div>
  <div class="nav-tab" data-page="contacts" onclick="switchPage('contacts', this)">
- <svg class="nav-icon" width="24" height="24"><use href="#icon-contacts"/></svg>Contacts
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-contacts"/></svg>People
  </div>
  <div class="nav-tab" data-page="analytics" onclick="switchPage('analytics', this)">
- <svg class="nav-icon" width="24" height="24"><use href="#icon-analytics"/></svg>Analytics
+ <svg class="nav-icon" width="24" height="24"><use href="#icon-analytics"/></svg>Insights
  </div>
  </div>
  </div>
@@ -1272,14 +1339,14 @@ function switchPage(page, el) {
  }
 
  // Update navbar title
- const titles = { today: 'Today', calendar: 'Calendar', coordinate: 'Coordinate', contacts: 'Contacts', analytics: 'Analytics' };
+ const titles = { today: 'Home', calendar: 'Timeline', coordinate: 'Meet', contacts: 'People', analytics: 'Insights' };
  document.querySelector('.navbar-title').textContent = titles[page] || page;
 
  const d = new Date(2026, 5, 5);
  const subs = {
  today: d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'}),
- calendar: 'Tap a day to see events',
- coordinate: 'Schedule with anyone',
+ calendar: 'Browse any day · tap to expand',
+ coordinate: 'Agent negotiates for you',
  contacts: 'Calendar friends & links',
  analytics: 'Week of Jun 1–7, 2026'
  };
@@ -1557,24 +1624,45 @@ let currentCoordPerson = '';
 
 const coordSuggestions = {
  'Lukas (NEUR.ON CTO)': {
+ person: 'Lukas', role: 'NEUR.ON CTO', eventType: 'Coffee meeting',
  slots: [
- { time:'Friday, Jun 12 · 10:00–10:30 AM', best:true, desc:'NEUR.ON Office, Zürich<br>Train: 12 min · Lukas: on-site<br>Both morning free · ideal deep-discussion slot' },
- { time:'Monday, Jun 8 · 2:00–2:30 PM', best:false, desc:'Online (Zoom)<br>After his standup, before your afternoon block<br>Quick sync, no transit needed' },
- { time:'Thursday, Jun 11 · 4:30–5:00 PM', best:false, desc:'Starbucks Bahnhofstrasse<br>Walk: 5 min · Lukas: 8 min<br>End-of-day coffee meeting, relaxed' }
+ { time:'Fri, Jun 12 · 10:00–10:30 AM', best:true, location:'NEUR.ON Office, Zürich',
+  yourTransit:'🚶 Walk 5 min', theirTransit:'🚶 Walk 5 min',
+  why:'Zero transit friction — both on-site, ideal deep-discussion slot' },
+ { time:'Mon, Jun 8 · 2:00–2:30 PM', best:false, location:'Online (Zoom)',
+  yourTransit:'💻 No transit', theirTransit:'💻 No transit',
+  why:'After his standup, before your afternoon block' },
+ { time:'Thu, Jun 11 · 4:30–5:00 PM', best:false, location:'Starbucks Bahnhofstrasse',
+  yourTransit:'🚶 Walk 5 min', theirTransit:'🚶 Walk 8 min',
+  why:'End-of-day coffee, relaxed pace' }
  ]
  },
  'Marie (SLTA President)': {
+ person: 'Marie', role: 'SLTA President', eventType: 'Board discussion',
  slots: [
- { time:'Tuesday, Jun 9 · 11:00–11:30 AM', best:true, desc:'SLTA Office, Lausanne<br>Train: 55 min (workable) · Marie: on-site<br>Her office hours, guaranteed availability' },
- { time:'Wednesday, Jun 10 · 3:00–3:30 PM', best:false, desc:'Online (Zoom)<br>Right after her board meeting, context fresh<br>Best if you need board-related decisions' },
- { time:'Friday, Jun 12 · 9:00–9:30 AM', best:false, desc:'Online (Zoom)<br>Before her flight to Berlin at 11 AM<br>Tight window but doable for urgent items' }
+ { time:'Tue, Jun 9 · 11:00–11:30 AM', best:true, location:'SLTA Office, Lausanne',
+  yourTransit:'🚂 Train 55 min (workable)', theirTransit:'🏢 On-site',
+  why:'Her office hours — guaranteed availability' },
+ { time:'Wed, Jun 10 · 3:00–3:30 PM', best:false, location:'Online (Zoom)',
+  yourTransit:'💻 No transit', theirTransit:'💻 No transit',
+  why:'Right after her board meeting, context fresh' },
+ { time:'Fri, Jun 12 · 9:00–9:30 AM', best:false, location:'Online (Zoom)',
+  yourTransit:'💻 No transit', theirTransit:'💻 No transit',
+  why:'Before her Berlin flight — tight but doable for urgent items' }
  ]
  },
  'Thomas (Swiss AI Center)': {
+ person: 'Thomas', role: 'Swiss AI Center', eventType: 'Research sync',
  slots: [
- { time:'Thursday, Jun 11 · 3:00–3:30 PM', best:true, desc:'ETH AI Center, Zürich<br>Walk: 8 min · Thomas: on-site<br>Campus visit day, he is on-site for workshops' },
- { time:'Monday, Jun 8 · 4:00–4:30 PM', best:false, desc:'Online (Zoom)<br>After his lab hours, good for technical deep-dive<br>He prefers afternoons for external meetings' },
- { time:'Wednesday, Jun 10 · 11:00–11:30 AM', best:false, desc:'Online (Zoom)<br>Mid-week check-in slot<br>Short and focused, good for status updates' }
+ { time:'Thu, Jun 11 · 3:00–3:30 PM', best:true, location:'ETH AI Center, Zürich',
+  yourTransit:'🚶 Walk 8 min', theirTransit:'🏢 On-site',
+  why:'Campus visit day — he is on-site for workshops' },
+ { time:'Mon, Jun 8 · 4:00–4:30 PM', best:false, location:'Online (Zoom)',
+  yourTransit:'💻 No transit', theirTransit:'💻 No transit',
+  why:'After his lab hours — good for technical deep-dive' },
+ { time:'Wed, Jun 10 · 11:00–11:30 AM', best:false, location:'Online (Zoom)',
+  yourTransit:'💻 No transit', theirTransit:'💻 No transit',
+  why:'Mid-week check-in — short, focused status update' }
  ]
  }
 };
@@ -1592,31 +1680,86 @@ function showCoord(name) {
  currentCoordPerson = name;
  const data = coordSuggestions[name];
  if (!data) return;
+ const shortName = data.person || name.split('(')[0].trim();
 
- // Build header
- let html = '<div style="font-size:13px;color:var(--ios-secondary);margin-bottom:6px;display:flex;align-items:center;gap:6px;">'+
- '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--ios-blue);border-top-color:transparent;animation:spin 0.8s linear infinite;"></span>'+
- 'Negotiating with <span style="font-weight:600;color:var(--ios-text);">'+name+'</span>\'s Agent…'+
- '</div>'+
- '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>'+
- '<div style="font-size:11px;color:var(--ios-secondary);margin-bottom:10px;">Found 3 overlapping free slots. Tap to edit, then confirm.</div>';
-
- // Build slots
- data.slots.forEach((s, i) => {
- html += '<div class="coord-result'+(s.best?' best':'')+'" id="coordSlot'+i+'" onclick="event.stopPropagation()">'+
- '<div class="cr-badge">'+(s.best?'Best Match':'Alternative')+'</div>'+
- '<input class="cr-time-input" id="coordInput'+i+'" value="'+s.time+'" onfocus="this.select();moveBestSlot(this)">'+
- '<div class="cr-desc">'+s.desc+'</div>'+
- '<div class="cr-confirm-row">'+
- '<button class="cr-confirm-btn" id="coordBtn'+i+'" onclick="confirmCoord('+i+',\''+name.replace(/'/g,"\\'")+'\')">Confirm · Send to '+name.split('(')[0].trim()+'</button>'+
- '</div>'+
- '<div class="cr-status" id="coordStatus'+i+'"></div>'+
- '</div>';
+ // ═══ Negotiation checklist (completed steps, not animated) ═══
+ const steps = [
+  { label: 'Queried '+shortName+'\'s availability', done:true },
+  { label: 'Computed your transit + buffer', done:true },
+  { label: 'Found '+data.slots.length+' overlapping free slots', done:true },
+  { label: 'Ranked by quality (transit, timing, context)', done:true }
+ ];
+ let html = '<div class="nego-checklist">'+
+  '<div class="nego-title"><svg width="16" height="16"><use href="#icon-coordinate"/></svg> Agent negotiation complete</div>';
+ steps.forEach(st => {
+  html += '<div class="nego-step"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> '+st.label+'</div>';
  });
+ html += '</div>';
+
+ // ═══ Best match card — expanded ═══
+ const best = data.slots.find(s => s.best) || data.slots[0];
+ const others = data.slots.filter(s => !s.best);
+ const bestIdx = data.slots.indexOf(best);
+
+ html += '<div class="coord-best-label">Best Match</div>'+
+  '<div class="coord-result coord-best" id="coordSlot'+bestIdx+'">'+
+  '<div class="cr-time-row">'+
+   '<input class="cr-time-input" id="coordInput'+bestIdx+'" value="'+best.time.replace(/'/g,"\\'")+'" onfocus="this.select();moveBestSlot(this)">'+
+  '</div>'+
+  '<div class="cr-location"><svg width="14" height="14"><use href="#icon-field-location"/></svg> '+best.location+'</div>'+
+  '<div class="cr-transit-dual">'+
+   '<div class="cr-transit-side"><span class="cr-transit-who">You</span><span>'+best.yourTransit+'</span></div>'+
+   '<div class="cr-transit-side"><span class="cr-transit-who">'+shortName+'</span><span>'+best.theirTransit+'</span></div>'+
+  '</div>'+
+  '<div class="cr-why"><svg width="14" height="14"><use href="#icon-chart"/></svg> '+best.why+'</div>'+
+  '<div class="cr-confirm-row">'+
+   '<button class="cr-confirm-btn" id="coordBtn'+bestIdx+'" onclick="confirmCoord('+bestIdx+',\''+name.replace(/'/g,"\\'")+'\')">Confirm · Notify '+shortName+'</button>'+
+  '</div>'+
+  '<div class="cr-status" id="coordStatus'+bestIdx+'"></div>'+
+ '</div>';
+
+ // ═══ Other options — collapsed rows ═══
+ if (others.length > 0) {
+  html += '<div class="coord-others-label">Other options</div>';
+  others.forEach(s => {
+   const oi = data.slots.indexOf(s);
+   html += '<div class="coord-result coord-other" id="coordSlot'+oi+'" onclick="expandOtherSlot(this,'+oi+',\''+name.replace(/'/g,"\\'")+'\')">'+
+    '<div class="coord-other-summary">'+
+     '<input class="cr-time-input" id="coordInput'+oi+'" value="'+s.time.replace(/'/g,"\\'")+'" onfocus="event.stopPropagation();this.select();moveBestSlot(this)" onclick="event.stopPropagation()">'+
+     '<svg class="coord-other-chevron" width="16" height="16"><use href="#icon-dismiss-sm"/></svg>'+
+    '</div>'+
+    '<div class="coord-other-detail" style="display:none;">'+
+     '<div class="cr-location"><svg width="14" height="14"><use href="#icon-field-location"/></svg> '+s.location+'</div>'+
+     '<div class="cr-transit-dual">'+
+      '<div class="cr-transit-side"><span class="cr-transit-who">You</span><span>'+s.yourTransit+'</span></div>'+
+      '<div class="cr-transit-side"><span class="cr-transit-who">'+shortName+'</span><span>'+s.theirTransit+'</span></div>'+
+     '</div>'+
+     '<div class="cr-why"><svg width="14" height="14"><use href="#icon-chart"/></svg> '+s.why+'</div>'+
+     '<button class="cr-confirm-btn" style="margin-top:10px;" id="coordBtn'+oi+'" onclick="event.stopPropagation();confirmCoord('+oi+',\''+name.replace(/'/g,"\\'")+'\')">Confirm · Notify '+shortName+'</button>'+
+     '<div class="cr-status" id="coordStatus'+oi+'"></div>'+
+    '</div>'+
+   '</div>';
+  });
+ }
 
  container.innerHTML = html;
  container.style.display = 'block';
  container.scrollIntoView({behavior:'smooth'});
+}
+
+function expandOtherSlot(card, idx, name) {
+ const detail = card.querySelector('.coord-other-detail');
+ const chevron = card.querySelector('.coord-other-chevron');
+ if (!detail || !chevron) return;
+ const isOpen = detail.style.display !== 'none';
+ // Close all other expanded
+ document.querySelectorAll('.coord-other-detail').forEach(d => d.style.display = 'none');
+ document.querySelectorAll('.coord-other-chevron').forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
+ if (!isOpen) {
+  detail.style.display = 'block';
+  chevron.style.transform = 'rotate(180deg)';
+  card.style.opacity = '1';
+ }
 }
 
 function confirmCoord(idx, name) {
