@@ -105,6 +105,58 @@
  }
  .section-header svg { flex-shrink: 0; opacity: 0.7; }
 
+ /* Agent Greeting Card */
+ .greeting-card {
+  background: linear-gradient(135deg, #1c1c1e 0%, #2c2c2e 100%);
+  border-radius: var(--radius-lg); padding: 18px 16px 16px; margin-bottom: 16px;
+  color: #fff;
+ }
+ .gc-date { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px; }
+ .gc-greeting {
+  font-size: 18px; font-weight: 600; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+ }
+ .gc-greeting svg { color: #FFD60A; flex-shrink: 0; }
+ .gc-stats { display: flex; flex-direction: column; gap: 6px; }
+ .gc-stat {
+  font-size: 13px; display: flex; align-items: center; gap: 8px;
+  color: rgba(255,255,255,0.85);
+ }
+ .gc-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+ }
+
+ /* Now marker */
+ .now-marker {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0 8px; margin-bottom: 2px;
+ }
+ .now-line { flex: 1; height: 1px; background: var(--ios-separator); }
+ .now-label { font-size: 12px; font-weight: 600; color: var(--ios-blue); white-space: nowrap; }
+
+ /* Agent suggestion aggregated card */
+ .agent-suggest-card {
+  background: var(--ios-card); border-radius: var(--radius-lg);
+  padding: 16px; margin: 14px 0 10px;
+  border: 1.5px solid var(--ios-green); background: var(--ios-green-bg);
+ }
+ .asc-header {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--ios-green);
+  display: flex; align-items: center; gap: 5px; margin-bottom: 10px;
+ }
+ .asc-best-label {
+  font-size: 11px; font-weight: 600; color: var(--ios-secondary);
+  margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px;
+ }
+ .asc-more-toggle {
+  font-size: 13px; font-weight: 500; color: var(--ios-blue);
+  cursor: pointer; padding: 8px 0 4px; display: flex; align-items: center; gap: 4px;
+  user-select: none;
+ }
+ .asc-more-toggle svg { transition: transform 0.2s; }
+ .asc-more-toggle.open svg { transform: rotate(180deg); }
+
  /* Event card */
  .event-card {
  background: var(--ios-card); border-radius: var(--radius-lg);
@@ -666,6 +718,17 @@
  }
  .chip:active { transform: scale(0.96); }
  .chip.selected { background: var(--ios-blue); color: #fff; border-color: var(--ios-blue); }
+
+ /* Progressive capture Q&A */
+ .capture-question {
+  background: #F8F8FA; border-radius: 12px; padding: 14px 16px;
+  margin-top: 10px; transition: opacity 0.15s, transform 0.15s;
+ }
+ .cq-label {
+  font-size: 14px; font-weight: 600; color: var(--ios-text);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+ }
+ .cq-label svg { color: var(--ios-blue); flex-shrink: 0; }
 
  /* Buttons */
  .ios-btn {
@@ -1242,60 +1305,31 @@
 
  <!-- Step 1: Parse result -->
  <div id="captureStep1" style="display:none;">
- <div style="font-size:17px;font-weight:600;margin-bottom:10px;">Parsed</div>
+ <div style="font-size:17px;font-weight:600;margin-bottom:4px;">Agent understood</div>
  <div class="parsed-block">
  <div class="p-raw" id="parseRawText">
  "Next Wednesday <span class="hl-time">2:00–3:00 PM</span> meet
  <span class="hl-person">Michael</span> at
  <span class="hl-place">Bahnhofstrasse, Zurich</span>"
  </div>
- <div style="font-size:12px;font-weight:600;color:var(--ios-secondary);margin-bottom:6px;">Extracted</div>
+ <div style="font-size:12px;font-weight:600;color:var(--ios-secondary);margin:10px 0 6px;">Confirmed</div>
  <div class="parsed-fields" id="parseFields">
  <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">Wed, Jun 10</span></div>
  <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-time"/></svg><span class="pf-val">2:00 – 3:00 PM</span></div>
  <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-location"/></svg><span class="pf-val">Bahnhofstrasse</span></div>
  <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-person"/></svg><span class="pf-val">Michael</span></div>
  <div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-type"/></svg><span class="pf-val">In-person meeting</span></div>
- <div class="parsed-field missing"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-home"/></svg><span class="pf-val">Depart from?</span></div>
- <div class="parsed-field missing"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-transit"/></svg><span class="pf-val">Transit mode?</span></div>
  </div>
 
- <div class="missing-alert" id="missingAlert">
- <span></span>
- <span id="missingText">Need 2 more details:<br>1. Where are you departing from?<br>2. How are you getting there?</span>
- </div>
+ <div id="captureQuestion"></div>
 
- <div style="font-size:12px;font-weight:600;color:var(--ios-secondary);margin-bottom:6px;">Quick select</div>
- <div class="chip-row" id="chipRow1">
- <span class="chip" onclick="selectChip(this, 'Home', 'origin')">Home</span>
- <span class="chip" onclick="selectChip(this, 'Office', 'origin')">Office</span>
- </div>
- <div class="chip-row" id="chipRow2" style="display:none;">
- <span class="chip" onclick="selectChip(this, 'Train', 'transit')">Train</span>
- <span class="chip" onclick="selectChip(this, 'Tram', 'transit')">Tram</span>
- <span class="chip" onclick="selectChip(this, 'Walk', 'transit')">Walk</span>
- <span class="chip" onclick="selectChip(this, 'Car', 'transit')">Car</span>
- </div>
-
- <div id="classifySection" style="display:none;margin-top:12px;">
- <div style="font-size:12px;font-weight:600;color:var(--ios-secondary);margin-bottom:6px;">Eisenhower Classification <span style="font-weight:400;font-size:10px;">(Suggestions · tap to change)</span></div>
- <div style="font-size:11px;color:var(--ios-secondary);margin-bottom:4px;">Importance</div>
- <div class="chip-row" id="chipRowImportance">
- <span class="chip" onclick="selectChip(this, 'high', 'importance')">High</span>
- <span class="chip" onclick="selectChip(this, 'medium', 'importance')">Medium</span>
- <span class="chip" onclick="selectChip(this, 'low', 'importance')">Low</span>
- </div>
- <div style="font-size:11px;color:var(--ios-secondary);margin-bottom:4px;margin-top:8px;">Urgency</div>
- <div class="chip-row" id="chipRowUrgency">
- <span class="chip" onclick="selectChip(this, 'high', 'urgency')">High</span>
- <span class="chip" onclick="selectChip(this, 'medium', 'urgency')">Medium</span>
- <span class="chip" onclick="selectChip(this, 'low', 'urgency')">Low</span>
- </div>
+ <div class="missing-alert" id="missingAlert" style="display:none;">
+ <span></span><span id="missingText"></span>
  </div>
  </div>
 
  <button class="ios-btn primary" id="confirmParseBtn" onclick="confirmParse()" disabled>
- Fill missing details
+ Just a moment…
  </button>
  <button class="ios-btn ghost" style="margin-top:6px;height:40px;font-size:14px;" onclick="closeCapture()">Cancel</button>
  </div>
@@ -1510,86 +1544,89 @@ function simulateScreenshotAnalysis() {
  '"Let\'s meet <span class="hl-time">next Wednesday 3pm</span> at <span class="hl-place">Uni Zürich, main building café</span>. '+
  'We need to discuss the <span class="hl-person">SLTA newsletter</span> before the board meeting."';
 
- // Fill parsed fields
+ // Fill parsed fields (confirmed only, 5 fields)
  document.getElementById('parseFields').innerHTML =
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">Wed, Jun 10</span></div>'+
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-time"/></svg><span class="pf-val">3:00 – 3:30 PM</span></div>'+
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-location"/></svg><span class="pf-val">Uni Zürich Café</span></div>'+
  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-person"/></svg><span class="pf-val">Marie (SLTA President)</span></div>'+
- '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-type"/></svg><span class="pf-val">☕ Coffee meeting</span></div>'+
- '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-source"/></svg><span class="pf-val">From WhatsApp chat</span></div>'+
- '<div class="parsed-field missing"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-home"/></svg><span class="pf-val">Depart from?</span></div>'+
- '<div class="parsed-field missing"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-transit"/></svg><span class="pf-val">Transit mode?</span></div>';
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-type"/></svg><span class="pf-val">Coffee meeting</span></div>'+
+ '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-source"/></svg><span class="pf-val">From WhatsApp chat</span></div>';
 
  capState.date = 'Wed, Jun 10';
  capState.captureMode = 'screenshot';
  capState.origin = null;
  capState.transit = null;
 
- document.getElementById('missingAlert').style.display = 'flex';
- document.getElementById('missingText').innerHTML = 'Need 2 more details:<br>1. Where are you departing from?<br>2. How are you getting there?';
- document.getElementById('confirmParseBtn').disabled = true;
- document.getElementById('confirmParseBtn').textContent = 'Fill missing details';
- document.getElementById('chipRow1').style.display = 'flex';
- document.getElementById('chipRow2').style.display = 'none';
-}
-
-function selectChip(el, value, field) {
- el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
- el.classList.add('selected');
-
- if (field === 'origin') {
- capState.origin = value;
- document.getElementById('chipRow2').style.display = 'flex';
- } else if (field === 'transit') {
- capState.transit = value;
- } else if (field === 'importance') {
- capState.importance = value;
- } else if (field === 'urgency') {
- capState.urgency = value;
- }
+ // Trigger progressive Q&A
  updateParseState();
 }
 
+function selectChip(el, value, field) {
+ // Visual feedback
+ el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+ el.classList.add('selected');
+
+ // Store answer
+ capState[field] = value;
+
+ // Animate transition: brief delay then show next question
+ const questionEl = document.getElementById('captureQuestion');
+ if (questionEl) {
+  questionEl.style.opacity = '0';
+  questionEl.style.transform = 'translateY(4px)';
+  questionEl.style.transition = 'opacity 0.15s, transform 0.15s';
+ }
+ setTimeout(() => {
+  updateParseState();
+  if (questionEl) {
+   questionEl.style.opacity = '1';
+   questionEl.style.transform = 'translateY(0)';
+  }
+ }, 180);
+}
+
 function updateParseState() {
- const fields = document.querySelectorAll('#parseFields .parsed-field');
- const alert = document.getElementById('missingAlert');
- const text = document.getElementById('missingText');
+ const questionEl = document.getElementById('captureQuestion');
  const btn = document.getElementById('confirmParseBtn');
+ if (!questionEl || !btn) return;
 
- if (capState.origin) {
- fields[5].classList.remove('missing');
- fields[5].querySelector('.pf-val').textContent = ' ' + capState.origin;
- }
- if (capState.transit) {
- fields[6].classList.remove('missing');
- fields[6].querySelector('.pf-val').textContent = 'Train: ' + capState.transit;
- }
+ // Build ordered list of unanswered questions
+ const pending = [];
+ if (!capState.origin) pending.push({key:'origin', label:'Where are you leaving from?', icon:'icon-field-home', chips:[
+  {val:'Home', icon:''}, {val:'Office', icon:''}, {val:'Other place…', icon:''}
+ ]});
+ if (!capState.transit) pending.push({key:'transit', label:'How are you getting there?', icon:'icon-field-transit', chips:[
+  {val:'Train', icon:''}, {val:'Tram', icon:''}, {val:'Walk', icon:''}, {val:'Car', icon:''}
+ ]});
 
- const missing = [];
- if (!capState.origin) missing.push('departure point');
- if (!capState.transit) missing.push('transit mode');
-
- if (missing.length === 0) {
- alert.style.display = 'none';
- // Show classification section
- const classifySection = document.getElementById('classifySection');
- if (classifySection) classifySection.style.display = 'block';
- // Auto-suggest classification based on context
- if (!capState.importance || !capState.urgency) {
- suggestClassification();
- }
- btn.disabled = false;
- btn.textContent = 'Confirm · Add to Timeline';
+ if (pending.length === 0) {
+  // All questions answered
+  questionEl.style.display = 'none';
+  btn.disabled = false;
+  btn.textContent = 'Confirm · Add to Timeline';
+  // Auto-classify in background (non-blocking)
+  if (!capState.importance || !capState.urgency) {
+   capState.importance = 'medium'; capState.urgency = 'medium';
+  }
  } else {
- alert.style.display = 'flex';
- text.innerHTML = 'Need ' + missing.length + ' more detail' + (missing.length>1?'s':'') + ':<br>' +
- missing.map((m,i) => (i+1)+'. '+m.charAt(0).toUpperCase()+m.slice(1)).join('<br>');
- btn.disabled = true;
- btn.textContent = 'Fill missing details';
- // Hide classification until missing fields are done
- const classifySection = document.getElementById('classifySection');
- if (classifySection) classifySection.style.display = 'none';
+  // Show first pending question only
+  const q = pending[0];
+  let qhtml = '<div class="capture-question anim-in">'+
+   '<div class="cq-label"><svg width="18" height="18"><use href="#'+q.icon+'"/></svg> '+q.label+'</div>'+
+   '<div class="chip-row">';
+  q.chips.forEach(c => {
+   qhtml += '<span class="chip" onclick="selectChip(this,\''+c.val+'\',\''+q.key+'\')">'+c.val+'</span>';
+  });
+  qhtml += '</div></div>';
+  questionEl.innerHTML = qhtml;
+  questionEl.style.display = 'block';
+  btn.disabled = true;
+  if (capState.origin && capState.transit) {
+   btn.textContent = 'Just a moment…';
+  } else {
+   btn.textContent = pending.length === 1 ? 'One more thing…' : 'Fill in details';
+  }
  }
 }
 
@@ -2356,6 +2393,24 @@ function quickAddToDay() {
 }
 
 // ====== TODAY PAGE RENDERING ======
+function renderGreetingCard(unmarkedPast, pendingCount, freeHrs) {
+ const d = new Date(2026, 5, 6);
+ const dateStr = d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+ let h = '<div class="greeting-card anim-in">'+
+  '<div class="gc-date">'+dateStr+'</div>'+
+  '<div class="gc-greeting"><svg width="22" height="22"><use href="#icon-sun"/></svg> Good morning, Yvonne</div>'+
+  '<div class="gc-stats">';
+ if (unmarkedPast > 0) {
+  h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ios-red);"></span>'+unmarkedPast+' past event'+(unmarkedPast>1?'s':'')+' need'+(unmarkedPast===1?'s':'')+' confirmation</div>';
+ }
+ if (pendingCount > 0) {
+  h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ios-orange);"></span>'+pendingCount+' pending task'+(pendingCount>1?'s':'')+' to schedule</div>';
+ }
+ h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ios-green);"></span>'+freeHrs+'h free this afternoon</div>';
+ h += '</div></div>';
+ return h;
+}
+
 function renderTodayPage() {
  const today = 6; // June 6 fixed for demo
  const key = '2026-6';
@@ -2365,86 +2420,104 @@ function renderTodayPage() {
  // Simulated "now" for past/future distinction: ~11:00 AM
  const simNow = '11:00';
 
- const morning = sorted.filter(e => (e.startTime||'') < '12:00');
- const afternoon = sorted.filter(e => (e.startTime||'') >= '12:00' && (e.startTime||'') < '17:00');
- const evening = sorted.filter(e => (e.startTime||'') >= '17:00');
+ const pastEvents = sorted.filter(e => (e.startTime||'') < simNow);
+ const futureEvents = sorted.filter(e => (e.startTime||'') >= simNow);
+ const futureAfternoon = futureEvents.filter(e => (e.startTime||'') < '17:00');
+ const futureEvening = futureEvents.filter(e => (e.startTime||'') >= '17:00');
+
+ // Greeting card data
+ const unmarkedPast = pastEvents.filter(e => !e.completed).length;
+ const pendingCount = pendingTasksDB.length;
+ // Compute free afternoon hours from free slots in 12:00-17:00 range
+ let freeMin = 0;
+ todayFreeSlots.forEach(s => {
+  const sH = parseInt(s.startTime.split(':')[0]);
+  const eH = parseInt(s.endTime.split(':')[0]);
+  if (sH >= 12 && eH <= 17) {
+   freeMin += (eH - sH) * 60;
+  } else if (sH >= 12 && sH < 17) {
+   freeMin += (Math.min(17, eH) - sH) * 60;
+  }
+ });
+ const freeHrs = Math.round(freeMin / 60);
 
  let html = '';
 
- // ═══ PENDING FIRST · most urgent ═══
+ // ═══ 1. AGENT GREETING CARD ═══
+ html += renderGreetingCard(unmarkedPast, pendingCount, freeHrs);
+
+ // ═══ 2. NOW MARKER + PAST EVENTS ═══
+ if (pastEvents.length > 0) {
+  html += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
+  pastEvents.forEach(e => {
+   html += renderEventCard(e, {isPast: true, compact: true, showEdit: true});
+  });
+ } else {
+  html += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
+ }
+
+ // ═══ 3. AFTERNOON (future) ═══
+ if (futureAfternoon.length > 0) {
+  html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-sun"/></svg> Afternoon</div>';
+  futureAfternoon.forEach(e => {
+   html += renderEventCard(e, {isPast: false, compact: true, showEdit: true});
+  });
+ }
+
+ // ═══ 4. AGENT SUGGESTIONS · aggregated single card ═══
+ if (todayFreeSlots.length > 0) {
+  const fs0 = todayFreeSlots[0];
+  const durH0 = parseInt(fs0.endTime.split(':')[0]) - parseInt(fs0.startTime.split(':')[0]);
+  html += '<div class="agent-suggest-card anim-in" id="agentSuggestCard">'+
+   '<div class="asc-header"><svg width="16" height="16"><use href="#icon-chart"/></svg> Agent suggestion</div>'+
+   '<div class="asc-best">'+
+    '<div class="asc-best-label">Best use of your free afternoon</div>'+
+    '<div class="suggest-slot best" id="freeSlot-0" onclick="event.stopPropagation()">'+
+     '<div class="ss-row">'+
+      '<input class="ss-time-input" id="fs-time-0" value="'+fs0.startTime.replace(':00','')+' – '+fs0.endTime.replace(':00','')+' · '+durH0+'h" onfocus="this.select()">'+
+      '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot(0)" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+     '</div>'+
+     '<input class="ss-time-input" id="fs-title-0" value="'+fs0.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
+     '<div class="ss-reason">'+fs0.agentReasoning+'</div>'+
+    '</div>'+
+   '</div>';
+  if (todayFreeSlots.length > 1) {
+   html += '<div class="asc-more-toggle" id="agent-toggle-more" onclick="event.stopPropagation();toggleAgentSuggest()">'+
+    '<svg width="14" height="14" id="asc-toggle-chevron"><use href="#icon-dismiss-sm"/></svg> '+
+    (todayFreeSlots.length - 1) + ' more option' + (todayFreeSlots.length > 2 ? 's' : '') +
+   '</div>';
+   html += '<div class="more-suggest" id="agent-more-suggest" style="display:none;">';
+   for (let fi = 1; fi < todayFreeSlots.length; fi++) {
+    const fs = todayFreeSlots[fi];
+    const durH = parseInt(fs.endTime.split(':')[0]) - parseInt(fs.startTime.split(':')[0]);
+    html += '<div class="suggest-slot" id="freeSlot-'+fi+'" onclick="event.stopPropagation()">'+
+     '<div class="ss-row">'+
+      '<input class="ss-time-input" id="fs-time-'+fi+'" value="'+fs.startTime.replace(':00','')+' – '+fs.endTime.replace(':00','')+' · '+durH+'h" onfocus="this.select()">'+
+      '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot('+fi+')" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+     '</div>'+
+     '<input class="ss-time-input" id="fs-title-'+fi+'" value="'+fs.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
+     '<div class="ss-reason">'+fs.agentReasoning+'</div>'+
+    '</div>';
+   }
+   html += '</div>';
+  }
+  html += '<div class="pending-actions" style="display:flex;gap:6px;margin-top:10px;">'+
+   '<button class="p-action dismiss" onclick="event.stopPropagation();dismissAllFreeSlots()"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Dismiss all</button>'+
+  '</div></div>';
+ }
+
+ // ═══ 5. EVENING ═══
+ if (futureEvening.length > 0) {
+  html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-moon"/></svg> Evening</div>';
+  futureEvening.forEach(e => {
+   html += renderEventCard(e, {isPast: false, compact: true, showEdit: true});
+  });
+ }
+
+ // ═══ 6. PENDING TASKS ═══
  html += renderPendingCards();
 
- // Morning
- if (morning.length > 0) {
- html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-sun"/></svg> Morning</div>';
- morning.forEach(e => {
- html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true});
- });
- }
-
- // Afternoon · with free slot
- html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-sun"/></svg> Afternoon</div>';
- if (afternoon.length > 0) {
- afternoon.forEach(e => {
- html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true});
- });
- }
- // Agent suggestions
- if (todayFreeSlots.length > 0) {
- html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-chart"/></svg> Agent suggestions</div>';
- html += '<div class="pending-card anim-in" id="agentSuggestCard" style="border-left-color:var(--ios-green);">'+
- '<div style="font-size:12px;color:var(--ios-secondary);margin-bottom:6px;">AI found '+todayFreeSlots.length+' ways to use your free afternoon</div>';
-
- // Best suggestion · always visible, labeled "Suggested"
- const fs0 = todayFreeSlots[0];
- const durH0 = parseInt(fs0.endTime.split(':')[0]) - parseInt(fs0.startTime.split(':')[0]);
- html += '<div class="suggest-slot best" id="freeSlot-0" onclick="event.stopPropagation()">'+
- '<div class="ss-row">'+
- '<input class="ss-time-input" id="fs-time-0" value="Suggested · '+fs0.startTime.replace(':00','')+' – '+fs0.endTime.replace(':00','')+' · '+durH0+'h" onfocus="this.select()">'+
- ''+
- '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot(0)" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
- '</div>'+
- '<input class="ss-time-input" id="fs-title-0" value="'+fs0.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
- '<div class="ss-reason">'+fs0.agentReasoning+'</div></div>';
-
- // Show more toggle (if there are other suggestions)
- if (todayFreeSlots.length > 1) {
- html += '<div class="show-more-toggle" id="agent-toggle-more" onclick="event.stopPropagation();toggleAgentSuggest()">'+
- 'Show ' + (todayFreeSlots.length - 1) + ' more option' + (todayFreeSlots.length > 2 ? 's' : '') +
- '</div>';
- }
-
- // Hidden other suggestions
- html += '<div class="more-suggest" id="agent-more-suggest" style="display:none;">';
- for (let fi = 1; fi < todayFreeSlots.length; fi++) {
- const fs = todayFreeSlots[fi];
- const durH = parseInt(fs.endTime.split(':')[0]) - parseInt(fs.startTime.split(':')[0]);
- html += '<div class="suggest-slot" id="freeSlot-'+fi+'" onclick="event.stopPropagation()">'+
- '<div class="ss-row">'+
- '<input class="ss-time-input" id="fs-time-'+fi+'" value="'+fs.startTime.replace(':00','')+' – '+fs.endTime.replace(':00','')+' · '+durH+'h" onfocus="this.select()">'+
- ''+
- '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot('+fi+')" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
- '</div>'+
- '<input class="ss-time-input" id="fs-title-'+fi+'" value="'+fs.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
- '<div class="ss-reason">'+fs.agentReasoning+'</div></div>';
- }
- html += '</div>';
-
- html += '<div class="pending-actions" style="display:flex;gap:6px;margin-top:8px;">'+
- '<button class="p-action dismiss" onclick="event.stopPropagation();dismissAllFreeSlots()"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Dismiss all</button>'+
- '</div>'+
- '</div>';
- }
-
- // Evening
- if (evening.length > 0) {
- html += '<div class="section-header"><svg width="15" height="15"><use href="#icon-moon"/></svg> Evening</div>';
- evening.forEach(e => {
- html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true});
- });
- }
-
- // ═══ DAILY BRIEFING ═══
+ // ═══ 7. DAILY BRIEFING ═══
  html += renderDailyBriefing();
 
  document.getElementById('todayContent').innerHTML = html;
@@ -2732,7 +2805,13 @@ function toggleAgentSuggest() {
  if (!moreEl || !toggleEl) return;
  const opening = moreEl.style.display !== 'block';
  moreEl.style.display = opening ? 'block' : 'none';
- toggleEl.textContent = opening ? 'Show less' : 'Show ' + (todayFreeSlots.length - 1) + ' more option' + (todayFreeSlots.length > 2 ? 's' : '');
+ if (opening) {
+  toggleEl.classList.add('open');
+  toggleEl.innerHTML = '<svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Show less';
+ } else {
+  toggleEl.classList.remove('open');
+  toggleEl.innerHTML = '<svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> ' + (todayFreeSlots.length - 1) + ' more option' + (todayFreeSlots.length > 2 ? 's' : '');
+ }
 }
 
 // ====== PENDING ACTIONS ======
