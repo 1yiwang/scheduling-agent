@@ -130,7 +130,10 @@ We don't compete in the "calendar" category. We compete in the **"AI scheduling 
 ## Project Status
 
 - **Stage:** Interactive prototype — complete (June 7, 2026)
-- **Next:** Collecting feedback from first users (Clark et al.) before deciding on backend MVP scope
+- **Latest:** Round 1 UX improvements applied (June 8):
+  - Navigation renamed: Home / Timeline / Meet / People / Insights
+  - Meet page: negotiation checklist + dual transit + "Why" reasoning + collapsed alternatives
+- **Next:** R2 (Today page restructure with Agent Greeting Card + Capture progressive Q&A)
 - **Goal:** Validate UX hypothesis before committing to real APIs, database, or backend
 - **Success criteria:** User understands the product in 10 seconds; completes the capture→confirm flow without friction; gives actionable feedback
-- **Full PRD:** [github.com/1yiwang/scheduling-agent](https://github.com/1yiwang/scheduling-agent) — `_index.md` in the repo, or `10-PROJECTS/scheduling-agent/_index.md` in Obsidian
+- **Full roadmap:** `_index.md` in the repo, or `10-PROJECTS/scheduling-agent/_index.md` in Obsidian
