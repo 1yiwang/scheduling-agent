@@ -130,12 +130,11 @@ We don't compete in the "calendar" category. We compete in the **"AI scheduling 
 ## Project Status
 
 - **Stage:** Interactive prototype — complete (June 7, 2026)
-- **CC Review Rounds:** All 4 rounds complete (June 8, 2026):
-  - ✅ R1: Navigation renames (Home/Timeline/Meet/People/Insights) + Coordinate redesign with negotiation checklist + dual transit + "Why" reasoning
+- **CC Review Rounds:** All 5 rounds complete (June 8, 2026):
+  - ✅ R1: Navigation renames (Home/Timeline/Meet/People/Insights) + Coordinate redesign
   - ✅ R2: Today page restructure (Agent Greeting Card + Now marker) + Capture progressive Q&A
   - ✅ R3: Conflict detection UI (three-path resolution) + Empty states & error states (6 scenarios)
-  - ✅ R4: Visual enhancements (status left-border color encoding + type visual weighting + timeline vertical rule) + Dark mode
+  - ✅ R4: Visual enhancements (status borders + type weighting + timeline rule) + Dark mode
+  - ✅ R5: Today page reorder — agent content (tasks + suggestions) above timeline fold
 - **Next:** Send to more target users for validation
 - **Goal:** Validate UX hypothesis before committing to real APIs, database, or backend
-- **Success criteria:** User understands the product in 10 seconds; completes the capture→confirm flow without friction; gives actionable feedback
-- **Full roadmap:** `_index.md` in the repo, or `10-PROJECTS/scheduling-agent/_index.md` in Obsidian
