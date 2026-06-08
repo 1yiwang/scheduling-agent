@@ -16,7 +16,7 @@ Best viewed on mobile (375–428px) or desktop with phone-frame emulation.
 
 ## What's Inside
 
-A single-file (~3200 lines), zero-dependency prototype showing the full UX: capture intent → Agent parses → you confirm → timeline updates. All data is mock (hardcoded `eventsDB` for June 6, 2026).
+A single-file (~4200 lines), zero-dependency prototype showing the full UX: capture intent → Agent parses → you confirm → timeline updates. All data is mock (hardcoded `eventsDB` for June 6, 2026).
 
 ### 📱 5 Navigation Tabs
 
@@ -62,14 +62,14 @@ A single-file (~3200 lines), zero-dependency prototype showing the full UX: capt
 
 ### Visual Style
 - **Phone frame:** 390×844px centered with device bezel
-- **Theme:** iOS-inspired light mode (🌙 dark mode toggle ready)
-- **Typography:** System font stack, clean hierarchy
+- **Theme:** 3-way toggle (🌙 dark / ☀️ light / 🔄 follow system), dark as default. Full light mode coverage
+- **Typography:** Playfair Display (headings/dates) + Inter (body), Google Fonts CDN
 - **Animations:** Card expand/collapse (max-height + opacity), toast slide-in, staggered list reveals, delete collapse
-- **Colors:** iOS system palette — blue actions, red destructive, green confirmations
-- **Layout:** Morning / Afternoon / Evening sections with sun/moon icons
+- **Colors:** Executive Journal palette — SBB Red (accent) / Sage Green (complete) / Amber (warning) / Steel Blue (info)
+- **Layout:** "Binding Spine" timeline — 64px left margin, continuous vertical rule, hollow ring dots
 
 ### Technical
-- **Zero dependencies.** Single `index.html` (~3200 lines). Pure HTML + CSS + vanilla JS.
+- **Zero dependencies.** Single `index.html` (~4200 lines). Pure HTML + CSS + vanilla JS.
 - **No build step.** Open the file or deploy as-is.
 - **All data is mock.** `eventsDB`, `pendingTasksDB`, `runtimeEvents`, `todayFreeSlots` — hardcoded for June 6, 2026.
 - **CRLF line endings.** Windows-native.
@@ -130,11 +130,12 @@ We don't compete in the "calendar" category. We compete in the **"AI scheduling 
 ## Project Status
 
 - **Stage:** Interactive prototype — complete (June 7, 2026)
-- **CC Review Rounds:** All 5 rounds complete (June 8, 2026):
+- **CC Review Rounds:** All 6 rounds complete (June 8, 2026):
   - ✅ R1: Navigation renames (Home/Timeline/Meet/People/Insights) + Coordinate redesign
   - ✅ R2: Today page restructure (Agent Greeting Card + Now marker) + Capture progressive Q&A
   - ✅ R3: Conflict detection UI (three-path resolution) + Empty states & error states (6 scenarios)
   - ✅ R4: Visual enhancements (status borders + type weighting + timeline rule) + Dark mode
   - ✅ R5: Today page reorder — agent content (tasks + suggestions) above timeline fold
+  - ✅ R6: Executive Journal design system — global CSS tokens, fonts, timeline, 3-way theme toggle
 - **Next:** Send to more target users for validation
 - **Goal:** Validate UX hypothesis before committing to real APIs, database, or backend
