@@ -208,7 +208,7 @@
 
  /* Timeline — binding spine metaphor */
  .timeline-block {
-  position: relative; padding-left: 18px; margin-left: 64px;
+  position: relative; padding-left: 20px; margin-left: 8px;
   border-left: 1px solid var(--ej-line);
  }
  .timeline-block .event-card { position: relative; }
@@ -231,7 +231,7 @@
  /* Now marker */
  .now-marker {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 0 8px; margin-left: 64px; padding-left: 18px;
+  padding: 10px 0 8px; margin-left: 8px; padding-left: 20px;
   border-left: 1px solid var(--ej-line);
  }
  .now-line { width: 24px; height: 1px; background: var(--ej-red); flex-shrink: 0;
@@ -264,6 +264,66 @@
  }
  .asc-more-toggle svg { transition: transform 0.2s; }
  .asc-more-toggle.open svg { transform: rotate(180deg); }
+
+ /* ── Commute intelligence: workability badge ── */
+ .transit-badge {
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 6px; padding: 4px 9px; border-radius: 6px;
+  font-size: 11px; line-height: 1.3;
+ }
+ .transit-badge .tb-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+ .transit-badge .tb-label { font-weight: 700; letter-spacing: 0.2px; }
+ .transit-badge .tb-reason { font-weight: 500; opacity: 0.85; }
+ .transit-badge.work-good { background: var(--ej-complete-bg); color: var(--ej-complete); }
+ .transit-badge.work-good .tb-dot { background: var(--ej-complete); }
+ .transit-badge.work-ok { background: var(--ej-warning-bg); color: var(--ej-warning); }
+ .transit-badge.work-ok .tb-dot { background: var(--ej-warning); }
+ .transit-badge.work-no { background: var(--ej-hover); color: var(--ej-text-2); }
+ .transit-badge.work-no .tb-dot { background: var(--ej-text-3); }
+ /* A transit card with a workable window deserves full attention, not dimming */
+ .event-card.type-transit.has-workable { opacity: 1; }
+
+ /* ── Tasks scheduled into a commute ── */
+ .commute-tasks { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+ .commute-task-line {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500; color: var(--ej-complete);
+  background: var(--ej-complete-bg); border-radius: 6px; padding: 5px 9px;
+ }
+ .commute-task-line svg { flex-shrink: 0; }
+
+ /* ── Commute scheduling suggestion card ── */
+ .commute-suggest-card {
+  background: var(--ej-card); border-radius: var(--radius-lg);
+  padding: 16px; margin: 14px 0 10px;
+  border: 1px solid var(--ej-warning);
+ }
+ .csc-header {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--ej-warning);
+  display: flex; align-items: center; gap: 5px; margin-bottom: 8px;
+  font-family: var(--font-body);
+ }
+ .csc-headline { font-size: 14px; font-weight: 600; color: var(--ej-text); line-height: 1.4; }
+ .csc-sub { font-size: 12px; color: var(--ej-text-2); margin-top: 3px; line-height: 1.4; }
+ .csc-task {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; padding: 10px 12px; border-radius: var(--radius);
+  background: var(--ej-warning-bg); border: 1px solid var(--ej-warning);
+ }
+ .csc-task .csc-task-title { font-size: 13px; font-weight: 600; color: var(--ej-text); }
+ .csc-task .csc-task-est { font-size: 12px; color: var(--ej-text-2); margin-left: auto; white-space: nowrap; }
+ .csc-task svg { flex-shrink: 0; }
+ .csc-reason { font-size: 12px; color: var(--ej-text-2); margin-top: 8px; line-height: 1.4; }
+ .csc-actions { display: flex; gap: 8px; margin-top: 12px; }
+ .csc-actions .csc-btn {
+  flex: 1; height: 38px; border-radius: 8px; border: 1px solid var(--ej-line);
+  font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: var(--ej-text-2);
+  transition: all 0.12s; display: flex; align-items: center; justify-content: center; gap: 5px;
+ }
+ .csc-actions .csc-btn:active { transform: scale(0.98); }
+ .csc-actions .csc-btn.confirm { background: var(--ej-warning); color: #fff; border-color: var(--ej-warning); flex: 2; }
+ .csc-actions .csc-btn svg { flex-shrink: 0; }
 
  /* Event card */
  .event-card {
@@ -2721,8 +2781,40 @@ function getTypeInfo(event) {
 function getDisplayTitle(event, compact) {
  if (!compact || event.type !== 'transit' || !event.transitMode) return event.title;
  const durLabel = event.transitDuration ? ' · '+event.transitDuration : '';
- const workLabel = event.transitWorkable ? 'Workable' : 'Unavailable';
- return event.title + durLabel + ' · ' + workLabel;
+ return event.title + durLabel;
+}
+
+// ── Commute intelligence: what can you actually do during this transit? ──
+// score: 3 = full work, 2 = calls + light, 1 = audio only, 0 = unavailable
+function getWorkability(mode) {
+ const M = {
+  train:       { score:3, cls:'work-good', label:'Mobile office', reason:'Quiet, table seat — calls + laptop OK' },
+  'car-ride':  { score:2, cls:'work-ok',   label:'Calls OK',      reason:'Passenger — calls fine, laptop limited' },
+  bus:         { score:1, cls:'work-ok',   label:'Audio only',    reason:'Good for listening / quick calls' },
+  tram:        { score:1, cls:'work-ok',   label:'Audio only',    reason:'Good for listening / quick calls' },
+  walk:        { score:0, cls:'work-no',   label:'Unavailable',   reason:'Walking — skip meetings here' },
+  'car-drive': { score:0, cls:'work-no',   label:'Unavailable',   reason:'Driving — hands-free only' },
+  car:         { score:0, cls:'work-no',   label:'Unavailable',   reason:'Driving — hands-free only' },
+  flight:      { score:0, cls:'work-no',   label:'Limited',       reason:'Offline work only · no calls' }
+ };
+ return M[mode] || { score:0, cls:'work-no', label:'Unavailable', reason:'' };
+}
+
+function renderTransitBadge(event) {
+ if (event.type !== 'transit' || !event.transitMode) return '';
+ const w = getWorkability(event.transitMode);
+ return '<div class="transit-badge '+w.cls+'">'+
+  '<span class="tb-dot"></span>'+
+  '<span class="tb-label">'+w.label+'</span>'+
+  '<span class="tb-reason">'+w.reason+'</span>'+
+ '</div>';
+}
+
+function renderCommuteTasks(event) {
+ if (!event.commuteTasks || !event.commuteTasks.length) return '';
+ return '<div class="commute-tasks">'+ event.commuteTasks.map(t =>
+  '<div class="commute-task-line"><svg width="13" height="13"><use href="#icon-check-sm"/></svg> '+t.title+' · '+t.est+' · in commute</div>'
+ ).join('') + '</div>';
 }
 
 function renderCompactMeta(event) {
@@ -2781,7 +2873,8 @@ function renderEventExpand(event, options) {
  // Transit details
  if (event.transitMode) {
  html += '<div class="e-row"><span class="e-label">Transit</span><span class="e-val">'+event.transitMode.charAt(0).toUpperCase()+event.transitMode.slice(1)+(event.transitDuration?' · '+event.transitDuration:'')+'</span></div>';
- html += '<div class="e-row"><span class="e-label">During transit</span><span class="e-val">'+(event.transitWorkable?'Can take calls / work':'Unavailable · walking/driving')+'</span></div>';
+ const _w = getWorkability(event.transitMode);
+ html += '<div class="e-row"><span class="e-label">During transit</span><span class="e-val">'+_w.label+' · '+_w.reason+'</span></div>';
  }
  // Participants
  if (event.participants && event.participants.length > 0) {
@@ -2860,7 +2953,8 @@ function renderEventCard(event, options) {
  else compState = 'unmarked-past';
  }
 
- const cls = (isFreeSlot?'free-slot ':'') + (isPast?'past ':'') + compState + ' type-'+event.type + ' anim-in';
+ const isWorkableTransit = event.type === 'transit' && event.transitMode && getWorkability(event.transitMode).score >= 2;
+ const cls = (isFreeSlot?'free-slot ':'') + (isPast?'past ':'') + compState + ' type-'+event.type + (isWorkableTransit?' has-workable':'') + ' anim-in';
  const expandHtml = renderEventExpand(event, options);
 
  // Build time row extras (compact mode: type tag inline)
@@ -2878,6 +2972,8 @@ function renderEventCard(event, options) {
  const endTime = event.time.split('–')[1]?.trim() || '';
 
  const displayTitle = getDisplayTitle(event, options.compact);
+ const transitBadge = options.compact ? renderTransitBadge(event) : '';
+ const commuteTasksHtml = renderCommuteTasks(event);
 
  // Compact: minimal who+where meta line; Full: complete tags
  const tagsOrMeta = options.compact
@@ -2890,6 +2986,8 @@ function renderEventCard(event, options) {
  return '<div class="event-card '+cls.trim()+'" id="card-'+(event.id||'')+'" onclick="toggleExpand(this)" '+dataAttrs+'>'+
  '<div class="e-time-row"><span class="e-time">'+startTime+'</span><span class="e-duration">– '+endTime+'</span>'+timeExtras+'</div>'+
  '<div class="e-title">'+displayTitle+'</div>'+
+ transitBadge+
+ commuteTasksHtml+
  tagsHtml+
  '<div class="e-expand">'+expandHtml+'</div>'+
  '</div>';
@@ -3133,6 +3231,88 @@ function renderGreetingCard(unmarkedPast, pendingCount, freeHrs) {
  return h;
 }
 
+// ── Commute scheduling: match a light task to a workable transit window ──
+let commuteSuggestionDismissed = false;
+let currentCommuteSuggestion = null;
+
+function parseEstMinutes(est) {
+ if (!est) return 999;
+ let mins = 0;
+ const h = est.match(/(\d+(?:\.\d+)?)\s*h/);
+ const m = est.match(/(\d+)\s*m/);
+ if (h) mins += parseFloat(h[1]) * 60;
+ if (m) mins += parseInt(m[1]);
+ if (!h && !m) { const n = est.match(/(\d+)/); if (n) mins = parseInt(n[1]); }
+ return mins || 999;
+}
+
+function windowMinutes(ev) {
+ const s = parseInt(ev.startTime.split(':')[0])*60 + parseInt(ev.startTime.split(':')[1]);
+ const e = parseInt(ev.endTime.split(':')[0])*60 + parseInt(ev.endTime.split(':')[1]);
+ return e - s;
+}
+
+function findCommuteScheduleSuggestion() {
+ const key = '2026-6', today = 6;
+ const evts = (eventsDB[key]||{})[today]||[];
+ // Upcoming transit windows you can actually work in (score >= 2), not already filled
+ const windows = evts
+  .filter(e => e.type==='transit' && getWorkability(e.transitMode).score >= 2 && !(e.commuteTasks && e.commuteTasks.length))
+  .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
+ if (!windows.length) return null;
+ // A light pending task (<= 30 min) that could ride along instead of taking a focus slot
+ const task = pendingTasksDB.find(t => parseEstMinutes(t.estTime) <= 30);
+ if (!task) return null;
+ const win = windows.find(w => windowMinutes(w) >= parseEstMinutes(task.estTime));
+ if (!win) return null;
+ return { window: win, task: task, work: getWorkability(win.transitMode) };
+}
+
+function renderCommuteSuggestCard(cs) {
+ const startDisp = cs.window.time.split('–')[0].trim();
+ const mode = cs.window.transitMode;
+ const mins = windowMinutes(cs.window);
+ const shortTitle = cs.task.title.split('·')[0].trim();
+ return '<div class="commute-suggest-card anim-in" id="commuteSuggestCard">'+
+  '<div class="csc-header"><svg width="16" height="16"><use href="#icon-field-transit"/></svg> Agent suggestion · commute</div>'+
+  '<div class="csc-headline">Your '+startDisp+' '+mode+' is a '+mins+'-min mobile-office window.</div>'+
+  '<div class="csc-sub">Use it for a light task instead of burning a focus slot?</div>'+
+  '<div class="csc-task">'+
+   '<svg width="15" height="15"><use href="#icon-check-sm"/></svg>'+
+   '<span class="csc-task-title">'+shortTitle+'</span>'+
+   '<span class="csc-task-est">'+cs.task.estTime+'</span>'+
+  '</div>'+
+  '<div class="csc-reason">'+cs.work.reason+' — '+cs.task.estTime.replace('~','')+' fits comfortably.</div>'+
+  '<div class="csc-actions">'+
+   '<button class="csc-btn" onclick="event.stopPropagation();dismissCommuteSchedule()"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Not now</button>'+
+   '<button class="csc-btn confirm" onclick="event.stopPropagation();confirmCommuteSchedule()"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Schedule in commute</button>'+
+  '</div>'+
+ '</div>';
+}
+
+function confirmCommuteSchedule() {
+ const cs = currentCommuteSuggestion;
+ if (!cs) return;
+ const ev = cs.window;
+ const shortTitle = cs.task.title.split('·')[0].trim();
+ ev.commuteTasks = ev.commuteTasks || [];
+ ev.commuteTasks.push({ title: shortTitle, est: cs.task.estTime });
+ ev.agentNote = (ev.agentNote ? ev.agentNote+' ' : '') + 'Scheduled "'+shortTitle+'" during this commute.';
+ const idx = pendingTasksDB.findIndex(t => t.id === cs.task.id);
+ if (idx >= 0) pendingTasksDB.splice(idx, 1);
+ const startDisp = ev.time.split('–')[0].trim();
+ currentCommuteSuggestion = null;
+ renderTodayPage();
+ showToast('Scheduled into your '+startDisp+' '+ev.transitMode+' · '+shortTitle);
+}
+
+function dismissCommuteSchedule() {
+ commuteSuggestionDismissed = true;
+ currentCommuteSuggestion = null;
+ renderTodayPage();
+ showToast('Dismissed — commute left free');
+}
+
 function renderTodayPage() {
  const today = 6; // June 6 fixed for demo
  const key = '2026-6';
@@ -3170,6 +3350,12 @@ function renderTodayPage() {
 
  // ═══ 2. PENDING TASKS ═══
  html += renderPendingCards();
+
+ // ═══ 2.5 COMMUTE INTELLIGENCE · schedule a light task into a workable commute ═══
+ currentCommuteSuggestion = commuteSuggestionDismissed ? null : findCommuteScheduleSuggestion();
+ if (currentCommuteSuggestion) {
+  html += renderCommuteSuggestCard(currentCommuteSuggestion);
+ }
 
  // ═══ 3. AGENT SUGGESTIONS · aggregated single card ═══
  if (todayFreeSlots.length > 0) {
