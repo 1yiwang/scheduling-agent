@@ -181,6 +181,128 @@
  }
  .section-header svg { flex-shrink: 0; opacity: 0.7; }
 
+/* Today page hierarchy */
+.today-assist-shell {
+ margin: 4px 0 22px; border: 1px solid var(--ej-line);
+ border-radius: var(--radius-lg); background: rgba(255,255,255,0.58);
+ overflow: hidden;
+}
+.today-assist-shell.is-collapsed { background: transparent; }
+.today-assist-toggle {
+ width: 100%; border: 0; background: transparent; color: var(--ej-text);
+ padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+ cursor: pointer; text-align: left; font-family: var(--font-body);
+}
+.tas-icon {
+ width: 28px; height: 28px; border-radius: 50%;
+ display: flex; align-items: center; justify-content: center;
+ color: var(--ej-info); background: var(--ej-info-bg); flex-shrink: 0;
+}
+.tas-copy { min-width: 0; flex: 1; }
+.tas-title { display: block; font-size: 13px; font-weight: 650; letter-spacing: 0.1px; }
+.tas-sub { display: block; font-size: 12px; color: var(--ej-text-2); margin-top: 2px; }
+.tas-chevron { color: var(--ej-text-3); transition: transform 0.18s; }
+.today-assist-shell.is-open .tas-chevron { transform: rotate(180deg); }
+.today-assist-body { padding: 0 12px 12px; }
+.today-assist-body .section-header:first-child { padding-top: 2px; }
+.today-focus-row {
+ display: flex; justify-content: flex-end; margin: 0 0 10px;
+}
+.today-focus-btn {
+ border: 1px solid var(--ej-line); background: var(--ej-card);
+ color: var(--ej-text-2); border-radius: 999px; padding: 7px 11px;
+ display: inline-flex; align-items: center; gap: 7px;
+ font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.today-focus-btn.active {
+ color: var(--ej-text); border-color: var(--ej-info);
+ background: var(--ej-info-bg);
+}
+.focus-dot {
+ width: 8px; height: 8px; border-radius: 50%; background: var(--ej-text-3);
+ box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
+}
+.today-focus-btn.active .focus-dot { background: var(--ej-info); }
+.today-timeline-shell {
+ margin-top: 8px; padding-top: 16px;
+ border-top: 1px solid var(--ej-line);
+}
+.today-title-row {
+ display: flex; align-items: flex-end; justify-content: space-between;
+ margin-bottom: 12px;
+}
+.today-title-kicker {
+ font-size: 10px; font-weight: 700; color: var(--ej-text-3);
+ text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 3px;
+}
+.today-title {
+ font-family: var(--font-display); font-size: 24px; font-weight: 600;
+ color: var(--ej-text); letter-spacing: -0.25px;
+}
+.today-title-meta {
+ font-size: 12px; color: var(--ej-text-2); white-space: nowrap;
+ padding-bottom: 3px;
+}
+.time-plan-board { display: flex; flex-direction: column; gap: 12px; }
+.tp-window {
+ background: var(--ej-card); border: 1px solid var(--ej-line);
+ border-radius: var(--radius-lg); padding: 13px 14px;
+}
+.tp-window-head {
+ display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;
+ margin-bottom: 10px;
+}
+.tp-window-kicker {
+ font-size: 10px; font-weight: 700; color: var(--ej-info);
+ text-transform: uppercase; letter-spacing: 0.45px; margin-bottom: 3px;
+}
+.tp-window-title { font-size: 14px; font-weight: 650; color: var(--ej-text); }
+.tp-window-sub { font-size: 12px; color: var(--ej-text-2); margin-top: 2px; }
+.tp-budget {
+ min-width: 68px; text-align: right; font-size: 11px;
+ color: var(--ej-text-2); font-weight: 600;
+}
+.tp-budget-bar {
+ height: 6px; border-radius: 999px; background: var(--ej-hover);
+ overflow: hidden; margin: 7px 0 10px;
+}
+.tp-budget-fill {
+ height: 100%; border-radius: 999px; background: var(--ej-info);
+ transition: width 0.16s;
+}
+.tp-subhead {
+ font-size: 10px; font-weight: 700; color: var(--ej-text-3);
+ text-transform: uppercase; letter-spacing: 0.5px; margin: 9px 0 6px;
+}
+.tp-staged, .tp-candidates { display: flex; flex-direction: column; gap: 6px; }
+.tp-staged-item, .tp-candidate {
+ display: flex; align-items: center; gap: 8px;
+ border: 1px solid var(--ej-line); border-radius: 9px; padding: 8px 9px;
+ background: rgba(255,255,255,0.62);
+}
+.tp-staged-item { border-color: var(--ej-info); background: var(--ej-info-bg); }
+.tp-item-main { min-width: 0; flex: 1; }
+.tp-item-title {
+ font-size: 12px; font-weight: 650; color: var(--ej-text);
+ white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tp-item-meta { font-size: 11px; color: var(--ej-text-2); margin-top: 2px; }
+.tp-add, .tp-remove, .tp-confirm {
+ border: 1px solid var(--ej-line); border-radius: 7px; background: transparent;
+ color: var(--ej-text-2); font-size: 12px; font-weight: 650;
+ padding: 6px 8px; cursor: pointer; flex-shrink: 0;
+}
+.tp-add { color: var(--ej-info); border-color: var(--ej-info); background: var(--ej-info-bg); }
+.tp-remove { color: var(--ej-red); }
+.tp-confirm {
+ width: 100%; margin-top: 10px; background: var(--ej-info);
+ color: #fff; border-color: var(--ej-info); padding: 9px 10px;
+}
+.tp-empty {
+ font-size: 12px; color: var(--ej-text-2);
+ background: var(--ej-hover); border-radius: 8px; padding: 9px 10px;
+}
+
  /* Agent Greeting Card */
  .greeting-card {
   background: var(--ej-card); border-radius: var(--radius-lg);
@@ -3292,6 +3414,9 @@ let commuteSuggestionDismissed = false;
 let currentCommuteSuggestion = null;
 let selectedCommuteOptionIdx = 0;
 let commuteDraftState = null;
+let agentPanelExpanded = false;
+let focusTodayMode = false;
+let timePlanState = {};
 const LEARNING_STORAGE_KEY = 'schedulingAgentLearning.v1';
 let interactionLog = [];
 let prefStore = {};
@@ -3649,6 +3774,408 @@ function markCommuteDraftSent() {
  showToast('Marked sent · scheduled into commute · learned this preference');
 }
 
+function toggleAgentPanel() {
+ agentPanelExpanded = !agentPanelExpanded;
+ renderTodayPage();
+}
+
+function toggleFocusToday() {
+ focusTodayMode = !focusTodayMode;
+ renderTodayPage();
+ showToast(focusTodayMode ? 'Focus today · agent suggestions hidden' : 'Agent suggestions restored');
+}
+
+function renderTodayAssistPanel() {
+ const assistCount = getPlanWindows().length;
+ if (assistCount === 0) return '';
+ const panelClass = agentPanelExpanded ? 'today-assist-shell is-open' : 'today-assist-shell is-collapsed';
+ let html = '<section class="'+panelClass+'">'+
+  '<button class="today-assist-toggle" onclick="event.stopPropagation();toggleAgentPanel()">'+
+   '<span class="tas-icon"><svg width="15" height="15"><use href="#icon-chart"/></svg></span>'+
+   '<span class="tas-copy">'+
+    '<span class="tas-title">'+assistCount+' planning window'+(assistCount>1?'s':'')+' from your agent</span>'+
+    '<span class="tas-sub">Open desk time and workable commutes are organized by time. Your day stays below.</span>'+
+   '</span>'+
+   '<svg class="tas-chevron" width="14" height="14"><use href="#icon-dismiss-sm"/></svg>'+
+  '</button>';
+ if (agentPanelExpanded) {
+  html += '<div class="today-assist-body">';
+  html += renderTimePlanningBoard();
+  html += '</div>';
+ }
+ html += '</section>';
+ return html;
+}
+
+function timeToMinutes(t) {
+ const parts = t.split(':');
+ return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
+function minutesToTime(mins) {
+ const h = Math.floor(mins / 60);
+ const m = mins % 60;
+ const suffix = h >= 12 ? 'PM' : 'AM';
+ const hh = h % 12 || 12;
+ return hh + ':' + String(m).padStart(2,'0') + ' ' + suffix;
+}
+
+function formatWindowTime(start, end) {
+ return minutesToTime(timeToMinutes(start)).replace(':00','') + '–' + minutesToTime(timeToMinutes(end)).replace(':00','');
+}
+
+function formatPlanMinutes(mins) {
+ if (mins >= 60 && mins % 60 === 0) return (mins / 60) + 'h';
+ if (mins > 60) return Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+ return mins + 'm';
+}
+
+function getDeskPlanningSlots() {
+ const key = '2026-6', today = 6;
+ const evts = ((eventsDB[key]||{})[today]||[]).filter(e => e.startTime && e.endTime);
+ const baseSlots = todayFreeSlots.filter(slot => {
+  const s = timeToMinutes(slot.startTime);
+  const e = timeToMinutes(slot.endTime);
+  return !todayFreeSlots.some(other => {
+   if (other.id === slot.id) return false;
+   const os = timeToMinutes(other.startTime);
+   const oe = timeToMinutes(other.endTime);
+   return os <= s && oe >= e && (os < s || oe > e);
+  });
+ });
+ const segments = [];
+ baseSlots.forEach(slot => {
+  let ranges = [{ start: timeToMinutes(slot.startTime), end: timeToMinutes(slot.endTime) }];
+  evts.forEach(ev => {
+   const evStart = timeToMinutes(ev.startTime);
+   const evEnd = timeToMinutes(ev.endTime);
+   ranges = ranges.flatMap(range => {
+    if (evStart >= range.end || evEnd <= range.start) return [range];
+    const next = [];
+    if (range.start < evStart) next.push({ start: range.start, end: evStart });
+    if (evEnd < range.end) next.push({ start: evEnd, end: range.end });
+    return next;
+   });
+  });
+  ranges
+   .filter(range => range.end - range.start >= 15)
+   .forEach((range, idx) => {
+    segments.push({
+     id: slot.id + '-' + idx,
+     sourceId: slot.id,
+     startTime: String(Math.floor(range.start/60)).padStart(2,'0') + ':' + String(range.start%60).padStart(2,'0'),
+     endTime: String(Math.floor(range.end/60)).padStart(2,'0') + ':' + String(range.end%60).padStart(2,'0'),
+     suggestedTitle: slot.suggestedTitle,
+     agentReasoning: slot.agentReasoning,
+     suggestedBy: slot.suggestedBy
+    });
+   });
+ });
+ return segments;
+}
+
+function getPlanWindows() {
+ const key = '2026-6', today = 6;
+ const evts = (eventsDB[key]||{})[today]||[];
+ const deskWindows = getDeskPlanningSlots().map(s => ({
+  id: 'desk-'+s.id,
+  sourceId: s.id,
+  type: 'desk',
+  label: 'Desk block',
+  title: formatWindowTime(s.startTime, s.endTime) + ' · Desk',
+  sub: 'Open focus time. Fill as much or as little as you want.',
+  startTime: s.startTime,
+  endTime: s.endTime,
+  minutes: timeToMinutes(s.endTime) - timeToMinutes(s.startTime),
+  work: { score: 3 }
+ }));
+ const commuteWindows = evts
+  .filter(e => e.type==='transit' && getWorkability(e.transitMode).score >= 2 && !(e.commuteTasks && e.commuteTasks.length))
+  .map(e => ({
+   id: 'commute-'+e.id,
+   sourceId: e.id,
+   type: 'commute',
+   event: e,
+   label: 'Mobile window',
+   title: formatWindowTime(e.startTime, e.endTime) + ' · ' + (e.transitMode || 'Transit'),
+   sub: e.loc + ' · ' + getWorkability(e.transitMode).reason,
+   startTime: e.startTime,
+   endTime: e.endTime,
+   minutes: windowMinutes(e),
+   work: getWorkability(e.transitMode)
+  }));
+ return deskWindows.concat(commuteWindows)
+  .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
+}
+
+function getStagedItems(windowId) {
+ return timePlanState[windowId] || [];
+}
+
+function stagedCandidateIds(exceptWindowId) {
+ const ids = new Set();
+ Object.keys(timePlanState).forEach(windowId => {
+  if (windowId === exceptWindowId) return;
+  (timePlanState[windowId] || []).forEach(item => ids.add(item.id));
+ });
+ return ids;
+}
+
+function usedPlanMinutes(windowId) {
+ return getStagedItems(windowId).reduce((sum,item)=>sum + (item.estMinutes || 0), 0);
+}
+
+function planCandidateFitsWindow(candidate, win, remaining) {
+ if (candidate.estMinutes > remaining) return false;
+ if (win.type === 'commute') return candidateFitsWorkability(candidate, win.work);
+ return true;
+}
+
+function getCandidatesForWindow(win) {
+ const usedElsewhere = stagedCandidateIds(win.id);
+ const alreadyHere = new Set(getStagedItems(win.id).map(item => item.id));
+ const remaining = win.minutes - usedPlanMinutes(win.id);
+ return buildCandidatePool()
+  .filter(c => !usedElsewhere.has(c.id) && !alreadyHere.has(c.id))
+  .filter(c => planCandidateFitsWindow(c, win, remaining))
+  .sort((a,b)=>scoreCandidate(b)-scoreCandidate(a))
+  .slice(0, 4);
+}
+
+function priorityLabel(candidate) {
+ if (candidate.importance === 'high' && candidate.urgency === 'high') return 'urgent + important';
+ if (candidate.importance === 'high') return 'important';
+ if (candidate.urgency === 'high') return 'urgent';
+ return candidateKindLabel(candidate.kind).toLowerCase();
+}
+
+function renderTimePlanningBoard() {
+ const windows = getPlanWindows();
+ if (!windows.length) return '<div class="tp-empty">No open planning windows left today.</div>';
+ let html = '<div class="time-plan-board">';
+ windows.forEach(win => {
+  const staged = getStagedItems(win.id);
+  const used = usedPlanMinutes(win.id);
+  const remaining = Math.max(0, win.minutes - used);
+  const pct = Math.min(100, Math.round((used / win.minutes) * 100));
+  const candidates = getCandidatesForWindow(win);
+  html += '<div class="tp-window">'+
+   '<div class="tp-window-head">'+
+    '<div>'+
+     '<div class="tp-window-kicker">'+win.label+'</div>'+
+     '<div class="tp-window-title">'+win.title+'</div>'+
+     '<div class="tp-window-sub">'+win.sub+'</div>'+
+    '</div>'+
+    '<div class="tp-budget">'+formatPlanMinutes(used)+' / '+formatPlanMinutes(win.minutes)+'</div>'+
+   '</div>'+
+   '<div class="tp-budget-bar"><div class="tp-budget-fill" style="width:'+pct+'%;"></div></div>';
+  if (staged.length) {
+   html += '<div class="tp-subhead">Placed here</div><div class="tp-staged">';
+   staged.forEach(item => {
+    html += '<div class="tp-staged-item">'+
+     '<div class="tp-item-main">'+
+      '<div class="tp-item-title">'+item.title.split('·')[0].trim()+'</div>'+
+      '<div class="tp-item-meta">'+candidateKindLabel(item.kind)+' · '+formatPlanMinutes(item.estMinutes)+(item.involves?' · needs '+item.involves:'')+'</div>'+
+     '</div>'+
+     '<button class="tp-remove" onclick="event.stopPropagation();removePlanItem(\''+win.id+'\',\''+item.id+'\')">Remove</button>'+
+    '</div>';
+   });
+   html += '</div>';
+  }
+  html += '<div class="tp-subhead">'+(remaining > 0 ? 'Can still fit · '+formatPlanMinutes(remaining)+' left' : 'Fully allocated')+'</div>';
+  if (remaining > 0 && candidates.length) {
+   html += '<div class="tp-candidates">';
+   candidates.forEach(c => {
+    html += '<div class="tp-candidate">'+
+     '<div class="tp-item-main">'+
+      '<div class="tp-item-title">'+c.title.split('·')[0].trim()+'</div>'+
+      '<div class="tp-item-meta">'+formatPlanMinutes(c.estMinutes)+' · '+priorityLabel(c)+' · '+c.reason+'</div>'+
+     '</div>'+
+     '<button class="tp-add" onclick="event.stopPropagation();addCandidateToPlanWindow(\''+win.id+'\',\''+c.id+'\')">Add</button>'+
+    '</div>';
+   });
+   html += '</div>';
+  } else if (remaining > 0) {
+   html += '<div class="tp-empty">Nothing else fits this window right now.</div>';
+  } else {
+   html += '<div class="tp-empty">This block is filled. Remove an item to rebalance.</div>';
+  }
+  if (staged.length) {
+   html += '<button class="tp-confirm" onclick="event.stopPropagation();confirmPlanWindow(\''+win.id+'\')">Confirm this window</button>';
+  }
+  html += '</div>';
+ });
+ html += '</div>';
+ return html;
+}
+
+function findPlanWindow(windowId) {
+ return getPlanWindows().find(w => w.id === windowId);
+}
+
+function addCandidateToPlanWindow(windowId, candidateId) {
+ const win = findPlanWindow(windowId);
+ if (!win) return;
+ const candidate = buildCandidatePool().find(c => c.id === candidateId);
+ if (!candidate) return;
+ const remaining = win.minutes - usedPlanMinutes(windowId);
+ if (!planCandidateFitsWindow(candidate, win, remaining)) {
+  showToast('Does not fit this window');
+  return;
+ }
+ timePlanState[windowId] = getStagedItems(windowId).concat([{
+  id: candidate.id,
+  title: candidate.title,
+  estTime: candidate.estTime,
+  estMinutes: candidate.estMinutes,
+  kind: candidate.kind,
+  importance: candidate.importance,
+  urgency: candidate.urgency,
+  involves: candidate.involves,
+  source: candidate.source,
+  reason: candidate.reason
+ }]);
+ renderTodayPage();
+ showToast('Added to '+win.title);
+}
+
+function removePlanItem(windowId, candidateId) {
+ timePlanState[windowId] = getStagedItems(windowId).filter(item => item.id !== candidateId);
+ if (!timePlanState[windowId].length) delete timePlanState[windowId];
+ renderTodayPage();
+}
+
+function confirmPlanWindow(windowId) {
+ const win = findPlanWindow(windowId);
+ const items = getStagedItems(windowId);
+ if (!win || !items.length) return;
+ if (win.type === 'commute') confirmCommutePlanWindow(win, items);
+ else confirmDeskPlanWindow(win, items);
+ items.forEach(item => {
+  removeCandidateFromSource(item);
+  recordSignal('candidate_kind', item.kind, true);
+  recordSignal('candidate_source', item.source || 'pendingTask', true);
+  if (item.involves) recordSignal('person', item.involves, true);
+ });
+ delete timePlanState[windowId];
+ renderTodayPage();
+ showToast('Confirmed '+items.length+' item'+(items.length>1?'s':'')+' for '+win.title);
+}
+
+function confirmCommutePlanWindow(win, items) {
+ const ev = win.event;
+ if (!ev) return;
+ ev.commuteTasks = ev.commuteTasks || [];
+ items.forEach(item => {
+  const shortTitle = item.title.split('·')[0].trim();
+  if (!ev.commuteTasks.some(t => t.title === shortTitle)) {
+   ev.commuteTasks.push({ title: shortTitle, est: formatPlanMinutes(item.estMinutes) });
+  }
+ });
+ ev.agentNote = (ev.agentNote ? ev.agentNote+' ' : '') + 'Agent filled this mobile-office window from the time plan.';
+}
+
+function confirmDeskPlanWindow(win, items) {
+ if (!eventsDB['2026-6']) eventsDB['2026-6'] = {};
+ if (!eventsDB['2026-6'][6]) eventsDB['2026-6'][6] = [];
+ let cursor = timeToMinutes(win.startTime);
+ items.forEach((item, idx) => {
+  const start = cursor;
+  const end = cursor + item.estMinutes;
+  const evIdNew = 'plan-' + win.sourceId + '-' + idx + '-' + Date.now();
+  const event = {
+   id: evIdNew,
+   t: item.kind === 'call' || item.kind === 'video' ? 'online' : 'deep',
+   type: item.kind === 'call' || item.kind === 'video' ? 'online' : 'deep',
+   title: item.title.split('·')[0].trim(),
+   time: minutesToTime(start).replace(':00','') + '–' + minutesToTime(end).replace(':00',''),
+   startTime: String(Math.floor(start/60)).padStart(2,'0') + ':' + String(start%60).padStart(2,'0'),
+   endTime: String(Math.floor(end/60)).padStart(2,'0') + ':' + String(end%60).padStart(2,'0'),
+   duration: formatPlanMinutes(item.estMinutes),
+   loc: item.involves ? 'Scheduled draft · pending confirmation' : 'Focus block',
+   locationShort: item.involves ? 'Draft' : 'Focus',
+   participants: item.involves ? [item.involves] : [],
+   transitMode: null,
+   transitDuration: null,
+   transitWorkable: false,
+   bufferBefore: 0,
+   bufferAfter: 0,
+   context: item.reason || 'Planned from agent time window.',
+   agentNote: item.involves ? 'Needs message confirmation before finalizing.' : 'Planned from agent time window.',
+   dressCode: null,
+   returnInfo: null,
+   followUpNeeded: !!item.involves,
+   followUpBy: item.involves,
+   followUpStatus: item.involves ? 'pending' : null,
+   followUpNote: item.involves ? 'Send confirmation message.' : ''
+  };
+  eventsDB['2026-6'][6].push(event);
+  runtimeEvents[evIdNew] = event;
+  cursor = end;
+ });
+ const winStart = timeToMinutes(win.startTime);
+ const winEnd = timeToMinutes(win.endTime);
+ for (let i = todayFreeSlots.length - 1; i >= 0; i--) {
+  const sStart = timeToMinutes(todayFreeSlots[i].startTime);
+  const sEnd = timeToMinutes(todayFreeSlots[i].endTime);
+  if (sStart < winEnd && sEnd > winStart) todayFreeSlots.splice(i, 1);
+ }
+ if (cursor < winEnd) {
+  const remStart = String(Math.floor(cursor/60)).padStart(2,'0') + ':' + String(cursor%60).padStart(2,'0');
+  todayFreeSlots.push({
+   id: 'remaining-' + win.sourceId + '-' + Date.now(),
+   startTime: remStart,
+   endTime: win.endTime,
+   suggestedTitle: 'Keep open',
+   agentReasoning: 'Remaining unallocated time from this planning window.',
+   suggestedBy: 'Agent'
+  });
+ }
+}
+
+function renderFreeSlotSuggestionCard() {
+ if (todayFreeSlots.length === 0) return '';
+ const fs0 = todayFreeSlots[0];
+ const durH0 = parseInt(fs0.endTime.split(':')[0]) - parseInt(fs0.startTime.split(':')[0]);
+ let html = '<div class="agent-suggest-card anim-in" id="agentSuggestCard">'+
+  '<div class="asc-header"><svg width="16" height="16"><use href="#icon-chart"/></svg> Agent suggestion</div>'+
+  '<div class="asc-best">'+
+   '<div class="asc-best-label">Best use of your free afternoon</div>'+
+   '<div class="suggest-slot best" id="freeSlot-0" onclick="event.stopPropagation()">'+
+    '<div class="ss-row">'+
+     '<input class="ss-time-input" id="fs-time-0" value="'+fs0.startTime.replace(':00','')+' – '+fs0.endTime.replace(':00','')+' · '+durH0+'h" onfocus="this.select()">'+
+     '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot(0)" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+    '</div>'+
+    '<input class="ss-time-input" id="fs-title-0" value="'+fs0.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
+    '<div class="ss-reason">'+fs0.agentReasoning+'</div>'+
+   '</div>'+
+  '</div>';
+ if (todayFreeSlots.length > 1) {
+  html += '<div class="asc-more-toggle" id="agent-toggle-more" onclick="event.stopPropagation();toggleAgentSuggest()">'+
+   '<svg width="14" height="14" id="asc-toggle-chevron"><use href="#icon-dismiss-sm"/></svg> '+
+   (todayFreeSlots.length - 1) + ' more option' + (todayFreeSlots.length > 2 ? 's' : '') +
+  '</div>';
+  html += '<div class="more-suggest" id="agent-more-suggest" style="display:none;">';
+  for (let fi = 1; fi < todayFreeSlots.length; fi++) {
+   const fs = todayFreeSlots[fi];
+   const durH = parseInt(fs.endTime.split(':')[0]) - parseInt(fs.startTime.split(':')[0]);
+   html += '<div class="suggest-slot" id="freeSlot-'+fi+'" onclick="event.stopPropagation()">'+
+    '<div class="ss-row">'+
+     '<input class="ss-time-input" id="fs-time-'+fi+'" value="'+fs.startTime.replace(':00','')+' – '+fs.endTime.replace(':00','')+' · '+durH+'h" onfocus="this.select()">'+
+     '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot('+fi+')" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+    '</div>'+
+    '<input class="ss-time-input" id="fs-title-'+fi+'" value="'+fs.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
+    '<div class="ss-reason">'+fs.agentReasoning+'</div>'+
+   '</div>';
+  }
+  html += '</div>';
+ }
+ html += '<div class="pending-actions" style="display:flex;gap:6px;margin-top:10px;">'+
+  '<button class="p-action dismiss" onclick="event.stopPropagation();dismissAllFreeSlots()"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Dismiss all</button>'+
+ '</div></div>';
+ return html;
+}
+
 function renderTodayPage() {
  const today = 6; // June 6 fixed for demo
  const key = '2026-6';
@@ -3684,58 +4211,23 @@ function renderTodayPage() {
  // ═══ 1. AGENT GREETING CARD ═══
  html += renderGreetingCard(unmarkedPast, pendingCount, freeHrs);
 
- // ═══ 2. PENDING TASKS ═══
- html += renderPendingCards();
-
- // ═══ 2.5 COMMUTE INTELLIGENCE · schedule a light task into a workable commute ═══
- currentCommuteSuggestion = commuteSuggestionDismissed ? null : findCommuteScheduleSuggestion();
- if (currentCommuteSuggestion) {
-  html += renderCommuteSuggestCard(currentCommuteSuggestion);
+ // ═══ 2. ASSISTIVE AGENT LAYER · collapsed by default so the timeline stays primary ═══
+ if (!focusTodayMode) {
+  html += renderTodayAssistPanel();
  }
 
- // ═══ 3. AGENT SUGGESTIONS · aggregated single card ═══
- if (todayFreeSlots.length > 0) {
-  const fs0 = todayFreeSlots[0];
-  const durH0 = parseInt(fs0.endTime.split(':')[0]) - parseInt(fs0.startTime.split(':')[0]);
-  html += '<div class="agent-suggest-card anim-in" id="agentSuggestCard">'+
-   '<div class="asc-header"><svg width="16" height="16"><use href="#icon-chart"/></svg> Agent suggestion</div>'+
-   '<div class="asc-best">'+
-    '<div class="asc-best-label">Best use of your free afternoon</div>'+
-    '<div class="suggest-slot best" id="freeSlot-0" onclick="event.stopPropagation()">'+
-     '<div class="ss-row">'+
-      '<input class="ss-time-input" id="fs-time-0" value="'+fs0.startTime.replace(':00','')+' – '+fs0.endTime.replace(':00','')+' · '+durH0+'h" onfocus="this.select()">'+
-      '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot(0)" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
-     '</div>'+
-     '<input class="ss-time-input" id="fs-title-0" value="'+fs0.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
-     '<div class="ss-reason">'+fs0.agentReasoning+'</div>'+
-    '</div>'+
-   '</div>';
-  if (todayFreeSlots.length > 1) {
-   html += '<div class="asc-more-toggle" id="agent-toggle-more" onclick="event.stopPropagation();toggleAgentSuggest()">'+
-    '<svg width="14" height="14" id="asc-toggle-chevron"><use href="#icon-dismiss-sm"/></svg> '+
-    (todayFreeSlots.length - 1) + ' more option' + (todayFreeSlots.length > 2 ? 's' : '') +
-   '</div>';
-   html += '<div class="more-suggest" id="agent-more-suggest" style="display:none;">';
-   for (let fi = 1; fi < todayFreeSlots.length; fi++) {
-    const fs = todayFreeSlots[fi];
-    const durH = parseInt(fs.endTime.split(':')[0]) - parseInt(fs.startTime.split(':')[0]);
-    html += '<div class="suggest-slot" id="freeSlot-'+fi+'" onclick="event.stopPropagation()">'+
-     '<div class="ss-row">'+
-      '<input class="ss-time-input" id="fs-time-'+fi+'" value="'+fs.startTime.replace(':00','')+' – '+fs.endTime.replace(':00','')+' · '+durH+'h" onfocus="this.select()">'+
-      '<button class="ss-confirm-btn" onclick="event.stopPropagation();confirmFreeSlot('+fi+')" title="Accept"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
-     '</div>'+
-     '<input class="ss-time-input" id="fs-title-'+fi+'" value="'+fs.suggestedTitle+'" onfocus="this.select()" style="font-weight:500;font-size:13px;margin-top:4px;">'+
-     '<div class="ss-reason">'+fs.agentReasoning+'</div>'+
-    '</div>';
-   }
-   html += '</div>';
-  }
-  html += '<div class="pending-actions" style="display:flex;gap:6px;margin-top:10px;">'+
-   '<button class="p-action dismiss" onclick="event.stopPropagation();dismissAllFreeSlots()"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Dismiss all</button>'+
-  '</div></div>';
- }
+ // ═══ 3. PRIMARY TIMELINE · the day itself ═══
+ html += '<div class="today-focus-row">'+
+  '<button class="today-focus-btn '+(focusTodayMode?'active':'')+'" onclick="event.stopPropagation();toggleFocusToday()">'+
+   '<span class="focus-dot"></span>'+(focusTodayMode ? 'Focus today on' : 'Focus today')+
+  '</button>'+
+ '</div>';
+ html += '<section class="today-timeline-shell">'+
+  '<div class="today-title-row">'+
+   '<div><div class="today-title-kicker">Today</div><div class="today-title">Saturday, Jun 6</div></div>'+
+   '<div class="today-title-meta">'+sorted.length+' events</div>'+
+  '</div>';
 
- // ═══ 4. PAST EVENTS (above the Now line) ═══
  if (pastEvents.length > 0) {
   html += '<div class="timeline-block">';
   pastEvents.forEach(e => {
@@ -3766,9 +4258,12 @@ function renderTodayPage() {
   });
   html += '</div>';
  }
+ html += '</section>';
 
- // ═══ 8. DAILY BRIEFING ═══
- html += renderDailyBriefing();
+ // ═══ 4. DAILY BRIEFING · only outside focus mode ═══
+ if (!focusTodayMode) {
+  html += renderDailyBriefing();
+ }
 
  document.getElementById('todayContent').innerHTML = html;
 }
