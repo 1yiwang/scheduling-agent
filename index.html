@@ -480,12 +480,12 @@
  .event-card {
  background: var(--ej-card); border-radius: var(--radius);
  padding: 13px 15px; margin-bottom: 8px;
- position: relative;
+ position: relative; border-left: 2px solid transparent;
  transition: all 0.15s ease-out; cursor: pointer;
  }
  .event-card:active { background: var(--ej-hover); }
  .event-card.past { opacity: 0.45; }
- .event-card.upcoming { border-left: none; }
+ .event-card.upcoming { border-left: 2px solid transparent; }
 
  .event-card .e-time-row {
  display: flex; align-items: baseline; gap: 8px;
@@ -498,7 +498,7 @@
  }
  /* Completion circle sits on the timeline rail, to the left of each card */
  .event-card .e-check {
- position: absolute; left: -28px; top: 12px; z-index: 2; box-sizing: border-box;
+ position: absolute; left: -30px; top: 12px; z-index: 2; box-sizing: border-box;
  width: 16px; height: 16px; padding: 0;
  border-radius: 50%; border: 1.7px solid var(--ej-text-3); background: var(--ej-bg);
  cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -527,7 +527,7 @@
  }
 
  /* Event card completion states */
- .event-card.completed { opacity: 0.4; border-left: none; }
+ .event-card.completed { opacity: 0.4; border-left: 2px solid transparent; }
  .event-card.completed .e-title { text-decoration: line-through; color: var(--ej-text-3); }
  .event-card.not-completed { border-left: 2px solid var(--ej-red); }
  .event-card.unmarked-past { opacity: 0.65; border-left: 2px solid var(--ej-warning); }
@@ -759,6 +759,7 @@
  .cal-dot.busy { background: var(--ej-info); }
  .cal-dot.social { background: #9b8fc4; }
  .cal-dot.deep { background: var(--ej-complete); }
+ .cal-dot.done { opacity: 0.25; }
 
  /* Day detail panel */
  .day-detail {
@@ -3387,7 +3388,7 @@ function renderCal() {
  if (d===today && calYear===2026 && calMonth===6) cls += ' today';
  const evts = monthData[d]||[];
  const dotsHtml = evts.length>0
- ? '<div class="cal-dots-row">'+evts.map(e=>'<div class="cal-dot '+e.t+'"></div>').join('')+'</div>'
+ ? '<div class="cal-dots-row">'+evts.map(e=>'<div class="cal-dot '+e.t+(getCompletion(e)===true?' done':'')+'"></div>').join('')+'</div>'
  : '';
  grid.innerHTML += '<div class="'+cls+'" onclick="openDay('+d+')"><div style="margin-top:4px">'+d+'</div>'+dotsHtml+'</div>';
  }
@@ -4109,6 +4110,10 @@ function removeTaskEverywhere(source, id) {
 function syncAllViews() {
  if (document.getElementById('todayContent')) renderTodayPage();
  if (document.getElementById('calGrid')) renderCal();
+ const dd = document.getElementById('dayDetail');
+ if (dd && dd.classList.contains('show') && selectedDay) {
+  refreshDayDetail(selectedDay.year, selectedDay.month, selectedDay.day);
+ }
  if (typeof calView !== 'undefined' && calView === 'tasks' && document.getElementById('calTasksView')) renderInbox();
  const analytics = document.getElementById('page-analytics');
  if (analytics && analytics.classList.contains('active')) renderAnalyticsPage();
