@@ -1431,6 +1431,20 @@
  }
 
  /* Analytics page */
+ .an-seg {
+ display: flex; gap: 4px; padding: 4px;
+ background: var(--ej-card); border-radius: var(--radius);
+ margin-bottom: 12px;
+ }
+ .an-seg-btn {
+ flex: 1; padding: 8px 0; border: none; cursor: pointer;
+ background: transparent; color: var(--ej-text-2);
+ font-size: 13px; font-weight: 600; border-radius: calc(var(--radius) - 4px);
+ transition: background .15s, color .15s;
+ }
+ .an-seg-btn.active {
+ background: var(--ej-info); color: #fff;
+ }
  .analytics-card {
  background: var(--ej-card); border-radius: var(--radius);
  padding: 16px 18px; margin-bottom: 10px;
@@ -3829,7 +3843,6 @@ function renderTodayAssistPanel() {
    '<span class="tas-icon"><svg width="16" height="16"><use href="#icon-bulb"/></svg></span>'+
    '<span class="tas-copy">'+
     '<span class="tas-title">Agent suggestions</span>'+
-    (agentPanelExpanded ? '<span class="tas-sub">Open desk time and workable commutes, organized by time.</span>' : '')+
    '</span>'+
    '<svg class="tas-chevron" width="16" height="16"><use href="#icon-chevron"/></svg>'+
   '</button>';
@@ -3919,7 +3932,7 @@ function getPlanWindows() {
   icon: 'icon-field-time',
   label: 'Desk block',
   title: formatWindowTime(s.startTime, s.endTime) + ' · Desk',
-  sub: 'Open focus time. Fill as much or as little as you want.',
+  sub: '',
   startTime: s.startTime,
   endTime: s.endTime,
   minutes: timeToMinutes(s.endTime) - timeToMinutes(s.startTime),
@@ -3935,7 +3948,7 @@ function getPlanWindows() {
    icon: transitModeIcon(e.transitMode),
    label: 'Mobile window',
    title: formatWindowTime(e.startTime, e.endTime) + ' · ' + (e.transitMode || 'Transit'),
-   sub: e.loc + ' · ' + getWorkability(e.transitMode).reason,
+   sub: e.loc,
    startTime: e.startTime,
    endTime: e.endTime,
    minutes: windowMinutes(e),
@@ -3988,7 +4001,7 @@ function priorityLabel(candidate) {
 
 function renderTimePlanningBoard() {
  const windows = getPlanWindows();
- if (!windows.length) return '<div class="tp-empty">No open planning windows left today.</div>';
+ if (!windows.length) return '<div class="tp-empty">No open windows today.</div>';
  let html = '<div class="time-plan-board">';
  windows.forEach(win => {
   const staged = getStagedItems(win.id);
@@ -4003,7 +4016,7 @@ function renderTimePlanningBoard() {
      '<div>'+
       '<div class="tp-window-kicker">'+win.label+'</div>'+
       '<div class="tp-window-title">'+win.title+'</div>'+
-      '<div class="tp-window-sub">'+win.sub+'</div>'+
+      (win.sub ? '<div class="tp-window-sub">'+win.sub+'</div>' : '')+
      '</div>'+
     '</div>'+
     '<div class="tp-budget">'+formatPlanMinutes(used)+' / '+formatPlanMinutes(win.minutes)+'</div>'+
@@ -4022,26 +4035,24 @@ function renderTimePlanningBoard() {
    });
    html += '</div>';
   }
-  html += '<div class="tp-subhead">'+(remaining > 0 ? 'Can still fit · '+formatPlanMinutes(remaining)+' left' : 'Fully allocated')+'</div>';
+  html += '<div class="tp-subhead">'+(remaining > 0 ? formatPlanMinutes(remaining)+' left' : 'Full')+'</div>';
   if (remaining > 0 && candidates.length) {
    html += '<div class="tp-candidates">';
    candidates.forEach(c => {
     html += '<div class="tp-candidate">'+
      '<div class="tp-item-main">'+
       '<div class="tp-item-title">'+c.title.split('·')[0].trim()+'</div>'+
-      '<div class="tp-item-meta">'+formatPlanMinutes(c.estMinutes)+' · '+priorityLabel(c)+' · '+c.reason+'</div>'+
+      '<div class="tp-item-meta">'+formatPlanMinutes(c.estMinutes)+' · '+priorityLabel(c)+'</div>'+
      '</div>'+
      '<button class="tp-add" onclick="event.stopPropagation();addCandidateToPlanWindow(\''+win.id+'\',\''+c.id+'\')">Add</button>'+
     '</div>';
    });
    html += '</div>';
   } else if (remaining > 0) {
-   html += '<div class="tp-empty">Nothing else fits this window right now.</div>';
-  } else {
-   html += '<div class="tp-empty">This block is filled. Remove an item to rebalance.</div>';
+   html += '<div class="tp-empty">Nothing else fits.</div>';
   }
   if (staged.length) {
-   html += '<button class="tp-confirm" onclick="event.stopPropagation();confirmPlanWindow(\''+win.id+'\')">Confirm this window</button>';
+   html += '<button class="tp-confirm" onclick="event.stopPropagation();confirmPlanWindow(\''+win.id+'\')">Confirm</button>';
   }
   html += '</div>';
  });
@@ -4299,11 +4310,6 @@ function renderTodayPage() {
   html += '</div>';
  }
  html += '</section>';
-
- // ═══ 4. DAILY BRIEFING · only outside focus mode ═══
- if (!focusTodayMode) {
-  html += renderDailyBriefing();
- }
 
  document.getElementById('todayContent').innerHTML = html;
 }
@@ -5052,9 +5058,30 @@ function renderDailyBriefing() {
 }
 
 // ====== ANALYTICS ======
+let analyticsView = 'week';
+
+function setAnalyticsView(view) {
+ analyticsView = view;
+ renderAnalyticsPage();
+ const sub = document.getElementById('pageSubtitle');
+ if (sub) sub.textContent = view === 'day' ? 'Saturday, June 6, 2026' : 'Week of Jun 1–7, 2026';
+}
+
+function renderAnalyticsToggle() {
+ return '<div class="an-seg">'+
+  '<button class="an-seg-btn '+(analyticsView==='day'?'active':'')+'" onclick="setAnalyticsView(\'day\')">Day</button>'+
+  '<button class="an-seg-btn '+(analyticsView==='week'?'active':'')+'" onclick="setAnalyticsView(\'week\')">Week</button>'+
+ '</div>';
+}
+
 function renderAnalyticsPage() {
  const content = document.getElementById('analyticsContent');
  if (!content) return;
+
+ if (analyticsView === 'day') {
+  content.innerHTML = renderAnalyticsToggle() + renderDailyBriefing();
+  return;
+ }
 
  // Mock weekly data
  const weeklyStats = [
@@ -5065,7 +5092,7 @@ function renderAnalyticsPage() {
  {type:'Buffer', hrs:2, pct:4, cls:'buffer'}
  ];
 
- let html = '';
+ let html = renderAnalyticsToggle();
 
  // Time Distribution
  html += '<div class="analytics-card anim-in">';
