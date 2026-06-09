@@ -745,7 +745,7 @@
  }
  .cal-cell {
  aspect-ratio: 1; display: flex; flex-direction: column;
- align-items: center; justify-content: flex-start; padding-top: 4px;
+ align-items: center; justify-content: center; padding-top: 0;
  border-radius: 10px; font-size: 14px; cursor: pointer; position: relative;
  font-feature-settings: "tnum"; font-weight: 400;
  }
@@ -755,7 +755,8 @@
  }
  .cal-cell.other-month { color: var(--ej-text-3); pointer-events: none; }
  .cal-cell.selected { background: var(--ej-info-bg); color: var(--ej-info); font-weight: 600; }
- .cal-dots-row { display: flex; gap: 2px; margin-top: 2px; }
+ .cal-num { line-height: 1; }
+ .cal-dots-row { display: flex; gap: 2px; position: absolute; bottom: 5px; left: 0; right: 0; justify-content: center; }
  .cal-dot { width: 4px; height: 4px; border-radius: 50%; }
  .cal-dot.busy { background: var(--ej-info); }
  .cal-dot.social { background: #9b8fc4; }
@@ -2604,7 +2605,7 @@ function skipConflict() {
 function finalizeEvent(event) {
  // Determine target date
  const dateInfo = parseDateStr(capState.date);
- let monthKey = '2026-6', dayNum = 6;
+ let monthKey = todayMonthKey(), dayNum = getTodayDate();
  if (dateInfo) {
   monthKey = '2026-'+dateInfo.month;
   dayNum = dateInfo.day;
@@ -3049,7 +3050,14 @@ function getCompletion(event) {
  return null; // unmarked
 }
 
-function getTodayDate() { return 6; } // June 6 demo fixed
+// ── "Today" context — demo is pinned to Jun 6, 2026; personal uses the real date ──
+function appNow() {
+ if (typeof appMode !== 'undefined' && appMode === 'live') return new Date();
+ const r = new Date();
+ return new Date(2026, 5, 6, r.getHours(), r.getMinutes());
+}
+function getTodayDate() { return appNow().getDate(); }
+function todayMonthKey() { const d = appNow(); return d.getFullYear() + '-' + (d.getMonth() + 1); }
 // "Now" follows the real system clock so the timeline divider tracks live time.
 function currentSimNow() {
  const d = new Date();
@@ -3426,29 +3434,30 @@ function renderCal() {
 
  // Prev month
  for (let i = startOffset - 1; i >= 0; i--) {
- grid.innerHTML += '<div class="cal-cell other-month"><div style="margin-top:4px">'+(prevDays-i)+'</div></div>';
+ grid.innerHTML += '<div class="cal-cell other-month"><div class="cal-num">'+(prevDays-i)+'</div></div>';
  }
 
  // Current month
- const today = 6; // June 6 fixed for demo
+ const today = getTodayDate();
+ const tN = appNow(), tY = tN.getFullYear(), tM = tN.getMonth()+1;
  const key = calYear+'-'+calMonth;
  const monthData = eventsDB[key]||{};
 
  for (let d=1; d<=daysInMonth; d++) {
  let cls = 'cal-cell anim-in';
- if (d===today && calYear===2026 && calMonth===6) cls += ' today';
+ if (d===today && calYear===tY && calMonth===tM) cls += ' today';
  const evts = monthData[d]||[];
  const dotsHtml = evts.length>0
  ? '<div class="cal-dots-row">'+evts.map(e=>'<div class="cal-dot '+e.t+(getCompletion(e)===true?' done':'')+'"></div>').join('')+'</div>'
  : '';
- grid.innerHTML += '<div class="'+cls+'" onclick="openDay('+d+')"><div style="margin-top:4px">'+d+'</div>'+dotsHtml+'</div>';
+ grid.innerHTML += '<div class="'+cls+'" onclick="openDay('+d+')"><div class="cal-num">'+d+'</div>'+dotsHtml+'</div>';
  }
 
  // Next month padding
  const total = startOffset + daysInMonth;
  const rem = total%7===0?0:7-(total%7);
  for (let i=1;i<=rem;i++) {
- grid.innerHTML += '<div class="cal-cell other-month"><div style="margin-top:4px">'+i+'</div></div>';
+ grid.innerHTML += '<div class="cal-cell other-month"><div class="cal-num">'+i+'</div></div>';
  }
 }
 
@@ -3679,9 +3688,10 @@ function openDay(day) {
  } else {
  // Sort by startTime
  const sorted = [...evts].sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
- const today = 6; // June 6 demo fixed
+ const today = getTodayDate();
+ const _tN = appNow();
  const isPastDay = day < today;
- const isToday = day === today && calYear === 2026 && calMonth === 6;
+ const isToday = day === today && calYear === _tN.getFullYear() && calMonth === (_tN.getMonth()+1);
  const simNow = currentSimNow();
  let nowPlaced = false;
  let out = '';
@@ -3838,7 +3848,7 @@ function quickAddToDay() {
 
 // ====== TODAY PAGE RENDERING ======
 function renderGreetingCard(unmarkedPast, pendingCount, freeHrs) {
- const d = new Date(2026, 5, 6);
+ const d = appNow();
  const dateStr = d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
  let h = '<div class="greeting-card anim-in">'+
   '<div class="gc-date">'+dateStr+'</div>'+
@@ -3927,7 +3937,9 @@ function loadDBsFrom(data) {
  completedInboxIds = data.completedInboxIds || [];
 }
 function emptyDBs() {
- loadDBsFrom({ eventsDB: { '2026-6': {} }, runtimeEvents: {}, pendingTasksDB: [], owedRepliesDB: [], pendingMeetingsDB: [], completionDB: {}, completedInboxIds: [] });
+ const tk = todayMonthKey();
+ const emptyEvents = {}; emptyEvents[tk] = {};
+ loadDBsFrom({ eventsDB: emptyEvents, runtimeEvents: {}, pendingTasksDB: [], owedRepliesDB: [], pendingMeetingsDB: [], completionDB: {}, completedInboxIds: [] });
 }
 // Capture the in-code demo dataset once, pristine, before any mutation.
 const DEMO_SEED = deepClone(snapshotDBs());
@@ -4171,7 +4183,7 @@ function recentReactions(days) {
 }
 
 function todayEventCount() {
- const evts = (eventsDB['2026-6'] || {})[getTodayDate()] || [];
+ const evts = (eventsDB[todayMonthKey()] || {})[getTodayDate()] || [];
  return evts.length;
 }
 
@@ -4282,7 +4294,7 @@ function scoreCandidate(candidate) {
 }
 
 function findCommuteSuggestions() {
- const key = '2026-6', today = 6;
+ const key = todayMonthKey(), today = getTodayDate();
  const evts = (eventsDB[key]||{})[today]||[];
  // Upcoming transit windows you can actually work in (score >= 2), not already filled
  const windows = evts
@@ -4589,7 +4601,7 @@ function formatPlanMinutes(mins) {
 }
 
 function getDeskPlanningSlots() {
- const key = '2026-6', today = 6;
+ const key = todayMonthKey(), today = getTodayDate();
  const evts = ((eventsDB[key]||{})[today]||[]).filter(e => e.startTime && e.endTime);
  const baseSlots = todayFreeSlots.filter(slot => {
   const s = timeToMinutes(slot.startTime);
@@ -4633,7 +4645,7 @@ function getDeskPlanningSlots() {
 }
 
 function getPlanWindows() {
- const key = '2026-6', today = 6;
+ const key = todayMonthKey(), today = getTodayDate();
  const evts = (eventsDB[key]||{})[today]||[];
  const deskWindows = getDeskPlanningSlots().map(s => ({
   id: 'desk-'+s.id,
@@ -4845,8 +4857,9 @@ function confirmCommutePlanWindow(win, items) {
 }
 
 function confirmDeskPlanWindow(win, items) {
- if (!eventsDB['2026-6']) eventsDB['2026-6'] = {};
- if (!eventsDB['2026-6'][6]) eventsDB['2026-6'][6] = [];
+ const key = todayMonthKey(), today = getTodayDate();
+ if (!eventsDB[key]) eventsDB[key] = {};
+ if (!eventsDB[key][today]) eventsDB[key][today] = [];
  let cursor = timeToMinutes(win.startTime);
  items.forEach((item, idx) => {
   const start = cursor;
@@ -4878,7 +4891,7 @@ function confirmDeskPlanWindow(win, items) {
    followUpStatus: item.involves ? 'pending' : null,
    followUpNote: item.involves ? 'Send confirmation message.' : ''
   };
-  eventsDB['2026-6'][6].push(event);
+  eventsDB[key][today].push(event);
   runtimeEvents[evIdNew] = event;
   cursor = end;
  });
@@ -4946,8 +4959,8 @@ function renderFreeSlotSuggestionCard() {
 }
 
 function renderTodayPage() {
- const today = 6; // June 6 fixed for demo
- const key = '2026-6';
+ const today = getTodayDate();
+ const key = todayMonthKey();
  const evts = (eventsDB[key]||{})[today]||[];
  const sorted = [...evts].sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
 
@@ -5140,10 +5153,11 @@ function confirmFreeSlot(fi) {
   followUpNote: '',
  };
 
- // Add to eventsDB for today (June 6)
- if (!eventsDB['2026-6']) eventsDB['2026-6'] = {};
- if (!eventsDB['2026-6'][6]) eventsDB['2026-6'][6] = [];
- eventsDB['2026-6'][6].push(event);
+ // Add to eventsDB for today
+ const tkey = todayMonthKey(), tday = getTodayDate();
+ if (!eventsDB[tkey]) eventsDB[tkey] = {};
+ if (!eventsDB[tkey][tday]) eventsDB[tkey][tday] = [];
+ eventsDB[tkey][tday].push(event);
 
  // Also store in runtimeEvents for findEventById (belt-and-suspenders)
  runtimeEvents[evId] = event;
@@ -5192,7 +5206,7 @@ function refreshDayDetail(year, month, day) {
   setTimeout(() => { closeDayDetail(); }, 1200);
  } else {
   const sorted = [...evts].sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
-  const today = 6; // June 6 demo fixed
+  const today = getTodayDate();
   const isPastDay = day < today;
   content.innerHTML = '<div class="timeline-block">'+sorted.map(e => renderEventCard(e, {isPast: isPastDay, compact: true, showEdit: true})).join('')+'</div>';
  }
@@ -5688,7 +5702,7 @@ function rescheduleFromBriefing(eventId) {
 // ====== DAILY BRIEFING ======
 function renderDailyBriefing() {
  const today = getTodayDate();
- const key = '2026-6';
+ const key = todayMonthKey();
  const simNow = currentSimNow();
 
  // Gather all past events (all days before today + today's past events)
@@ -5722,7 +5736,7 @@ function renderDailyBriefing() {
  });
 
  let html = '<div class="briefing-card anim-in" id="dailyBriefing">';
- html += '<div class="br-title">Daily Briefing<span class="br-date">Saturday, June 6</span></div>';
+ html += '<div class="br-title">Daily Briefing<span class="br-date">'+appNow().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})+'</span></div>';
 
  // Completion summary
  html += '<div class="br-section">';
@@ -5734,7 +5748,7 @@ function renderDailyBriefing() {
  html += '<div class="br-section">';
  html += '<div class="br-label amber" style="margin-bottom:6px;">Needs Attention ('+unmarked.length+')</div>';
  unmarked.forEach(x => {
- const evDate = new Date(2026,5,x.day).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+ const evDate = new Date(appNow().getFullYear(),appNow().getMonth(),x.day).toLocaleDateString('en-US',{month:'short',day:'numeric'});
  html += '<div class="br-action-row" id="br-row-'+x.event.id+'">'+
  '<div class="br-ev-title">'+x.event.title+' <span style="font-size:10px;opacity:0.35;">'+evDate+'</span></div>'+
  '<button class="br-mini-btn done" onclick="event.stopPropagation();markCompleteFromBriefing(\''+x.event.id+'\',true)">Done</button>'+
@@ -5751,7 +5765,7 @@ function renderDailyBriefing() {
  html += '<div class="br-section">';
  html += '<div class="br-label red">Not Completed ('+notDone.length+')</div>';
  notDone.forEach(x => {
- const evDate = new Date(2026,5,x.day).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+ const evDate = new Date(appNow().getFullYear(),appNow().getMonth(),x.day).toLocaleDateString('en-US',{month:'short',day:'numeric'});
  html += '<div class="br-item"> '+x.event.title+' <span style="font-size:11px;color:var(--ej-text-3);"> · from '+evDate+'</span></div>';
  });
  html += '</div>';
@@ -5779,7 +5793,7 @@ function setAnalyticsView(view) {
  analyticsView = view;
  renderAnalyticsPage();
  const sub = document.getElementById('pageSubtitle');
- if (sub) sub.textContent = view === 'day' ? 'Saturday, June 6, 2026' : 'Week of Jun 1–7, 2026';
+ if (sub) sub.textContent = view === 'day' ? appNow().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : 'Week of Jun 1–7, 2026';
 }
 
 function renderAnalyticsToggle() {
@@ -5876,6 +5890,7 @@ function updateStatusTime() {
  el.textContent = now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:false});
 }
 updateStatusTime(); setInterval(updateStatusTime, 30000);
+(function initCalToToday(){ const t = appNow(); calYear = t.getFullYear(); calMonth = t.getMonth()+1; })();
 renderCal();
 renderTodayPage();
 initCloud();
