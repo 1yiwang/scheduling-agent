@@ -657,3 +657,107 @@ Outlook / Graph ─┼─→ [同步适配器 CalendarProvider] ──┐ 归一
 - Supabase 表 `app_state`：**一个用户一行**，`data` 为 JSONB 快照（`snapshotDBs()`），含 `eventsDB` / `runtimeEvents` / `pendingTasksDB` / `owedRepliesDB` / `pendingMeetingsDB` / `completionDB` / `completedInboxIds`。
 - 任何视图的改动 → `saveAppData()` → localStorage 缓存 + `cloudSave()`（800ms 防抖）→ `app_state.upsert`。所以数据确实入库，但不是「每个 event 一行」，而是整份 JSON。
 - 这是 MVP 的合理取舍（实现快、同步简单）。未来做多设备冲突 / 团队协作 / 分析报表时，再拆为结构化表（`events` / `tasks` / `suggestions` / `learning_events`）。
+
+---
+
+## Agent Loop · 从「被动日历」到「主动 agent」的核心架构（2026-06-09 定锚）
+
+> 这是把产品从"带建议挂件的日历"升级为"真正主动管理日程的 agent"的中心架构决策。
+> 方向已定：**阶段 1 优先**（纯前端可做）；自主权取向：**主动发现 + 主动提议，但永远人来点确认**（propose-only，先赢信任）。
+
+### 一、残酷诊断：现在它还不是 agent
+
+证据在代码里：
+1. **只在用户点的时候动**：全是 render-on-interaction（`syncAllViews()` 被动重绘），没有任何东西在用户不看时替他思考。
+2. **大脑只看今天**：`getPlanWindows()` 钉死 `todayMonthKey()` + `getTodayDate()`，连"周一截止的任务还没排"都不会主动提。
+3. **喂的是假数据**：`pendingTasksDB` / `todayFreeSlots` 是 demo seed，没接真实日历。
+
+差的不是 UI，是缺一个中心对象：**Agent Loop（主动循环）**。
+
+### 二、缺失的中心对象：Agent Loop
+
+文档里的 N1→N7 节点图，现在是"用户走一遍"，不是"agent 自己跑一遍"。真正的分水岭：
+
+```
+runAgentLoop(horizon=7d)
+  → snapshotState()         events + tasks + deadlines + completions
+  → MOVE_DETECTORS 注册表    跑一遍所有 detector
+  → Move[] 汇总
+  → safetyFilter()          不重复预订 / 不碰睡眠 / 不自动发消息
+  → rankMoves()             severity + 学到的权重
+  → renderBriefing(moves)   一组可操作卡片
+  → 用户: 确认/拒绝/改 → 记录信号 → 学习 → 下一轮
+```
+
+**关键反转**：Daily Briefing 不再是页面底部的被动信息卡，而是**这个循环的产出物**——agent 主动跑完一圈后递给你的结论。
+
+### 三、护城河能力清单：Proactive Move Taxonomy
+
+日历只告诉你"你有什么"；agent 主动告诉你"关于时间，有哪些你还没想到该做的事"。这些就是 Moves。当前只实现了 1.5 个：
+
+| Move 类型 | 主动检测什么 | 现状 |
+|---|---|---|
+| **Gap-fill** 见缝插针 | 空块 + 适配任务 | ⚠️ 只限今天 |
+| **Commute-fill** 通勤塞事 | 可用通勤 + 轻任务 | ⚠️ 只限今天 |
+| **Deadline-risk** 截止日预警 | 快到期但没排块的任务 | ❌ 无（有 due 黄点但 agent 不主动催）|
+| **Conflict** 冲突消解 | 双重预订 | ❌ 有 UI 设想无引擎 |
+| **Prep** 会前准备 | 重要会前无准备块 | ❌ 无 |
+| **Follow-up** 会后跟进 | 会后欠的消息/笔记 | ❌ 无 |
+| **Cleanup** 收尾 | 过去事件未标记完成 | ⚠️ 统计有但不主动催 |
+| **Rebalance** 重排 | 今天过载 → 建议挪 | ❌ 无 |
+
+加新能力 = 往 `MOVE_DETECTORS` 注册表 push 一个纯函数，不动其他代码。**这个可扩展性就是壁垒**。
+
+### 四、统一的 Move 数据结构
+
+所有主动发现的东西归一成同一对象，UI 只认这一种：
+
+```javascript
+{
+  id: 'move-deadline-p1',
+  type: 'deadline_risk',                 // 对应上表
+  severity: 'critical',                  // critical | high | normal → 排序+颜色
+  date: '2026-6-8',                      // 关乎哪一天
+  title: 'SLTA newsletter 周一截止 · 还没排时间',
+  reason: '预计需 2h，距截止仅 2 天，目前 0 个已排块',
+  subject: { source:'pendingTask', id:'p1' },   // 指向真实任务，供学习/执行
+  proposedActions: [                     // 一键执行项，每个都走【已有】确认函数
+    { label:'排进周日 9:00–11:00', fn:'scheduleTaskToSlot', payload:{...} },
+    { label:'忽略',                fn:'dismissMove',        payload:{...} }
+  ]
+}
+```
+
+**propose-only 在此结构里是天然的**：loop 只生产 Move 对象，执行永远走 `proposedActions` 指向的、已写好的确认函数（如 `confirmDeskPlanWindow`）。loop 自己从不写库 → 安全。
+
+### 五、最痛的 Move：Deadline-risk（暴露一个必须修的数据洞）
+
+检测逻辑（纯确定性）：
+1. 取 `getInboxItems()` 里有 deadline、未完成的任务。
+2. 判断"是否已排块" ← **数据洞**：`confirmDeskPlanWindow` 生成的事件 id 是 `plan-...` 但**不回指任务**，agent 无法知道任务已排过。
+   → **必须补**：事件加 `sourceTaskId` 字段，排块时写回。这是把"任务"和"日历"真正打通的最后一环。
+3. 算 `daysUntilDue` 与所需小时数，没排块且时间紧 → 生成 critical/high move。
+4. 调用**泛化后的 `getFreeWindows(任意日期)`** 在 [今天 .. 截止日] 找空档 → 填进 `proposedActions`。
+
+这同时回答了"为什么设了 due 也排不进去"——因为引擎只看今天；泛化 `getPlanWindows()` 接受任意日期后即可跨天找空档。
+
+### 六、触发时机（propose-only 下很简单）
+
+| 触发点 | 现状 | 改造 |
+|---|---|---|
+| 打开 app / 当天首次渲染 | 无 | 跑一次 loop → 晨间 briefing |
+| 任何数据改动后 | `syncAllViews()` 已在跑 | 顺手重跑 loop（增量）|
+| 定时 / 推送 | 无 | 阶段 2 接后端再说 |
+
+不需要后台进程——"打开即跑"在 propose-only 下已足够像"主动"。
+
+### 七、宏观排序（从"假主动"到"真主动"）
+
+```
+阶段1 点火   Agent Loop 抽象 + getPlanWindows 泛化到任意日期 + sourceTaskId + Deadline-risk move   ← 纯前端，当前唯一该做
+阶段2 接地   接真实日历 (Google/MS Graph 只读)，从假数据 → 真实生活
+阶段3 信任   autonomy 滑块 + trial 状态，从"每次确认" → "高置信自动"
+阶段4 飞轮   把三层学习真正接到 Loop 上（见 learning agent.md）
+```
+
+阶段 1 是地基，其余三阶段都依赖它。**当前聚焦：阶段 1，且只 propose 不 auto-execute。**
