@@ -9,7 +9,7 @@
   - `calendar-demo.yiwang.dev` → demo，精编样例，永远浅色，不登录、不落库。
   - `calendar.yiwang.dev` → personal，真实数据，magic-link 登录。
 - **持久化**：personal 模式接 **Supabase**（`app_state` 一行 JSON/用户 + RLS），手动新建/编辑/删除/完成实时入库；localStorage 作离线缓存。建表 + Site URL 已配置完成 ✅。
-- **认证**：邮箱 magic-link；登录态按浏览器/设备（换设备需重新点链接）。已明确提示：必须在目标浏览器打开原始邮件链接，避免邮箱 App 预览页吃掉 session。
+- **认证**：Google OAuth + 邮箱 magic-link 双通道（登录框 Google 按钮 + 「or」+ 邮箱）。登录态按浏览器/设备（换设备需重新点链接/登录）。邮箱已明确提示：必须在目标浏览器打开原始邮件链接，避免邮箱 App 预览页吃掉 session。Google 需后台一次性配置：Google Cloud OAuth client（JS origin `calendar.yiwang.dev`、redirect 指向 Supabase `/auth/v1/callback`）+ Supabase Providers→Google 填 client id/secret。
 - **管理员**：按邮箱识别（`yi.wang.max@gmail.com`），只有管理员看到 Reset/Clear/模式；URL/key/admin 全在代码里，用户永不可见。
 - **日期**：统一 `appNow()` —— personal 用真实当天，demo 钉死 6/6。问候/时间线「现在」线/日历今日高亮/日报/分析全部跟随。
 - **UI**：去掉假状态栏；齿轮并入头像（W）单一入口；首页时间线删除重复大日期，只保留更精致的 `TODAY` 标题，`Now` 指示器回到短红线样式；Agent Suggestions 改为单行任务、`+/-` 操作、左侧优先级色边，且可不选择直接 Confirm；日历选中态改为更小的日期圆形，默认强高亮今天，点选其他日期后强高亮转移、今天保留淡色；日期详情关闭按钮加 X；主题强制浅色（同 CV 站）。
