@@ -3466,6 +3466,7 @@ let commuteDraftState = null;
 let agentPanelExpanded = false;
 let focusTodayMode = false;
 let timePlanState = {};
+let dismissedPlanWindows = [];
 const LEARNING_STORAGE_KEY = 'schedulingAgentLearning.v1';
 let interactionLog = [];
 let prefStore = {};
@@ -3955,6 +3956,7 @@ function getPlanWindows() {
    work: getWorkability(e.transitMode)
   }));
  return deskWindows.concat(commuteWindows)
+  .filter(w => !dismissedPlanWindows.includes(w.id))
   .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
 }
 
@@ -4053,6 +4055,8 @@ function renderTimePlanningBoard() {
   }
   if (staged.length) {
    html += '<button class="tp-confirm" onclick="event.stopPropagation();confirmPlanWindow(\''+win.id+'\')">Confirm</button>';
+  } else if (!candidates.length) {
+   html += '<button class="tp-confirm" onclick="event.stopPropagation();dismissPlanWindow(\''+win.id+'\')">Confirm</button>';
   }
   html += '</div>';
  });
@@ -4093,6 +4097,11 @@ function addCandidateToPlanWindow(windowId, candidateId) {
 function removePlanItem(windowId, candidateId) {
  timePlanState[windowId] = getStagedItems(windowId).filter(item => item.id !== candidateId);
  if (!timePlanState[windowId].length) delete timePlanState[windowId];
+ renderTodayPage();
+}
+
+function dismissPlanWindow(windowId) {
+ if (!dismissedPlanWindows.includes(windowId)) dismissedPlanWindows.push(windowId);
  renderTodayPage();
 }
 
