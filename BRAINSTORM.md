@@ -502,26 +502,38 @@ Outlook / Graph ─┼─→ [同步适配器 CalendarProvider] ──┐ 归一
 4. **OAuth tokens**（加密）。
 5. **用户偏好档案**（CLAUDE.md 式声明）。
 
-### 已落地 ✅：Demo 数据 vs 我的数据（双模式持久化）
-> 一份代码同时满足两个需求：**给别人看用 Demo 故事，自己用从零开始且数据不丢。**
-- 启动时捕获代码里的精编数据为 `DEMO_SEED`（pristine 克隆），两模式切换：
-  - **Demo 模式**（默认）：加载 `DEMO_SEED`，任何改动**不落盘**——展示永远不会污染真实数据。
-  - **My data 模式**：从 `localStorage` 读回，首次为空 → 白板起步；每次变更 `saveAppData()` 落盘，刷新不丢。
+### 已落地 ✅：模式按域名锁死（Demo vs Personal，不是开关）
+> 决策修正：**不要设置里切换模式**——「能切」本身就让人困惑。要么 demo 要么真实版本，URL 一眼区分。
+- 启动时 `detectAppMode()` 按 hostname 判定，**用户无法切换**：
+  - `calendar-demo.yiwang.dev` → **demo**：加载 `DEMO_SEED`，任何改动**不落盘**，可「Reset sample data」。
+  - `calendar.yiwang.dev` → **personal**：真实数据，持久化。
+  - `?mode=demo|live` → 本地/preview 调试用的覆盖参数。
+- 启动时捕获代码里的精编数据为 `DEMO_SEED`（pristine 克隆）。
 - 落盘的 DB：`eventsDB / runtimeEvents / pendingTasksDB / owedRepliesDB / pendingMeetingsDB / completionDB / completedInboxIds`。
-- 写入钩子：`syncAllViews()` + 各 mutation 点（capture 提交、accept 建议、删除、编辑、完成）。`appMode!=='live'` 时静默跳过。
-- 入口：导航栏齿轮 → Settings 浮层（Demo / My data 切换 + Clear my data）。
-- 接口与未来 Stage 1 后端一致：`snapshotDBs / loadDBsFrom / saveAppData / applyAppMode`，换实现不动引擎。
-- 测试：`tests/persistence.test.js`（seed 捕获、白板清空、demo 不落盘、快照 roundtrip 无损）。
+- 写入钩子：`saveAppData()` 接在 `syncAllViews()` + 各 mutation 点（capture 提交、accept 建议、删除、编辑、完成），`appMode!=='live'` 时静默跳过。
+- 持久化接口 `snapshotDBs / loadDBsFrom / saveAppData / applyAppMode`：**localStorage 只是过渡，下一步换 Supabase 不动引擎**。
+- 入口：导航栏齿轮 → Settings 浮层，显示当前 Mode 徽章（只读）+ 对应操作（personal: Clear my data / demo: Reset sample）。
+- 测试：`tests/persistence.test.js`。
 
-### 部署（线 A · 给别人展示）
-- 单文件静态页 → GitHub Pages：Repo → Settings → Pages → Source: `Deploy from a branch` → `main` / `root` → 几分钟后 `https://1yiwang.github.io/scheduling-agent/`。
-- 给别人看走 Demo 模式（默认即是）；自己用切 My data。
+### 部署（Vercel + yiwang.dev）
+- 一个 Vercel 项目，从 GitHub 仓库导入，纯静态零构建（`vercel.json` 仅 cleanUrls；`.vercelignore` 排除 tests/.md）。
+- **同一项目挂两个子域名**（不是部署两次）：`calendar.yiwang.dev`（真实）+ `calendar-demo.yiwang.dev`（展示）。`git push` 一次两边同更。
+- yiwang.dev 的 DNS 在 Vercel → 子域名几乎自动打通。
+- 模式由 hostname 锁定，所以两个子域名天然是两个固定版本，且 origin 不同 → 数据物理隔离。
 
-### 语音输入路线（线 B · Step 2，待做）
-> 决定：STT 用 **云端 Whisper**（更准、支持中英混说）；key 走 **serverless 代理**（产品要给别人用，绝不前端裸 key）。
-- 流水线：按住说话 → ① 录音上传代理（Vercel/CF Workers 藏 key）→ ② Whisper 转写 → ③ LLM function-calling 解析为结构化事件（**注入当前真实日期**才能解「明天下午三点」）→ ④ **可编辑草稿卡**（哪天/几点/多久全可改）→ ⑤ 确认才写日历 → ⑥ 纠正进 `interactionLog`，越用越准。
-- 「识别/写入出错」对策：**绝不自动写**，永远先给可编辑草稿；解析置信度低 → 高亮该项追问一句而非猜。
-- 现有 `startCapture` 多步向导（目前模拟、写死日期）将被这条真流水线替换。
+### 后端：Supabase（真实版本的持久化，待做）
+> localStorage 是单设备过渡；真要用必须有后端。选 Supabase（Postgres + Auth + RLS，EU 数据驻留可选，契合「瑞士/EU 数据驻留」护城河叙事）。
+- **只 personal 模式用后端**；demo 永远本地 seed，不碰后端。
+- 适配层替换 `saveAppData/applyAppMode` 内部实现：load 时从 Supabase 拉，mutation 时 upsert；localStorage 作离线缓存/兜底。接口不变。
+- 表（每行带 `user_id`，RLS 隔离）：`events`、`tasks`、`completions`、`prefs`(prefStore)、`interaction_log`(Stage A 特征)、`durations`(时长统计)。
+- Auth：Supabase magic-link（先单人，结构天然支持未来多用户 + 跨用户池化 ML）。
+- 前端只需 Supabase URL + anon key（public-safe，配 RLS）。
+
+### 语音输入路线（待做）
+> 决定：STT 用 **云端 Whisper**；key 走 **serverless 代理**（产品给别人用，绝不前端裸 key）。代理与 Supabase 同在 Vercel。
+- 流水线：按住说话 → ① 录音传代理 → ② Whisper 转写 → ③ LLM function-calling 解析为结构化事件（**注入当前真实日期**才能解「明天下午三点」）→ ④ **可编辑草稿卡** → ⑤ 确认才写日历（→ Supabase）→ ⑥ 纠正进 `interaction_log`，越用越准。
+- 「识别/写入出错」对策：**绝不自动写**，永远先给可编辑草稿；置信度低 → 高亮追问一句而非猜。
+- 现有 `startCapture` 多步向导（模拟、写死日期）将被这条真流水线替换。
 
 ---
 

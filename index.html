@@ -1161,6 +1161,9 @@
  .settings-seg { display: flex; gap: 4px; background: var(--ej-bg); border-radius: 12px; padding: 4px; }
  .settings-seg-btn { flex: 1; border: none; background: transparent; color: var(--ej-text-2); font-size: 14px; font-weight: 600; padding: 9px 0; border-radius: 9px; cursor: pointer; transition: all 0.18s; }
  .settings-seg-btn.active { background: var(--ej-card); color: var(--ej-text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+ .settings-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; vertical-align: middle; margin-left: 6px; }
+ .settings-badge.demo { background: rgba(245,158,11,0.16); color: #b45309; }
+ .settings-badge.live { background: rgba(16,185,129,0.16); color: #047857; }
  .settings-hint { font-size: 13px; color: var(--ej-text-2); line-height: 1.5; margin-top: 12px; }
  .settings-danger { margin-top: 14px; width: 100%; border: 1px solid var(--ej-danger, #e5484d); background: transparent; color: var(--ej-danger, #e5484d); font-size: 13px; font-weight: 600; padding: 10px 0; border-radius: 10px; cursor: pointer; }
  .overlay-sheet {
@@ -1991,13 +1994,10 @@
    <button class="settings-x" onclick="closeSettings()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
   <div class="settings-group">
-   <div class="settings-label">Data</div>
-   <div class="settings-seg">
-    <button class="settings-seg-btn" id="modeSegDemo" onclick="setAppMode('demo')">Demo</button>
-    <button class="settings-seg-btn" id="modeSegLive" onclick="setAppMode('live')">My data</button>
-   </div>
+   <div class="settings-label">Mode <span class="settings-badge demo" id="modeBadge">Demo</span></div>
    <div class="settings-hint" id="modeHint"></div>
    <button class="settings-danger" id="modeClearBtn" onclick="clearLiveData()" style="display:none;">Clear my data</button>
+   <button class="settings-seg-btn" id="modeResetBtn" onclick="resetDemo()" style="display:none;background:var(--ej-bg);margin-top:12px;">Reset sample data</button>
   </div>
  </div>
 </div>
@@ -3886,9 +3886,23 @@ function saveLearningState() {
 loadLearningState();
 
 // ══════════ APP DATA PERSISTENCE · demo seed vs your live data ══════════
+// Mode is LOCKED by hostname — never a user toggle:
+//   calendar-demo.* → demo (sample data, nothing saved)
+//   calendar.*      → live (your real data, persisted)
+//   ?mode=demo|live  → override for local dev / previews
 const APP_DATA_KEY = 'schedulingAgentData.v1';
-const APP_MODE_KEY = 'schedulingAgentMode.v1';
-let appMode = (function () { try { return localStorage.getItem(APP_MODE_KEY) || 'demo'; } catch (e) { return 'demo'; } })();
+function detectAppMode() {
+ try {
+  const o = new URLSearchParams(location.search).get('mode');
+  if (o === 'demo') return 'demo';
+  if (o === 'live' || o === 'app') return 'live';
+  const h = location.hostname || '';
+  if (h.indexOf('calendar-demo') === 0) return 'demo';
+  if (h.indexOf('calendar.') === 0) return 'live';
+ } catch (e) {}
+ return 'demo';
+}
+let appMode = detectAppMode();
 
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
 function snapshotDBs() {
@@ -3925,15 +3939,12 @@ function applyAppMode() {
   loadDBsFrom(deepClone(DEMO_SEED));
  }
 }
-function setAppMode(mode) {
- appMode = mode;
- try { localStorage.setItem(APP_MODE_KEY, mode); } catch (e) {}
- applyAppMode();
+function resetDemo() {
+ loadDBsFrom(deepClone(DEMO_SEED));
  if (typeof closeDayDetail === 'function') closeDayDetail();
- renderSettings();
  syncAllViews();
  if (document.getElementById('calGrid')) renderCal();
- showToast(mode === 'live' ? 'Your data · saved on this device' : 'Demo data loaded');
+ showToast('Sample data reset');
 }
 function clearLiveData() {
  try { localStorage.removeItem(APP_DATA_KEY); } catch (e) {}
@@ -3942,17 +3953,17 @@ function clearLiveData() {
 applyAppMode();
 
 function renderSettings() {
- const demo = document.getElementById('modeSegDemo');
- const live = document.getElementById('modeSegLive');
+ const badge = document.getElementById('modeBadge');
  const hint = document.getElementById('modeHint');
  const clearBtn = document.getElementById('modeClearBtn');
- if (!demo || !live) return;
- demo.classList.toggle('active', appMode === 'demo');
- live.classList.toggle('active', appMode === 'live');
+ const resetBtn = document.getElementById('modeResetBtn');
+ if (badge) badge.textContent = appMode === 'live' ? 'Personal' : 'Demo';
+ if (badge) badge.className = 'settings-badge ' + (appMode === 'live' ? 'live' : 'demo');
  if (hint) hint.textContent = appMode === 'live'
-  ? 'Your own events & tasks, saved on this device. Changes stay after refresh.'
-  : 'A sample day for showing the app. Nothing you change is saved.';
+  ? 'Your personal calendar. Events & tasks are saved.'
+  : 'A live demo with sample data. Nothing you change is saved.';
  if (clearBtn) clearBtn.style.display = appMode === 'live' ? 'block' : 'none';
+ if (resetBtn) resetBtn.style.display = appMode === 'demo' ? 'block' : 'none';
 }
 function openSettings() { renderSettings(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
