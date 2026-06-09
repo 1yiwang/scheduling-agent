@@ -504,6 +504,23 @@
  .event-card .e-time-row {
  display: flex; align-items: baseline; gap: 8px;
  }
+ .event-card .e-time-row.compact { align-items: center; gap: 9px; }
+ .event-card .e-time-row.compact .e-time { flex-shrink: 0; }
+ .event-card .e-time-row.compact .e-title {
+ margin-top: 0; flex: 1; min-width: 0;
+ overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+ }
+ .event-card .e-check {
+ flex-shrink: 0; width: 18px; height: 18px; padding: 0;
+ border-radius: 50%; border: 1.8px solid var(--ej-line); background: transparent;
+ cursor: pointer; display: flex; align-items: center; justify-content: center;
+ color: transparent; transition: border-color .15s, background .15s, color .15s;
+ }
+ .event-card .e-check:hover { border-color: var(--ej-complete); }
+ .event-card .e-check.done { background: var(--ej-complete); border-color: var(--ej-complete); color: #fff; }
+ .event-card .e-mode-chip {
+ flex-shrink: 0; display: inline-flex; align-items: center; color: var(--ej-text-2);
+ }
  .event-card .e-time {
  font-size: 15px; font-weight: 600; font-feature-settings: "tnum";
  color: var(--ej-text); letter-spacing: -0.2px;
@@ -3188,6 +3205,14 @@ function renderEventTags(event, opts) {
 function renderEventExpand(event, options) {
  options = options || {};
  let html = '';
+ // Time (moved out of the compact row so the timeline stays one line)
+ if (event.time) {
+ html += '<div class="e-row"><span class="e-label">When</span><span class="e-val">'+event.time+'</span></div>';
+ }
+ // People
+ if (event.participants && event.participants.length > 0) {
+ html += '<div class="e-row"><span class="e-label">With</span><span class="e-val">'+event.participants.join(', ')+'</span></div>';
+ }
  // Location
  if (event.loc) {
  html += '<div class="e-row"><span class="e-label">Location</span><span class="e-val">'+event.loc+'</span></div>';
@@ -3268,11 +3293,11 @@ function renderEventCard(event, options) {
 
  // Determine completion state for visual treatment
  let compState = '';
- if (isPast && !isFreeSlot) {
+ if (!isFreeSlot) {
  const comp = getCompletion(event);
  if (comp === true) compState = 'completed';
- else if (comp === false) compState = 'not-completed';
- else compState = 'unmarked-past';
+ else if (isPast && comp === false) compState = 'not-completed';
+ else if (isPast) compState = 'unmarked-past';
  }
 
  const isWorkableTransit = event.type === 'transit' && event.transitMode && getWorkability(event.transitMode).score >= 2;
@@ -3294,16 +3319,35 @@ function renderEventCard(event, options) {
  const endTime = event.time.split('–')[1]?.trim() || '';
 
  const displayTitle = getDisplayTitle(event, options.compact);
- const transitBadge = options.compact ? renderTransitBadge(event) : '';
  const commuteTasksHtml = renderCommuteTasks(event);
 
- // Compact: minimal who+where meta line; Full: complete tags
- const tagsOrMeta = options.compact
- ? renderCompactMeta(event)
- : renderEventTags(event);
- const tagsHtml = tagsOrMeta
- ? (options.compact ? '<div class="e-meta">'+tagsOrMeta+'</div>' : '<div class="e-tags">'+tagsOrMeta+'</div>')
- : '';
+ if (options.compact) {
+  // Compact card = one scannable line: [○] time · title · type.
+  // Everything else (people, location, transit reason, buffers) lives in the expand.
+  const isActionable = ['deep','busy','online'].includes(event.type);
+  const comp = getCompletion(event);
+  const checkHtml = (isActionable && !isFreeSlot)
+   ? '<button class="e-check'+(comp===true?' done':'')+'" onclick="event.stopPropagation();toggleTimelineComplete(\''+(event.id||'')+'\')" aria-label="Toggle done"><svg width="12" height="12"><use href="#icon-check-sm"/></svg></button>'
+   : '';
+  const transitChip = (event.type==='transit' && event.transitMode)
+   ? '<span class="e-mode-chip"><svg width="13" height="13"><use href="#'+transitModeIcon(event.transitMode)+'"/></svg></span>'
+   : '';
+  return '<div class="event-card '+cls.trim()+'" id="card-'+(event.id||'')+'" onclick="toggleExpand(this)" '+dataAttrs+'>'+
+   '<div class="e-time-row compact">'+
+    checkHtml+
+    '<span class="e-time">'+startTime+'</span>'+
+    transitChip+
+    '<span class="e-title">'+displayTitle+'</span>'+
+    timeExtras+
+   '</div>'+
+   commuteTasksHtml+
+   '<div class="e-expand">'+expandHtml+'</div>'+
+  '</div>';
+ }
+
+ const transitBadge = renderTransitBadge(event);
+ const tagsOrMeta = renderEventTags(event);
+ const tagsHtml = tagsOrMeta ? '<div class="e-tags">'+tagsOrMeta+'</div>' : '';
 
  return '<div class="event-card '+cls.trim()+'" id="card-'+(event.id||'')+'" onclick="toggleExpand(this)" '+dataAttrs+'>'+
  '<div class="e-time-row"><span class="e-time">'+startTime+'</span><span class="e-duration">– '+endTime+'</span>'+timeExtras+'</div>'+
@@ -5300,6 +5344,15 @@ function markCompleteFromBriefing(eventId, status) {
  markComplete(eventId, status);
 }
 
+// Inline timeline completion: tap the circle (or swipe right) to toggle done.
+function toggleTimelineComplete(eventId) {
+ const wasDone = completionDB.hasOwnProperty(eventId) && completionDB[eventId] === true;
+ if (wasDone) delete completionDB[eventId];
+ else completionDB[eventId] = true;
+ if (typeof syncAllViews === 'function') syncAllViews();
+ showToast(wasDone ? 'Marked not done' : 'Marked done');
+}
+
 function rescheduleFromBriefing(eventId) {
  // Find the event card and scroll to it, then trigger reschedule
  const card = document.querySelector('[data-event-id="'+eventId+'"]');
@@ -5569,6 +5622,38 @@ document.getElementById('todayContent').addEventListener('click', function(e) {
  document.querySelectorAll('.pending-actions').forEach(a => { if (a !== actions) a.style.display = 'none'; });
  }
 });
+
+// Swipe-to-complete on the today timeline (touch only — desktop uses the circle)
+(function enableTimelineSwipe() {
+ const root = document.getElementById('todayContent');
+ if (!root) return;
+ let startX = 0, startY = 0, card = null;
+ root.addEventListener('touchstart', e => {
+  const c = e.target.closest('.event-card');
+  card = (c && c.dataset.eventId && c.querySelector('.e-check')) ? c : null;
+  if (!card) return;
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+  card.style.transition = 'transform .15s ease';
+ }, { passive: true });
+ root.addEventListener('touchmove', e => {
+  if (!card) return;
+  const dx = e.touches[0].clientX - startX;
+  if (Math.abs(dx) > 8) card.style.transform = 'translateX(' + Math.max(-80, Math.min(80, dx)) + 'px)';
+ }, { passive: true });
+ root.addEventListener('touchend', e => {
+  if (!card) return;
+  const dx = e.changedTouches[0].clientX - startX;
+  const dy = e.changedTouches[0].clientY - startY;
+  const id = card.dataset.eventId;
+  card.style.transform = '';
+  card = null;
+  if (Math.abs(dx) > 60 && Math.abs(dy) < 45) {
+   if (dx > 0) toggleTimelineComplete(id);
+   else markComplete(id, false);
+  }
+ }, { passive: true });
+})();
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
