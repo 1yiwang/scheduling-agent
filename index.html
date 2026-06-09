@@ -340,21 +340,6 @@
   border-left: 1px solid var(--ej-line);
  }
  .timeline-block .event-card { position: relative; }
- .timeline-block .event-card::before {
-  content: ''; position: absolute;
-  left: -22px; top: 17px;
-  width: 7px; height: 7px; border-radius: 50%;
-  background: transparent;
-  border: 1.5px solid var(--ej-text-3);
-  z-index: 1;
- }
- .timeline-block .event-card.type-deep::before { border-color: var(--ej-info); background: transparent; }
- .timeline-block .event-card.type-busy::before { border-color: var(--ej-info); background: transparent; }
- .timeline-block .event-card.type-online::before { border-color: var(--ej-info); background: transparent; }
- .timeline-block .event-card.type-social::before { border-color: var(--ej-text-3); background: transparent; }
- .timeline-block .event-card.completed::before { border-color: var(--ej-complete); background: var(--ej-complete); }
- .timeline-block .event-card.not-completed::before { border-color: var(--ej-red); background: var(--ej-red); }
- .timeline-block .event-card.unmarked-past::before { border-color: var(--ej-warning); background: var(--ej-warning); }
 
  /* Now marker */
  .now-marker {
@@ -362,6 +347,7 @@
   padding: 10px 0 8px; margin-left: 8px; padding-left: 20px;
   border-left: 1px solid var(--ej-line);
  }
+ .timeline-block .now-marker { margin-left: 0; padding-left: 0; border-left: none; }
  .now-line { width: 24px; height: 1px; background: var(--ej-red); flex-shrink: 0;
   box-shadow: 0 0 8px var(--ej-red-glow); }
  .now-label {
@@ -493,8 +479,8 @@
  /* Event card */
  .event-card {
  background: var(--ej-card); border-radius: var(--radius);
- padding: 14px 16px; margin-bottom: 8px;
- position: relative; overflow: hidden;
+ padding: 13px 15px; margin-bottom: 8px;
+ position: relative;
  transition: all 0.15s ease-out; cursor: pointer;
  }
  .event-card:active { background: var(--ej-hover); }
@@ -504,15 +490,17 @@
  .event-card .e-time-row {
  display: flex; align-items: baseline; gap: 8px;
  }
- .event-card .e-time-row.compact { align-items: center; gap: 9px; }
+ .event-card .e-time-row.compact { align-items: center; gap: 8px; }
  .event-card .e-time-row.compact .e-time { flex-shrink: 0; }
  .event-card .e-time-row.compact .e-title {
  margin-top: 0; flex: 1; min-width: 0;
  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
  }
+ /* Completion circle sits on the timeline rail, to the left of each card */
  .event-card .e-check {
- flex-shrink: 0; width: 18px; height: 18px; padding: 0;
- border-radius: 50%; border: 1.8px solid var(--ej-line); background: transparent;
+ position: absolute; left: -28px; top: 12px; z-index: 2; box-sizing: border-box;
+ width: 16px; height: 16px; padding: 0;
+ border-radius: 50%; border: 1.7px solid var(--ej-text-3); background: var(--ej-bg);
  cursor: pointer; display: flex; align-items: center; justify-content: center;
  color: transparent; transition: border-color .15s, background .15s, color .15s;
  }
@@ -522,7 +510,7 @@
  flex-shrink: 0; display: inline-flex; align-items: center; color: var(--ej-text-2);
  }
  .event-card .e-time {
- font-size: 15px; font-weight: 600; font-feature-settings: "tnum";
+ font-size: 13px; font-weight: 600; font-feature-settings: "tnum";
  color: var(--ej-text); letter-spacing: -0.2px;
  }
  .event-card .e-duration {
@@ -534,7 +522,7 @@
  white-space: nowrap;
  }
  .event-card .e-title {
- font-size: 14px; font-weight: 500; margin-top: 4px;
+ font-size: 13px; font-weight: 500; margin-top: 4px;
  line-height: 1.35; color: var(--ej-text);
  }
 
@@ -3322,19 +3310,18 @@ function renderEventCard(event, options) {
  const commuteTasksHtml = renderCommuteTasks(event);
 
  if (options.compact) {
-  // Compact card = one scannable line: [○] time · title · type.
-  // Everything else (people, location, transit reason, buffers) lives in the expand.
-  const isActionable = ['deep','busy','online'].includes(event.type);
+  // Compact card = one scannable line: time · title · type, with a tap-able
+  // completion circle on the timeline rail. Details live in the expand.
   const comp = getCompletion(event);
-  const checkHtml = (isActionable && !isFreeSlot)
-   ? '<button class="e-check'+(comp===true?' done':'')+'" onclick="event.stopPropagation();toggleTimelineComplete(\''+(event.id||'')+'\')" aria-label="Toggle done"><svg width="12" height="12"><use href="#icon-check-sm"/></svg></button>'
+  const checkHtml = !isFreeSlot
+   ? '<button class="e-check'+(comp===true?' done':'')+'" onclick="event.stopPropagation();toggleTimelineComplete(\''+(event.id||'')+'\')" aria-label="Toggle done"><svg width="11" height="11"><use href="#icon-check-sm"/></svg></button>'
    : '';
   const transitChip = (event.type==='transit' && event.transitMode)
    ? '<span class="e-mode-chip"><svg width="13" height="13"><use href="#'+transitModeIcon(event.transitMode)+'"/></svg></span>'
    : '';
   return '<div class="event-card '+cls.trim()+'" id="card-'+(event.id||'')+'" onclick="toggleExpand(this)" '+dataAttrs+'>'+
+   checkHtml+
    '<div class="e-time-row compact">'+
-    checkHtml+
     '<span class="e-time">'+startTime+'</span>'+
     transitChip+
     '<span class="e-title">'+displayTitle+'</span>'+
@@ -3657,7 +3644,7 @@ function openDay(day) {
  if (isToday && !nowPlaced) {
   out += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
  }
- content.innerHTML = out;
+ content.innerHTML = '<div class="timeline-block">'+out+'</div>';
  }
 
  document.getElementById('dayDetail').classList.add('show');
@@ -4882,7 +4869,7 @@ function refreshDayDetail(year, month, day) {
   const sorted = [...evts].sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
   const today = 6; // June 6 demo fixed
   const isPastDay = day < today;
-  content.innerHTML = sorted.map(e => renderEventCard(e, {isPast: isPastDay, compact: true, showEdit: true})).join('');
+  content.innerHTML = '<div class="timeline-block">'+sorted.map(e => renderEventCard(e, {isPast: isPastDay, compact: true, showEdit: true})).join('')+'</div>';
  }
  if (ddDate) {
   ddDate.textContent = new Date(year, month-1, day).toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
