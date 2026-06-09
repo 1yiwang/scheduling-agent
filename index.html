@@ -3536,10 +3536,7 @@ function confirmInboxPlanToWindow(source, id, windowId) {
  activeInboxPlanId = null;
  inboxDeleteConfirmId = null;
  syncAllViews();
- setCalView('calendar');
- renderCal();
- openDay(6);
- showToast('Planned on calendar');
+ showToast('Planned · '+win.title);
 }
 
 function toggleInboxDone(source, id) {

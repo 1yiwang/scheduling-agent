@@ -67,7 +67,14 @@ assert.strictEqual(
   'confirmInboxPlanToWindow should exist for Inbox -> calendar scheduling'
 );
 
+vm.runInContext('calView = "tasks";', context);
 app.confirmInboxPlanToWindow('pendingTask', 'p4', window.id);
+
+assert.strictEqual(
+  vm.runInContext('calView', context),
+  'tasks',
+  'planning from Inbox should stay on the Tasks view, not navigate away'
+);
 
 assert.strictEqual(app.pendingTasksDB.length, beforeCount - 1, 'scheduled task should leave Inbox task source');
 assert(!app.buildCandidatePool().some(c => c.id === 'p4'), 'scheduled task should leave agent candidate pool');
