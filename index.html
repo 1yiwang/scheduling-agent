@@ -3004,6 +3004,11 @@ function getCompletion(event) {
 }
 
 function getTodayDate() { return 6; } // June 6 demo fixed
+// "Now" follows the real system clock so the timeline divider tracks live time.
+function currentSimNow() {
+ const d = new Date();
+ return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
 
 function parseDurationHours(durStr) {
  if (!durStr) return 0;
@@ -3631,7 +3636,7 @@ function openDay(day) {
  const today = 6; // June 6 demo fixed
  const isPastDay = day < today;
  const isToday = day === today && calYear === 2026 && calMonth === 6;
- const simNow = '11:00';
+ const simNow = currentSimNow();
  let nowPlaced = false;
  let out = '';
  sorted.forEach(e => {
@@ -3816,6 +3821,7 @@ let dismissedPlanWindows = [];
 const LEARNING_STORAGE_KEY = 'schedulingAgentLearning.v1';
 let interactionLog = [];
 let prefStore = {};
+let durationStore = {}; // `${kind}::${person}` → {totalMin, count} · learned actual durations
 
 function loadLearningState() {
  try {
@@ -3824,15 +3830,17 @@ function loadLearningState() {
   const parsed = JSON.parse(raw);
   prefStore = parsed.prefStore || {};
   interactionLog = parsed.interactionLog || [];
+  durationStore = parsed.durationStore || {};
  } catch (e) {
   prefStore = {};
   interactionLog = [];
+  durationStore = {};
  }
 }
 
 function saveLearningState() {
  try {
-  localStorage.setItem(LEARNING_STORAGE_KEY, JSON.stringify({ prefStore, interactionLog }));
+  localStorage.setItem(LEARNING_STORAGE_KEY, JSON.stringify({ prefStore, interactionLog, durationStore }));
  } catch (e) {}
 }
 
@@ -3881,6 +3889,87 @@ function prefScore(candidate) {
  return (kindPref - 0.5) * 20 + (personPref - 0.5) * 12 + (sourcePref - 0.5) * 8;
 }
 
+// ── Duration prediction (running average) ── replaces the user's fixed estimate
+// once we've observed real durations for a (kind, person) pair. Same interface
+// the future ML model will use; only the internals swap.
+// Person is the strongest duration signal ("meetings with Lukas run ~18min"),
+// and it bridges the event-type vs candidate-kind taxonomies. Fall back to kind
+// for person-less solo work.
+function durationKey(kind, person) { return person ? ('person::' + person) : ('kind::' + (kind || 'solo')); }
+
+function recordObservedDuration(kind, person, minutes) {
+ if (!minutes || minutes <= 0 || minutes > 24 * 60) return;
+ const k = durationKey(kind, person);
+ const d = durationStore[k] || { totalMin: 0, count: 0 };
+ d.totalMin += minutes;
+ d.count += 1;
+ durationStore[k] = d;
+ saveLearningState();
+}
+
+function predictDurationMinutes(candidate) {
+ const fallback = candidate.estMinutes || parseEstMinutes(candidate.estTime);
+ const d = durationStore[durationKey(candidate.kind, candidate.involves)];
+ if (d && d.count > 0) return Math.round(d.totalMin / d.count);
+ return fallback;
+}
+
+// ── Stage A · training-data capture ──
+// Build the full feature vector for one candidate × window. Logged (not used for
+// inference yet) so a cross-user model can be trained later. All values come from
+// data already in the system (prefStore / interactionLog / eventsDB).
+function recentReactions(days) {
+ const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+ let accepts = 0, rejects = 0;
+ interactionLog.forEach(l => {
+  if (!l.ts || new Date(l.ts).getTime() < cutoff) return;
+  if (l.action === 'accepted' || l.action === 'sent') accepts++;
+  else if (l.action === 'dismissed') rejects++;
+ });
+ return { accepts, rejects };
+}
+
+function todayEventCount() {
+ const evts = (eventsDB['2026-6'] || {})[getTodayDate()] || [];
+ return evts.length;
+}
+
+function buildFeatureVector(candidate, ctx) {
+ ctx = ctx || {};
+ const now = new Date();
+ const startHour = ctx.startHour != null ? ctx.startHour : now.getHours();
+ const recent = recentReactions(7);
+ const mode = ctx.mode || null;
+ return {
+  // time
+  day_of_week: now.getDay(),
+  hour_of_day: startHour,
+  is_morning: startHour < 12 ? 1 : 0,
+  is_lunch: (startHour === 12) ? 1 : 0,
+  is_evening: startHour >= 17 ? 1 : 0,
+  // commute / window
+  route_id: ctx.route || null,
+  route_mode: mode,
+  window_duration_min: ctx.windowMinutes != null ? ctx.windowMinutes : null,
+  workability_score: mode ? getWorkability(mode).score : null,
+  // suggestion
+  kind: candidate.kind || null,
+  est_minutes: predictDurationMinutes(candidate),
+  involves_other: candidate.involves ? 1 : 0,
+  person_id: candidate.involves || null,
+  source: candidate.source || null,
+  importance: importanceScore(candidate.importance),
+  urgency: importanceScore(candidate.urgency),
+  // history (from learned state)
+  kind_accept_rate: betaConfidence(getPreference('candidate_kind', candidate.kind)),
+  source_accept_rate: betaConfidence(getPreference('candidate_source', candidate.source || 'pendingTask')),
+  person_accept_rate: candidate.involves ? betaConfidence(getPreference('person', candidate.involves)) : 0.5,
+  recent_7d_accepts: recent.accepts,
+  recent_7d_rejects: recent.rejects,
+  today_event_count: todayEventCount()
+ };
+}
+
 function importanceScore(value) {
  if (value === 'high') return 3;
  if (value === 'medium') return 2;
@@ -3904,7 +3993,7 @@ function buildCandidatePool() {
   id: c.id,
   title: c.title,
   estTime: c.estTime,
-  estMinutes: c.estMinutes || parseEstMinutes(c.estTime),
+  estMinutes: predictDurationMinutes({ kind: c.kind || 'solo', involves: c.involves || null, estTime: c.estTime }),
   kind: c.kind || 'solo',
   importance: c.importance || 'medium',
   urgency: c.urgency || 'medium',
@@ -4141,7 +4230,15 @@ function recordCommuteInteraction(cs, candidate, action) {
   source: candidate.source,
   involves: candidate.involves || null,
   draftGenerated: action === 'drafted',
-  draftSent: action === 'sent'
+  draftSent: action === 'sent',
+  // Stage A · full feature vector + label for future model training (logged, not yet used for inference)
+  features: buildFeatureVector(candidate, {
+   route: cs.window.loc,
+   mode: cs.window.transitMode,
+   windowMinutes: windowMinutes(cs.window),
+   startHour: cs.window.startTime ? parseInt(cs.window.startTime.split(':')[0]) : null
+  }),
+  label: (action === 'accepted' || action === 'sent') ? 1 : (action === 'dismissed' ? 0 : null)
  });
  if (action === 'accepted' || action === 'sent') {
   recordSignal('candidate_kind', candidate.kind, true);
@@ -4613,12 +4710,9 @@ function renderTodayPage() {
  const sorted = [...evts].sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
 
  // Simulated "now" for past/future distinction: ~11:00 AM
- const simNow = '11:00';
+ const simNow = currentSimNow();
 
  const pastEvents = sorted.filter(e => (e.startTime||'') < simNow);
- const futureEvents = sorted.filter(e => (e.startTime||'') >= simNow);
- const futureAfternoon = futureEvents.filter(e => (e.startTime||'') < '17:00');
- const futureEvening = futureEvents.filter(e => (e.startTime||'') >= '17:00');
 
  // Greeting card data
  const unmarkedPast = pastEvents.filter(e => !e.completed).length;
@@ -4658,36 +4752,19 @@ function renderTodayPage() {
    '<div class="today-title-meta">'+sorted.length+' events</div>'+
   '</div>';
 
- if (pastEvents.length > 0) {
-  html += '<div class="timeline-block">';
-  pastEvents.forEach(e => {
-   html += renderEventCard(e, {isPast: true, compact: true, showEdit: true});
-  });
-  html += '</div>';
- }
-
- // ═══ 5. NOW MARKER (divider between past and future) ═══
- html += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
-
- // ═══ 6. AFTERNOON (future) ═══
- if (futureAfternoon.length > 0) {
-  html += '<div class="timeline-block">';
-  html += '<div class="section-header" style="margin-left:-4px;"><svg width="15" height="15"><use href="#icon-sun"/></svg> Afternoon</div>';
-  futureAfternoon.forEach(e => {
-   html += renderEventCard(e, {isPast: false, compact: true, showEdit: true});
-  });
-  html += '</div>';
- }
-
- // ═══ 7. EVENING ═══
- if (futureEvening.length > 0) {
-  html += '<div class="timeline-block" style="margin-top:12px;">';
-  html += '<div class="section-header" style="margin-left:-4px;"><svg width="15" height="15"><use href="#icon-moon"/></svg> Evening</div>';
-  futureEvening.forEach(e => {
-   html += renderEventCard(e, {isPast: false, compact: true, showEdit: true});
-  });
-  html += '</div>';
- }
+ // ═══ Single continuous timeline · the "Now" line auto-splits past/future ═══
+ const nowMarkerHtml = '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
+ html += '<div class="timeline-block">';
+ let nowPlaced = false;
+ sorted.forEach(e => {
+  if (!nowPlaced && (e.startTime||'') >= simNow) {
+   html += nowMarkerHtml;
+   nowPlaced = true;
+  }
+  html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true});
+ });
+ if (!nowPlaced) html += nowMarkerHtml;
+ html += '</div>';
  html += '</section>';
 
  document.getElementById('todayContent').innerHTML = html;
@@ -5253,6 +5330,9 @@ function saveEventEdit(eventId) {
  // Rebuild time display
  e.time = (e.startTime||'') + ' – ' + (e.endTime||'');
 
+ // Learn the corrected duration → feeds predictDurationMinutes (and Stage A features)
+ recordObservedDuration(e.type, (e.participants && e.participants[0]) || null, windowMinutes(e));
+
  // Re-render the card
  const card = document.querySelector('[data-event-id="'+eventId+'"]');
  if (card) {
@@ -5362,7 +5442,7 @@ function rescheduleFromBriefing(eventId) {
 function renderDailyBriefing() {
  const today = getTodayDate();
  const key = '2026-6';
- const simNow = '11:00';
+ const simNow = currentSimNow();
 
  // Gather all past events (all days before today + today's past events)
  const allPastEvents = [];
