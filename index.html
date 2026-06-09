@@ -1991,7 +1991,7 @@
    <div class="settings-title">Settings</div>
    <button class="settings-x" onclick="closeSettings()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
-  <div class="settings-group">
+  <div class="settings-group" id="modeGroup">
    <div class="settings-label">Mode <span class="settings-badge demo" id="modeBadge">Demo</span></div>
    <div class="settings-hint" id="modeHint"></div>
    <button class="settings-danger" id="modeClearBtn" onclick="clearLiveData()" style="display:none;">Clear my data</button>
@@ -3974,6 +3974,13 @@ applyAppMode();
 // The anon key is PUBLIC by design — safe to ship in the frontend; RLS protects data.
 const SUPABASE_URL = 'https://xkkhrftmwsacvnkcfpwj.supabase.co';
 const SUPABASE_ANON_KEY = 'PASTE_YOUR_SUPABASE_ANON_KEY';
+// Admin = you. Only these signed-in emails see management controls
+// (mode, reset, clear). Everyone else just gets their calendar + sign out.
+const ADMIN_EMAILS = ['PASTE_YOUR_ADMIN_EMAIL'];
+function isAdmin() {
+ return !!(sbUser && sbUser.email
+  && ADMIN_EMAILS.map(function (e) { return String(e).toLowerCase(); }).indexOf(sbUser.email.toLowerCase()) !== -1);
+}
 let sb = null, sbUser = null, cloudSaveTimer = null;
 
 function cloudConfigured() {
@@ -4054,16 +4061,22 @@ async function cloudSignOut() {
 }
 
 function renderSettings() {
+ const admin = isAdmin();
  const badge = document.getElementById('modeBadge');
  const hint = document.getElementById('modeHint');
  const clearBtn = document.getElementById('modeClearBtn');
  const resetBtn = document.getElementById('modeResetBtn');
+ const modeGroup = document.getElementById('modeGroup');
+ // Management controls (mode/reset/clear) are admin-only in personal mode.
+ // Demo stays public (it's the showcase). Normal users just see their account.
+ const showModeGroup = (appMode === 'demo') || (appMode === 'live' && admin);
+ if (modeGroup) modeGroup.style.display = showModeGroup ? 'block' : 'none';
  if (badge) badge.textContent = appMode === 'live' ? 'Personal' : 'Demo';
  if (badge) badge.className = 'settings-badge ' + (appMode === 'live' ? 'live' : 'demo');
  if (hint) hint.textContent = appMode === 'live'
   ? 'Your personal calendar. Events & tasks are saved.'
   : 'A live demo with sample data. Nothing you change is saved.';
- if (clearBtn) clearBtn.style.display = appMode === 'live' ? 'block' : 'none';
+ if (clearBtn) clearBtn.style.display = (appMode === 'live' && admin) ? 'block' : 'none';
  if (resetBtn) resetBtn.style.display = appMode === 'demo' ? 'block' : 'none';
  const acct = document.getElementById('accountGroup');
  const acctEmail = document.getElementById('accountEmail');
@@ -4071,7 +4084,9 @@ function renderSettings() {
  if (acct) {
   if (appMode === 'live' && cloudConfigured()) {
    acct.style.display = 'block';
-   if (acctEmail) acctEmail.textContent = sbUser ? ('Signed in as ' + sbUser.email) : 'Not signed in';
+   if (acctEmail) acctEmail.textContent = sbUser
+    ? ('Signed in as ' + sbUser.email + (admin ? ' · Admin' : ''))
+    : 'Not signed in';
    if (signOutBtn) signOutBtn.style.display = sbUser ? 'block' : 'none';
   } else {
    acct.style.display = 'none';
