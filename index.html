@@ -298,7 +298,28 @@
  font-size: 12px; font-weight: 650; color: var(--ej-text);
  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;
 }
-.tp-item-mins { font-size: 11px; color: var(--ej-text-2); flex-shrink: 0; white-space: nowrap; }
+.tp-item-mins { font-size: 11px; color: var(--ej-text-2); flex-shrink: 0; white-space: nowrap; display: inline-flex; align-items: baseline; }
+/* Inline-editable name + duration on each suggestion. */
+.tp-item-title-input {
+ flex: 1; min-width: 0; border: none; background: transparent; padding: 0;
+ font-size: 12px; font-weight: 650; color: var(--ej-text); font-family: inherit;
+}
+.tp-item-title-input:focus { outline: none; border-bottom: 1px solid var(--ej-info); }
+.tp-item-mins-input {
+ width: 26px; border: none; background: transparent; padding: 0; text-align: right;
+ font-size: 11px; color: var(--ej-text-2); font-family: inherit; -moz-appearance: textfield;
+}
+.tp-item-mins-input::-webkit-outer-spin-button, .tp-item-mins-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tp-item-mins-input:focus { outline: none; color: var(--ej-info); }
+/* Subhead row carries the manual "add event" box on the far right. */
+.tp-subhead-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tp-add-custom {
+ flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+ width: 30px; height: 24px; border-radius: 7px;
+ border: 1px solid var(--ej-line); background: var(--ej-hover);
+ color: var(--ej-text-2); font-size: 16px; font-weight: 600; line-height: 1; cursor: pointer;
+}
+.tp-add-custom:active { background: var(--ej-line); }
 .tp-add, .tp-remove {
  width: 26px; height: 26px; padding: 0; flex-shrink: 0; cursor: pointer;
  border: 1px solid var(--ej-line); border-radius: 50%; background: transparent;
@@ -1494,13 +1515,19 @@
  background: var(--ej-info); color: #fff;
  }
  .inbox-head {
- display: flex; align-items: baseline; justify-content: space-between;
+ display: flex; align-items: center; justify-content: space-between;
  margin: 2px 2px 10px;
  }
  .inbox-head-title { font-size: 15px; font-weight: 650; }
+ .inbox-head-right { display: flex; align-items: center; gap: 8px; }
  .inbox-head-count { font-size: 12px; color: var(--ej-text-2); }
+ .inbox-title-input {
+ width: 100%; border: none; background: transparent; padding: 0;
+ font-size: 14px; font-weight: 550; line-height: 1.35; color: var(--ej-text); font-family: inherit;
+ }
+ .inbox-title-input:focus { outline: none; border-bottom: 1px solid var(--ej-info); }
  .inbox-row {
- display: flex; align-items: flex-start; gap: 11px;
+ display: flex; align-items: flex-start; flex-wrap: wrap; gap: 11px;
  background: var(--ej-card); border-radius: 12px;
  padding: 13px 14px; margin-bottom: 8px;
  transition: opacity .2s ease;
@@ -1544,13 +1571,46 @@
  display: flex; align-items: center; gap: 2px; flex-shrink: 0; margin-top: -2px;
  }
  .inbox-plan {
- height: 28px; border: none; background: var(--ej-info-bg); color: var(--ej-info);
- border-radius: 7px; padding: 0 8px; cursor: pointer;
- display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 650;
+ width: 28px; height: 28px; border: none; background: var(--ej-info-bg); color: var(--ej-info);
+ border-radius: 7px; padding: 0; cursor: pointer;
+ display: flex; align-items: center; justify-content: center;
  }
  .inbox-plan-panel {
- margin-top: 10px; display: grid; gap: 6px;
+ width: 100%; flex-basis: 100%; margin-top: 4px; display: grid; gap: 6px;
  }
+ /* Per-task detail editor (type / who / duration) — full-width so the right
+    actions column (incl. delete confirm) never reshapes it. */
+ .inbox-edit {
+ width: 100%; flex-basis: 100%; box-sizing: border-box; margin-top: 2px; padding: 12px;
+ border: 1px solid var(--ej-line); border-radius: 10px; background: var(--ej-hover);
+ display: grid; gap: 9px;
+ }
+ .inbox-edit * { box-sizing: border-box; }
+ .ie-row { display: flex; align-items: center; gap: 10px; }
+ .ie-label { width: 72px; flex-shrink: 0; font-size: 11px; font-weight: 650; color: var(--ej-text-2); text-transform: uppercase; letter-spacing: .03em; }
+ .ie-seg { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
+ .ie-seg-btn {
+ border: 1px solid var(--ej-line); background: var(--ej-card); color: var(--ej-text-2);
+ border-radius: 7px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+ }
+ .ie-seg-btn.active { border-color: var(--ej-info); background: var(--ej-info-bg); color: var(--ej-info); }
+ .ie-input {
+ flex: 0 1 auto; width: 62%; min-width: 0; border: 1px solid var(--ej-line); border-radius: 7px;
+ background: var(--ej-card); color: var(--ej-text); font-size: 13px; font-family: inherit;
+ padding: 7px 9px; text-align: left;
+ }
+ .ie-input:focus { outline: none; border-color: var(--ej-info); }
+ .ie-mins-wrap { display: inline-flex; align-items: baseline; gap: 3px; color: var(--ej-text-2); font-size: 13px; }
+ .ie-mins { flex: none; width: 64px; text-align: left; -moz-appearance: textfield; }
+ .ie-mins::-webkit-outer-spin-button, .ie-mins::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+ /* Save = collapse the editor; subtle grey check in the bottom-right. */
+ .ie-save-row { display: flex; justify-content: flex-end; margin-top: 2px; }
+ .ie-save {
+ width: 32px; height: 32px; border-radius: 8px; cursor: pointer;
+ border: 1px solid var(--ej-line); background: var(--ej-card); color: var(--ej-text-2);
+ display: flex; align-items: center; justify-content: center;
+ }
+ .ie-save:hover { background: var(--ej-hover); color: var(--ej-text); }
  .inbox-slot {
  width: 100%; border: 1px solid var(--ej-line); background: var(--ej-hover);
  color: var(--ej-text); border-radius: 9px; padding: 9px 10px; cursor: pointer;
@@ -3499,6 +3559,7 @@ let calView = 'calendar';
 let completedInboxIds = [];
 let inboxDeleteConfirmId = null;
 let activeInboxPlanId = null;
+let expandedInboxId = null;
 
 function inboxUid(source, id) { return source + ':' + id; }
 
@@ -3585,20 +3646,49 @@ function inboxRowHtml(it) {
      '<button class="del-yes" onclick="event.stopPropagation();confirmDeleteInbox(\''+it.source+'\',\''+it.id+'\')">Delete</button>'+
     '</div>'
   : '<div class="inbox-actions">'+
-     (!it.done ? '<button class="inbox-plan" onclick="event.stopPropagation();toggleInboxPlan(\''+it.source+'\',\''+it.id+'\')"><svg width="14" height="14"><use href="#icon-calendar"/></svg> Plan</button>' : '')+
+     (!it.done ? '<button class="inbox-plan" title="Plan" aria-label="Plan" onclick="event.stopPropagation();toggleInboxPlan(\''+it.source+'\',\''+it.id+'\')"><svg width="14" height="14"><use href="#icon-calendar"/></svg></button>' : '')+
      '<button class="inbox-del" onclick="event.stopPropagation();requestDeleteInbox(\''+it.source+'\',\''+it.id+'\')"><svg width="15" height="15"><use href="#icon-trash"/></svg></button>'+
     '</div>';
- return '<div class="inbox-row'+(it.done?' done':'')+'" id="inbox-'+it.source+'-'+it.id+'">'+
+ const rowClick = it.done ? '' : ' onclick="toggleInboxExpand(\''+it.source+'\',\''+it.id+'\')"';
+ return '<div class="inbox-row'+(it.done?' done':'')+(expandedInboxId===uid?' expanded':'')+'" id="inbox-'+it.source+'-'+it.id+'"'+rowClick+'>'+
    '<div class="inbox-check" onclick="event.stopPropagation();toggleInboxDone(\''+it.source+'\',\''+it.id+'\')">'+
     '<svg width="12" height="12"><use href="#icon-check-sm"/></svg>'+
    '</div>'+
    '<div class="inbox-main">'+
-    '<div class="inbox-title">'+it.title.split('·')[0].trim()+'</div>'+
+    (it.done
+     ? '<div class="inbox-title">'+escAttr(it.title.split('·')[0].trim())+'</div>'
+     : '<input class="inbox-title-input" value="'+escAttr(it.title.split('·')[0].trim())+'" onclick="event.stopPropagation()" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'title\',this.value)">')+
     '<div class="inbox-meta">'+meta.join('')+'</div>'+
-    renderInboxPlanChoices(it)+
    '</div>'+
    right+
+   (!it.done && expandedInboxId===uid ? renderInboxDetail(it) : '')+
+   renderInboxPlanChoices(it)+
   '</div>';
+}
+
+// Expandable per-task editor: type, who, duration. Source task is edited in place.
+function renderInboxDetail(it) {
+ const kinds = [['solo','Task'],['call','Call'],['video','Video'],['think','Think']];
+ const curKind = it.kind || 'solo';
+ const mins = parseEstMinutes(it.est) || 15;
+ let seg = '';
+ kinds.forEach(k => {
+  seg += '<button class="ie-seg-btn'+(curKind===k[0]?' active':'')+'" onclick="event.stopPropagation();editInboxField(\''+it.source+'\',\''+it.id+'\',\'kind\',\''+k[0]+'\')">'+k[1]+'</button>';
+ });
+ return '<div class="inbox-edit" onclick="event.stopPropagation()">'+
+   '<div class="ie-row"><span class="ie-label">Type</span><div class="ie-seg">'+seg+'</div></div>'+
+   '<div class="ie-row"><span class="ie-label">Who</span>'+
+    '<input class="ie-input" value="'+escAttr(it.involves||'')+'" placeholder="—" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'involves\',this.value)"></div>'+
+   '<div class="ie-row"><span class="ie-label">Duration</span>'+
+    '<span class="ie-mins-wrap"><input class="ie-input ie-mins" type="number" min="5" step="5" value="'+mins+'" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'estMinutes\',this.value)">m</span></div>'+
+   '<div class="ie-save-row"><button class="ie-save" title="Save" aria-label="Save" onclick="event.stopPropagation();toggleInboxExpand(\''+it.source+'\',\''+it.id+'\')"><svg width="16" height="16"><use href="#icon-check-sm"/></svg></button></div>'+
+  '</div>';
+}
+
+function toggleInboxExpand(source, id) {
+ const uid = inboxUid(source, id);
+ expandedInboxId = expandedInboxId === uid ? null : uid;
+ renderInbox();
 }
 
 function renderInbox() {
@@ -3607,9 +3697,13 @@ function renderInbox() {
  const items = getInboxItems();
  const open = items.filter(i => !i.done);
  const done = items.filter(i => i.done);
- let html = '<div class="inbox-head"><span class="inbox-head-title">Tasks</span><span class="inbox-head-count">'+open.length+' open</span></div>';
+ let html = '<div class="inbox-head"><span class="inbox-head-title">Tasks</span>'+
+  '<span class="inbox-head-right">'+
+   '<span class="inbox-head-count">'+open.length+' open</span>'+
+   '<button class="tp-add-custom" title="Add task" aria-label="Add task" onclick="event.stopPropagation();addInboxTask()">+</button>'+
+  '</span></div>';
  if (!items.length) {
-  html += '<div class="inbox-empty">All caught up. Nothing waiting to be scheduled.</div>';
+  html += '<div class="inbox-empty">Nothing yet. Tap + to add your first task.</div>';
   el.innerHTML = html;
   return;
  }
@@ -4305,19 +4399,26 @@ function buildCandidatePool() {
   reason: 'Pending task that can move out of a focus slot.',
   original: t
  }));
- return pending.concat(owedRepliesDB, pendingMeetingsDB).map(c => ({
-  id: c.id,
-  title: c.title,
-  estTime: c.estTime,
-  estMinutes: predictDurationMinutes({ kind: c.kind || 'solo', involves: c.involves || null, estTime: c.estTime }),
-  kind: c.kind || 'solo',
-  importance: c.importance || 'medium',
-  urgency: c.urgency || 'medium',
-  involves: c.involves || null,
-  source: c.source || 'pendingTask',
-  reason: c.reason || 'Fits this commute window.',
-  original: c.original || c
- })).filter(c => !completedInboxIds.includes(inboxUid(c.source, c.id)));
+ return pending.concat(owedRepliesDB, pendingMeetingsDB).map(c => {
+  const original = c.original || c;
+  // A manual duration edit (original.estMinutes) overrides the statistical prediction.
+  const estMinutes = (typeof original.estMinutes === 'number')
+   ? original.estMinutes
+   : predictDurationMinutes({ kind: c.kind || 'solo', involves: c.involves || null, estTime: c.estTime });
+  return {
+   id: c.id,
+   title: original.title || c.title,
+   estTime: c.estTime,
+   estMinutes: estMinutes,
+   kind: c.kind || 'solo',
+   importance: c.importance || 'medium',
+   urgency: c.urgency || 'medium',
+   involves: c.involves || null,
+   source: c.source || 'pendingTask',
+   reason: c.reason || 'Fits this commute window.',
+   original: original
+  };
+ }).filter(c => !completedInboxIds.includes(inboxUid(c.source, c.id)));
 }
 
 function parseEstMinutes(est) {
@@ -4493,6 +4594,47 @@ function buildCommuteDraft(candidate, window) {
 
 // ── Single source of truth: a task lives in exactly one place at a time ──
 const TASK_DBS = { pendingTask: () => pendingTasksDB, owedReply: () => owedRepliesDB, pendingMeeting: () => pendingMeetingsDB };
+
+// Manually add a task to the inbox (Tasks view). Created editable so the user
+// renames it inline right after adding.
+function addInboxTask() {
+ const id = 'p-custom-' + Date.now();
+ pendingTasksDB.unshift({
+  id: id,
+  title: 'New task',
+  deadline: null,
+  priority: 'Medium',
+  estTime: '15m',
+  importance: 'medium',
+  urgency: 'medium',
+  kind: 'solo',
+  involves: null,
+  suggestions: []
+ });
+ expandedInboxId = inboxUid('pendingTask', id); // open the new card so its fields are ready
+ syncAllViews();
+ // Sorting can place a no-deadline task lower down — focus it so the user names it right away.
+ const row = document.getElementById('inbox-pendingTask-' + id);
+ if (row) {
+  const inp = row.querySelector('.inbox-title-input');
+  if (inp) { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); inp.focus(); inp.select(); }
+ }
+}
+
+function editInboxField(source, id, field, value) {
+ const db = TASK_DBS[source] ? TASK_DBS[source]() : null;
+ if (!db) return;
+ const t = db.find(x => x.id === id);
+ if (!t) return;
+ if (field === 'title') { const v = (value || '').trim(); if (v) t.title = v; }
+ else if (field === 'kind') t.kind = value;
+ else if (field === 'involves') t.involves = (value || '').trim() || null;
+ else if (field === 'estMinutes') {
+  const m = Math.max(5, parseInt(value, 10) || parseEstMinutes(t.estTime));
+  t.estTime = formatPlanMinutes(m); t.estMinutes = m;
+ }
+ syncAllViews();
+}
 
 function isTaskStaged(id) {
  return Object.values(timePlanState).some(items => items.some(it => it.id === id));
@@ -4793,6 +4935,65 @@ function priorityAccentClass(c) {
  return 'prio-normal';
 }
 
+// Safe insertion of user-editable text into a double-quoted HTML attribute.
+function escAttr(s) {
+ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+// ── Inline editing of suggestions (name + duration) ──
+function editStagedItemTitle(windowId, itemId, value) {
+ const it = getStagedItems(windowId).find(x => x.id === itemId);
+ if (!it) return;
+ const t = (value || '').trim();
+ if (t) it.title = t;
+ syncAllViews();
+}
+function editStagedItemMins(windowId, itemId, value) {
+ const it = getStagedItems(windowId).find(x => x.id === itemId);
+ if (!it) return;
+ const m = Math.max(5, parseInt(value, 10) || it.estMinutes);
+ it.estMinutes = m; it.estTime = formatPlanMinutes(m);
+ syncAllViews();
+}
+function editCandidateTitle(source, id, value) {
+ const c = buildCandidatePool().find(x => x.source === source && x.id === id);
+ if (!c) return;
+ const original = c.original || c;
+ const t = (value || '').trim();
+ if (t) original.title = t;
+ syncAllViews();
+}
+function editCandidateMins(source, id, value) {
+ const c = buildCandidatePool().find(x => x.source === source && x.id === id);
+ if (!c) return;
+ const original = c.original || c;
+ const m = Math.max(5, parseInt(value, 10) || c.estMinutes);
+ original.estMinutes = m; original.estTime = formatPlanMinutes(m);
+ syncAllViews();
+}
+
+// Manually add a blank, editable event into a planning window.
+function addCustomPlanItem(windowId) {
+ const win = findPlanWindow(windowId);
+ if (!win) return;
+ const remaining = win.minutes - usedPlanMinutes(windowId);
+ if (remaining <= 0) { showToast('Window is full'); return; }
+ const mins = Math.min(15, remaining);
+ timePlanState[windowId] = getStagedItems(windowId).concat([{
+  id: 'custom-' + Date.now(),
+  title: 'New task',
+  estTime: formatPlanMinutes(mins),
+  estMinutes: mins,
+  kind: 'solo',
+  importance: 'medium',
+  urgency: 'medium',
+  involves: null,
+  source: 'custom',
+  reason: 'Manually added.'
+ }]);
+ syncAllViews();
+}
+
 function renderTimePlanningBoard() {
  const windows = getPlanWindows();
  if (!windows.length) return '<div class="tp-empty">No open windows today.</div>';
@@ -4821,29 +5022,30 @@ function renderTimePlanningBoard() {
    staged.forEach(item => {
     html += '<div class="tp-staged-item '+priorityAccentClass(item)+'">'+
      '<div class="tp-item-main">'+
-      '<span class="tp-item-title">'+item.title.split('·')[0].trim()+'</span>'+
-      '<span class="tp-item-mins">'+formatPlanMinutes(item.estMinutes)+'</span>'+
+      '<input class="tp-item-title-input" value="'+escAttr(item.title.split('·')[0].trim())+'" onclick="event.stopPropagation()" onchange="editStagedItemTitle(\''+win.id+'\',\''+item.id+'\',this.value)">'+
+      '<span class="tp-item-mins"><input class="tp-item-mins-input" type="number" min="5" step="5" value="'+item.estMinutes+'" onclick="event.stopPropagation()" onchange="editStagedItemMins(\''+win.id+'\',\''+item.id+'\',this.value)">m</span>'+
      '</div>'+
      '<button class="tp-remove" title="Remove" aria-label="Remove" onclick="event.stopPropagation();removePlanItem(\''+win.id+'\',\''+item.id+'\')">\u2212</button>'+
     '</div>';
    });
    html += '</div>';
   }
-  html += '<div class="tp-subhead">'+(remaining > 0 ? formatPlanMinutes(remaining)+' left' : 'Full')+'</div>';
+  html += '<div class="tp-subhead tp-subhead-row">'+
+   '<span>'+(remaining > 0 ? formatPlanMinutes(remaining)+' left' : 'Full')+'</span>'+
+   (remaining > 0 ? '<button class="tp-add-custom" title="Add event" aria-label="Add event" onclick="event.stopPropagation();addCustomPlanItem(\''+win.id+'\')">+</button>' : '')+
+  '</div>';
   if (remaining > 0 && candidates.length) {
    html += '<div class="tp-candidates">';
    candidates.forEach(c => {
     html += '<div class="tp-candidate '+priorityAccentClass(c)+'">'+
      '<div class="tp-item-main">'+
-      '<span class="tp-item-title">'+c.title.split('·')[0].trim()+'</span>'+
-      '<span class="tp-item-mins">'+formatPlanMinutes(c.estMinutes)+'</span>'+
+      '<input class="tp-item-title-input" value="'+escAttr(c.title.split('·')[0].trim())+'" onclick="event.stopPropagation()" onchange="editCandidateTitle(\''+c.source+'\',\''+c.id+'\',this.value)">'+
+      '<span class="tp-item-mins"><input class="tp-item-mins-input" type="number" min="5" step="5" value="'+c.estMinutes+'" onclick="event.stopPropagation()" onchange="editCandidateMins(\''+c.source+'\',\''+c.id+'\',this.value)">m</span>'+
      '</div>'+
      '<button class="tp-add" title="Add" aria-label="Add" onclick="event.stopPropagation();addCandidateToPlanWindow(\''+win.id+'\',\''+c.id+'\')">+</button>'+
     '</div>';
    });
    html += '</div>';
-  } else if (remaining > 0) {
-   html += '<div class="tp-empty">Nothing else fits.</div>';
   }
   // Confirm is always available — the user can accept the window without picking anything.
   if (staged.length) {
@@ -5041,9 +5243,9 @@ function renderTodayPage() {
 
  const pastEvents = sorted.filter(e => (e.startTime||'') < simNow);
 
- // Greeting card data
- const unmarkedPast = pastEvents.filter(e => !e.completed).length;
- const pendingCount = pendingTasksDB.length;
+ // Greeting card data — reflect live state so it updates as the user acts.
+ const unmarkedPast = pastEvents.filter(e => getCompletion(e) === null).length;
+ const pendingCount = pendingTasksDB.filter(t => !completedInboxIds.includes(inboxUid('pendingTask', t.id))).length;
  // Compute free afternoon hours from free slots in 12:00-17:00 range
  let freeMin = 0;
  todayFreeSlots.forEach(s => {
