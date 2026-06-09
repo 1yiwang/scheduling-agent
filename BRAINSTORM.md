@@ -301,7 +301,7 @@ ML 做法：
   建议属性：类型（电话/视频/任务/思考）、预估时长、是否涉他人、对方 ID
   历史统计：该路线接受率、该模态接受率、该类型接受率、该人接受率
   近期行为：过去 7 天接受/拒绝数、当前 busyness（今日已有几场会）
-  
+
 输出：P(accept) ∈ [0, 1]，每个特征对预测的贡献（SHAP）
 ```
 
@@ -351,7 +351,7 @@ ML 做法：
   day_of_week = 5 (周五)
   hour_of_day = 17
   is_morning = 0
-  is_lunch = 0  
+  is_lunch = 0
   is_evening = 1
   is_friday_afternoon = 1
 
