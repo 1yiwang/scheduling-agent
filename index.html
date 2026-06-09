@@ -363,6 +363,16 @@
  .gc-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
  }
+ .gc-progress-row { display: flex; align-items: center; gap: 8px; }
+ .gc-progress-track {
+  flex: 1; height: 6px; border-radius: 3px; overflow: hidden;
+  background: rgba(0,0,0,.08); min-width: 60px;
+ }
+ .gc-progress-fill {
+  height: 100%; border-radius: 3px; background: var(--ej-text-2);
+  transition: width .3s ease;
+ }
+ .gc-progress-label { font-size: 13px; color: var(--ej-text-2); flex-shrink: 0; }
 
  /* Timeline — binding spine metaphor */
  .timeline-block {
@@ -425,7 +435,7 @@
  .transit-badge.work-no { background: var(--ej-hover); color: var(--ej-text-2); }
  .transit-badge.work-no .tb-dot { background: var(--ej-text-3); }
  /* A transit card with a workable window deserves full attention, not dimming */
- .event-card.type-transit.has-workable { opacity: 1; }
+ .event-card.type-transit.has-workable:not(.completed) { opacity: 1; }
 
  /* ── Tasks scheduled into a commute ── */
  .commute-tasks { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
@@ -573,10 +583,10 @@
  .event-card.type-busy:not(.completed):not(.not-completed):not(.unmarked-past) { border-left: 2px solid var(--ej-info); }
  .event-card.type-online:not(.completed):not(.not-completed):not(.unmarked-past) { border-left: 2px solid var(--ej-info); }
  .event-card.type-social:not(.completed):not(.not-completed):not(.unmarked-past) { border-left: 2px solid var(--ej-text-3); opacity: 0.92; }
- .event-card.type-transit { opacity: 0.55; }
+ .event-card.type-transit:not(.completed) { opacity: 0.55; }
  .event-card.type-transit .e-time { font-size: 14px; font-weight: 500; }
  .event-card.type-transit .e-title { font-weight: 400; }
- .event-card.type-buffer { opacity: 0.45; }
+ .event-card.type-buffer:not(.completed) { opacity: 0.45; }
  .event-card.type-buffer .e-time { font-size: 14px; font-weight: 500; }
  .event-card.type-buffer .e-title { font-weight: 400; }
 
@@ -1559,6 +1569,11 @@
  }
  .inbox-tag.owe { background: rgba(214,138,60,.12); color: var(--ej-amber, #c4842a); }
  .inbox-tag.meet { background: rgba(120,120,170,.14); color: var(--ej-text-2); }
+ .inbox-kind-chip {
+  font-size: 10px; font-weight: 650; letter-spacing: .02em;
+  padding: 2px 7px; border-radius: 5px;
+  background: var(--ej-hover); color: var(--ej-text-2);
+ }
  .inbox-del {
  flex-shrink: 0; width: 28px; height: 28px; margin-top: -2px;
  border: none; background: transparent; cursor: pointer;
@@ -3636,6 +3651,7 @@ function inboxRowHtml(it) {
  const tagLabel = { pendingTask:'Task', owedReply:'Owe', pendingMeeting:'Meeting' };
  const uid = inboxUid(it.source, it.id);
  const meta = ['<span class="inbox-tag '+tagCls[it.source]+'">'+tagLabel[it.source]+'</span>'];
+ if (it.kind) meta.push('<span class="inbox-kind-chip">'+candidateKindLabel(it.kind)+'</span>'); // chosen type, visible at a glance
  if (it.est) meta.push('<span>'+it.est+'</span>');
  if (it.involves) meta.push('<span>· '+it.involves+'</span>');
  if (it.deadline) meta.push('<span>· due '+it.deadline+'</span>');
@@ -3668,15 +3684,24 @@ function inboxRowHtml(it) {
 
 // Expandable per-task editor: type, who, duration. Source task is edited in place.
 function renderInboxDetail(it) {
- const kinds = [['solo','Task'],['call','Call'],['video','Video'],['think','Think']];
- const curKind = it.kind || 'solo';
+ const baseKinds = [['meeting','Meeting'],['social','Social'],['call','Call']];
+ const curKind = it.kind || 'meeting';
+ const isCustom = !baseKinds.some(k => k[0] === curKind);
+ const knownNonCustom = ['meeting','social','call','solo','think','video'];
+ const customVal = (isCustom && knownNonCustom.indexOf(curKind) < 0) ? curKind : '';
  const mins = parseEstMinutes(it.est) || 15;
  let seg = '';
- kinds.forEach(k => {
+ baseKinds.forEach(k => {
   seg += '<button class="ie-seg-btn'+(curKind===k[0]?' active':'')+'" onclick="event.stopPropagation();editInboxField(\''+it.source+'\',\''+it.id+'\',\'kind\',\''+k[0]+'\')">'+k[1]+'</button>';
  });
+ seg += '<button class="ie-seg-btn'+(isCustom?' active':'')+'" onclick="event.stopPropagation();setInboxKindCustom(\''+it.source+'\',\''+it.id+'\')">More</button>';
+ const customRow = isCustom
+  ? '<div class="ie-row"><span class="ie-label"></span>'+
+     '<input class="ie-input" value="'+escAttr(customVal)+'" placeholder="Custom type…" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'kind\',this.value)"></div>'
+  : '';
  return '<div class="inbox-edit" onclick="event.stopPropagation()">'+
    '<div class="ie-row"><span class="ie-label">Type</span><div class="ie-seg">'+seg+'</div></div>'+
+   customRow+
    '<div class="ie-row"><span class="ie-label">Who</span>'+
     '<input class="ie-input" value="'+escAttr(it.involves||'')+'" placeholder="—" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'involves\',this.value)"></div>'+
    '<div class="ie-row"><span class="ie-label">Duration</span>'+
@@ -3689,6 +3714,16 @@ function toggleInboxExpand(source, id) {
  const uid = inboxUid(source, id);
  expandedInboxId = expandedInboxId === uid ? null : uid;
  renderInbox();
+}
+
+// "More" → switch to a free-text custom type and focus the input for entry.
+function setInboxKindCustom(source, id) {
+ editInboxField(source, id, 'kind', '');
+ const row = document.getElementById('inbox-' + source + '-' + id);
+ if (row) {
+  const inp = row.querySelector('.inbox-edit input.ie-input');
+  if (inp) inp.focus();
+ }
 }
 
 function renderInbox() {
@@ -3977,20 +4012,26 @@ function quickAddToDay() {
 }
 
 // ====== TODAY PAGE RENDERING ======
-function renderGreetingCard(unmarkedPast, pendingCount, freeHrs) {
+function renderGreetingCard(completedToday, totalToday, pendingSuggestions, freeHrs) {
  const d = appNow();
  const dateStr = d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+ const pct = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
  let h = '<div class="greeting-card anim-in">'+
   '<div class="gc-date">'+dateStr+'</div>'+
   '<div class="gc-greeting"><svg width="22" height="22"><use href="#icon-sun"/></svg> Good morning, Yvonne</div>'+
   '<div class="gc-stats">';
- if (unmarkedPast > 0) {
-  h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ej-red);"></span>'+unmarkedPast+' past event'+(unmarkedPast>1?'s':'')+' need'+(unmarkedPast===1?'s':'')+' confirmation</div>';
+ // 1 · Today's progress — completed vs. total events (fills as more get done)
+ h += '<div class="gc-stat gc-progress-row">'+
+   '<span class="gc-dot" style="background:var(--ej-text-2);"></span>'+
+   '<span class="gc-progress-track"><span class="gc-progress-fill" style="width:'+pct+'%;"></span></span>'+
+   '<span class="gc-progress-label">'+completedToday+'/'+totalToday+' events done</span>'+
+  '</div>';
+ // 2 · Pending agent suggestions — kept in sync with the Agent suggestions panel below
+ if (pendingSuggestions > 0) {
+  h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ej-warning);"></span>'+pendingSuggestions+' pending suggestion'+(pendingSuggestions>1?'s':'')+' to schedule</div>';
  }
- if (pendingCount > 0) {
-  h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ej-warning);"></span>'+pendingCount+' pending task'+(pendingCount>1?'s':'')+' to schedule</div>';
- }
- h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ej-complete);"></span>'+freeHrs+'h free this afternoon</div>';
+ // 3 · Free afternoon
+ h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ej-info);"></span>'+freeHrs+'h free this afternoon</div>';
  h += '</div></div>';
  return h;
 }
@@ -4446,8 +4487,10 @@ function candidateFitsWorkability(candidate, work) {
 }
 
 function candidateKindLabel(kind) {
- const map = { solo:'Task', call:'Call', video:'Video', think:'Think' };
- return map[kind] || 'Task';
+ const map = { solo:'Task', call:'Call', video:'Video', think:'Think', meeting:'Meeting', social:'Social' };
+ if (map[kind]) return map[kind];
+ if (kind) return kind.charAt(0).toUpperCase() + kind.slice(1); // custom type
+ return 'Task';
 }
 
 function scoreCandidate(candidate) {
@@ -4607,7 +4650,7 @@ function addInboxTask() {
   estTime: '15m',
   importance: 'medium',
   urgency: 'medium',
-  kind: 'solo',
+  kind: 'meeting',
   involves: null,
   suggestions: []
  });
@@ -4627,7 +4670,7 @@ function editInboxField(source, id, field, value) {
  const t = db.find(x => x.id === id);
  if (!t) return;
  if (field === 'title') { const v = (value || '').trim(); if (v) t.title = v; }
- else if (field === 'kind') t.kind = value;
+ else if (field === 'kind') t.kind = (value || '').trim().toLowerCase();
  else if (field === 'involves') t.involves = (value || '').trim() || null;
  else if (field === 'estMinutes') {
   const m = Math.max(5, parseInt(value, 10) || parseEstMinutes(t.estTime));
@@ -5241,11 +5284,10 @@ function renderTodayPage() {
  // Simulated "now" for past/future distinction: ~11:00 AM
  const simNow = currentSimNow();
 
- const pastEvents = sorted.filter(e => (e.startTime||'') < simNow);
-
  // Greeting card data — reflect live state so it updates as the user acts.
- const unmarkedPast = pastEvents.filter(e => getCompletion(e) === null).length;
- const pendingCount = pendingTasksDB.filter(t => !completedInboxIds.includes(inboxUid('pendingTask', t.id))).length;
+ const completedToday = sorted.filter(e => getCompletion(e) === true).length;
+ const totalToday = sorted.length;
+ const pendingSuggestions = getPlanWindows().length; // linked to the Agent suggestions panel below
  // Compute free afternoon hours from free slots in 12:00-17:00 range
  let freeMin = 0;
  todayFreeSlots.forEach(s => {
@@ -5262,7 +5304,7 @@ function renderTodayPage() {
  let html = '';
 
  // ═══ 1. AGENT GREETING CARD ═══
- html += renderGreetingCard(unmarkedPast, pendingCount, freeHrs);
+ html += renderGreetingCard(completedToday, totalToday, pendingSuggestions, freeHrs);
 
  // ═══ 2. ASSISTIVE AGENT LAYER · collapsed by default so the timeline stays primary ═══
  if (!focusTodayMode) {
