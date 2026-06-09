@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Scheduling Agent – Prototype</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -1996,6 +1997,24 @@
    <button class="settings-danger" id="modeClearBtn" onclick="clearLiveData()" style="display:none;">Clear my data</button>
    <button class="settings-seg-btn" id="modeResetBtn" onclick="resetDemo()" style="display:none;background:var(--ej-bg);margin-top:12px;">Reset sample data</button>
   </div>
+  <div class="settings-group" id="accountGroup" style="display:none;margin-top:20px;">
+   <div class="settings-label">Account</div>
+   <div class="settings-hint" id="accountEmail" style="margin-top:0;"></div>
+   <button class="settings-danger" id="signOutBtn" onclick="cloudSignOut()" style="display:none;margin-top:10px;">Sign out</button>
+  </div>
+ </div>
+</div>
+
+<!-- Sign in (personal mode only) -->
+<div class="overlay" id="loginOverlay">
+ <div class="settings-sheet">
+  <div class="settings-head"><div class="settings-title">Sign in</div></div>
+  <div class="settings-group">
+   <div class="settings-hint" style="margin-top:0;">Enter your email — we'll send a one-tap sign-in link. No password.</div>
+   <input id="loginEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@email.com" style="width:100%;margin-top:14px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
+   <button class="ios-btn primary" id="loginSendBtn" onclick="sendMagicLink()" style="width:100%;margin-top:12px;">Send magic link</button>
+   <div class="settings-hint" id="loginMsg"></div>
+  </div>
  </div>
 </div>
 
@@ -3925,6 +3944,7 @@ const DEMO_SEED = deepClone(snapshotDBs());
 function saveAppData() {
  if (appMode !== 'live') return;
  try { localStorage.setItem(APP_DATA_KEY, JSON.stringify(snapshotDBs())); } catch (e) {}
+ cloudSave();
 }
 function applyAppMode() {
  if (appMode === 'live') {
@@ -3945,9 +3965,93 @@ function resetDemo() {
 }
 function clearLiveData() {
  try { localStorage.removeItem(APP_DATA_KEY); } catch (e) {}
- if (appMode === 'live') { emptyDBs(); renderSettings(); syncAllViews(); if (document.getElementById('calGrid')) renderCal(); showToast('Cleared · starting fresh'); }
+ if (appMode === 'live') { emptyDBs(); renderSettings(); syncAllViews(); if (document.getElementById('calGrid')) renderCal(); cloudSave(); showToast('Cleared · starting fresh'); }
 }
 applyAppMode();
+
+// ══════════ CLOUD · Supabase (personal mode only, magic-link auth) ══════════
+// Fill these two values (Supabase → Connect, or Settings → Data API / API Keys).
+// The anon key is PUBLIC by design — safe to ship in the frontend; RLS protects data.
+const SUPABASE_URL = 'https://xkkhrftmwsacvnkcfpwj.supabase.co';
+const SUPABASE_ANON_KEY = 'PASTE_YOUR_SUPABASE_ANON_KEY';
+let sb = null, sbUser = null, cloudSaveTimer = null;
+
+function cloudConfigured() {
+ return typeof supabase !== 'undefined'
+  && typeof SUPABASE_URL === 'string' && SUPABASE_URL.indexOf('PASTE') === -1
+  && typeof SUPABASE_ANON_KEY === 'string' && SUPABASE_ANON_KEY.indexOf('PASTE') === -1;
+}
+function cloudActive() { return appMode === 'live' && cloudConfigured(); }
+
+function initCloud() {
+ if (!cloudActive() || sb) return;
+ try { sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (e) { return; }
+ sb.auth.onAuthStateChange(function (_evt, session) {
+  sbUser = session ? session.user : null;
+  if (typeof renderSettings === 'function') renderSettings();
+  if (sbUser) { closeLogin(); cloudLoad(); } else { showLogin(); }
+ });
+ sb.auth.getSession().then(function (res) {
+  sbUser = res && res.data && res.data.session ? res.data.session.user : null;
+  if (typeof renderSettings === 'function') renderSettings();
+  if (sbUser) cloudLoad(); else showLogin();
+ }).catch(function () {});
+}
+
+async function cloudLoad() {
+ if (!sb || !sbUser) return;
+ try {
+  const res = await sb.from('app_state').select('data').eq('user_id', sbUser.id).maybeSingle();
+  if (res.error) return;
+  const remote = res.data && res.data.data;
+  if (remote && remote.eventsDB) {
+   loadDBsFrom(remote);
+   try { localStorage.setItem(APP_DATA_KEY, JSON.stringify(snapshotDBs())); } catch (e) {}
+   if (typeof closeDayDetail === 'function') closeDayDetail();
+   syncAllViews();
+   if (document.getElementById('calGrid')) renderCal();
+  } else {
+   // First sign-in on this account → seed the remote row with whatever is local (likely empty).
+   cloudSaveNow();
+  }
+ } catch (e) {}
+}
+
+function cloudSave() {
+ if (!cloudActive() || !sb || !sbUser) return;
+ clearTimeout(cloudSaveTimer);
+ cloudSaveTimer = setTimeout(cloudSaveNow, 800);
+}
+async function cloudSaveNow() {
+ if (!sb || !sbUser) return;
+ try {
+  await sb.from('app_state').upsert({ user_id: sbUser.id, data: snapshotDBs(), updated_at: new Date().toISOString() });
+ } catch (e) {}
+}
+
+function showLogin() { const ov = document.getElementById('loginOverlay'); if (ov) ov.classList.add('show'); }
+function closeLogin() { const ov = document.getElementById('loginOverlay'); if (ov) ov.classList.remove('show'); }
+async function sendMagicLink() {
+ const input = document.getElementById('loginEmail');
+ const email = input && input.value && input.value.trim();
+ const msg = document.getElementById('loginMsg');
+ if (!email || !sb) { if (msg) msg.textContent = 'Enter your email first.'; return; }
+ const btn = document.getElementById('loginSendBtn');
+ if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+ try {
+  const res = await sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: location.origin + location.pathname } });
+  if (msg) msg.textContent = res.error ? res.error.message : 'Check your email for the sign-in link.';
+ } catch (e) { if (msg) msg.textContent = 'Something went wrong. Try again.'; }
+ if (btn) { btn.disabled = false; btn.textContent = 'Send magic link'; }
+}
+async function cloudSignOut() {
+ if (!sb) return;
+ try { await sb.auth.signOut(); } catch (e) {}
+ sbUser = null;
+ if (typeof renderSettings === 'function') renderSettings();
+ closeSettings();
+ showLogin();
+}
 
 function renderSettings() {
  const badge = document.getElementById('modeBadge');
@@ -3961,6 +4065,18 @@ function renderSettings() {
   : 'A live demo with sample data. Nothing you change is saved.';
  if (clearBtn) clearBtn.style.display = appMode === 'live' ? 'block' : 'none';
  if (resetBtn) resetBtn.style.display = appMode === 'demo' ? 'block' : 'none';
+ const acct = document.getElementById('accountGroup');
+ const acctEmail = document.getElementById('accountEmail');
+ const signOutBtn = document.getElementById('signOutBtn');
+ if (acct) {
+  if (appMode === 'live' && cloudConfigured()) {
+   acct.style.display = 'block';
+   if (acctEmail) acctEmail.textContent = sbUser ? ('Signed in as ' + sbUser.email) : 'Not signed in';
+   if (signOutBtn) signOutBtn.style.display = sbUser ? 'block' : 'none';
+  } else {
+   acct.style.display = 'none';
+  }
+ }
 }
 function openSettings() { renderSettings(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
@@ -5755,6 +5871,7 @@ function updateStatusTime() {
 updateStatusTime(); setInterval(updateStatusTime, 30000);
 renderCal();
 renderTodayPage();
+initCloud();
 
 // Pending card click delegation · registered ONCE
 document.getElementById('todayContent').addEventListener('click', function(e) {
