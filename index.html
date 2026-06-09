@@ -145,7 +145,7 @@
 
  /* Navigation bar */
  .navbar {
- padding: 10px 20px 12px; flex-shrink: 0;
+ padding: max(18px, env(safe-area-inset-top, 0px)) 20px 12px; flex-shrink: 0;
  display: flex; align-items: center; justify-content: space-between;
  }
  .navbar-title {
@@ -1733,23 +1733,15 @@
 </svg>
 
 <div class="phone-frame" id="app">
- <!-- Status bar -->
- <div class="status-bar">
- <span class="time" id="statusTime">9:41</span>
- <span class="status-icons">●●●●○ ▮▮▮</span>
- </div>
 
  <!-- Nav bar -->
  <div class="navbar" id="navbarMain">
  <div>
  <div class="navbar-title">Home</div>
- <div class="navbar-subtitle" id="pageSubtitle">Saturday, June 6, 2026</div>
+ <div class="navbar-subtitle" id="pageSubtitle"></div>
  </div>
  <div style="display:flex;align-items:center;gap:8px;">
- <button class="theme-toggle" onclick="openSettings()" aria-label="Settings" id="settingsBtn">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
- </button>
- <div class="navbar-avatar" onclick="switchPage('contacts', document.querySelector('[data-page=contacts]'))">W</div>
+ <div class="navbar-avatar" onclick="openSettings()" title="Account & settings">W</div>
  </div>
  </div>
 
@@ -1784,7 +1776,7 @@
  <div class="day-detail" id="dayDetail">
  <div class="dd-header">
  <div class="dd-date" id="ddDate"></div>
- <button class="dd-close" onclick="closeDayDetail()"></button>
+ <button class="dd-close" onclick="closeDayDetail()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
  </div>
  <div id="ddContent"></div>
  <button class="ios-btn outline" style="margin-top:12px;height:42px;font-size:14px;" onclick="quickAddToDay()">
@@ -2038,9 +2030,8 @@ function switchPage(page, el) {
  const titles = { today: 'Home', calendar: 'Timeline', coordinate: 'Meet', contacts: 'People', analytics: 'Insights' };
  document.querySelector('.navbar-title').textContent = titles[page] || page;
 
- const d = new Date(2026, 5, 5);
  const subs = {
- today: d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'}),
+ today: '',
  calendar: 'Browse any day · tap to expand',
  coordinate: 'Agent negotiates for you',
  contacts: 'Calendar friends & links',
@@ -5879,9 +5870,10 @@ function renderAnalyticsPage() {
 // Like the CV site: light-only, never follows the OS. No toggle, no flash.
 // ====== INIT ======
 function updateStatusTime() {
+ const el = document.getElementById('statusTime');
+ if (!el) return;
  const now = new Date();
- document.getElementById('statusTime').textContent =
- now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:false});
+ el.textContent = now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:false});
 }
 updateStatusTime(); setInterval(updateStatusTime, 30000);
 renderCal();

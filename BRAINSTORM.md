@@ -527,7 +527,8 @@ Outlook / Graph ─┼─→ [同步适配器 CalendarProvider] ──┐ 归一
 - 适配层替换 `saveAppData/applyAppMode` 内部实现：load 时从 Supabase 拉，mutation 时 upsert；localStorage 作离线缓存/兜底。接口不变。
 - 表（每行带 `user_id`，RLS 隔离）：`events`、`tasks`、`completions`、`prefs`(prefStore)、`interaction_log`(Stage A 特征)、`durations`(时长统计)。
 - Auth：Supabase magic-link（先单人，结构天然支持未来多用户 + 跨用户池化 ML）。
-- 前端只需 Supabase URL + anon key（public-safe，配 RLS）。
+- 前端只需 Supabase URL + anon key（public-safe，配 RLS）。URL/key/admin email 全写死在代码里，**用户永远看不到、也不用填**；管理员按邮箱识别（`ADMIN_EMAILS`），只有管理员能看到 Reset/Clear/模式 等管理控制。
+- 已知行为（非 bug）：magic-link 登录态是**按浏览器/设备**的——换台电脑/换浏览器要重新点一次邮件链接登录，登录后数据同步。待办：登录态跨设备记住（持久 session 已默认开，但首次每端仍需点链接）。
 
 ### 语音输入路线（待做）
 > 决定：STT 用 **云端 Whisper**；key 走 **serverless 代理**（产品给别人用，绝不前端裸 key）。代理与 Supabase 同在 Vercel。
