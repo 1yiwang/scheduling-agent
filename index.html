@@ -228,7 +228,7 @@
  margin-top: 8px; padding-top: 12px;
 }
 .today-title-row {
- display: flex; align-items: flex-end; justify-content: space-between;
+ display: flex; align-items: center; justify-content: space-between;
  margin-bottom: 12px;
 }
 .today-title-kicker {
@@ -241,7 +241,6 @@
 }
 .today-title-meta {
  font-size: 12px; color: var(--ej-text-2); white-space: nowrap;
- padding-bottom: 3px;
 }
 .time-plan-board { display: flex; flex-direction: column; gap: 12px; }
 .tp-window {
@@ -283,26 +282,36 @@
 .tp-staged, .tp-candidates { display: flex; flex-direction: column; gap: 6px; }
 .tp-staged-item, .tp-candidate {
  display: flex; align-items: center; gap: 8px;
- border: 1px solid var(--ej-line); border-radius: 9px; padding: 8px 9px;
+ border: 1px solid var(--ej-line); border-left: 3px solid var(--ej-line);
+ border-radius: 9px; padding: 8px 9px;
  background: rgba(255,255,255,0.62);
 }
-.tp-staged-item { border-color: var(--ej-info); background: var(--ej-info-bg); }
-.tp-item-main { min-width: 0; flex: 1; }
+.tp-staged-item { border-top-color: var(--ej-info); border-right-color: var(--ej-info); border-bottom-color: var(--ej-info); background: var(--ej-info-bg); }
+/* Priority shown as a colored left edge — no extra words needed. */
+.tp-staged-item.prio-critical, .tp-candidate.prio-critical { border-left-color: var(--ej-red); }
+.tp-staged-item.prio-important, .tp-candidate.prio-important { border-left-color: var(--ej-warning); }
+.tp-staged-item.prio-urgent, .tp-candidate.prio-urgent { border-left-color: var(--ej-info); }
+.tp-staged-item.prio-normal, .tp-candidate.prio-normal { border-left-color: var(--ej-line); }
+/* One scannable line: title flexes & truncates, minutes sit just after it. */
+.tp-item-main { min-width: 0; flex: 1; display: flex; align-items: baseline; gap: 8px; }
 .tp-item-title {
  font-size: 12px; font-weight: 650; color: var(--ej-text);
- white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;
 }
-.tp-item-meta { font-size: 11px; color: var(--ej-text-2); margin-top: 2px; }
-.tp-add, .tp-remove, .tp-confirm {
- border: 1px solid var(--ej-line); border-radius: 7px; background: transparent;
- color: var(--ej-text-2); font-size: 12px; font-weight: 650;
- padding: 6px 8px; cursor: pointer; flex-shrink: 0;
+.tp-item-mins { font-size: 11px; color: var(--ej-text-2); flex-shrink: 0; white-space: nowrap; }
+.tp-add, .tp-remove {
+ width: 26px; height: 26px; padding: 0; flex-shrink: 0; cursor: pointer;
+ border: 1px solid var(--ej-line); border-radius: 50%; background: transparent;
+ font-size: 17px; font-weight: 600; line-height: 1;
+ display: flex; align-items: center; justify-content: center;
 }
 .tp-add { color: var(--ej-info); border-color: var(--ej-info); background: var(--ej-info-bg); }
-.tp-remove { color: var(--ej-red); }
+.tp-remove { color: var(--ej-red); border-color: var(--ej-red); }
 .tp-confirm {
+ border: 1px solid var(--ej-info); border-radius: 7px; cursor: pointer; flex-shrink: 0;
+ font-size: 12px; font-weight: 650;
  width: 100%; margin-top: 10px; background: var(--ej-info);
- color: #fff; border-color: var(--ej-info); padding: 9px 10px;
+ color: #fff; padding: 9px 10px;
 }
 .tp-empty {
  font-size: 12px; color: var(--ej-text-2);
@@ -748,14 +757,16 @@
  border-radius: 10px; font-size: 14px; cursor: pointer; position: relative;
  font-feature-settings: "tnum"; font-weight: 400;
  }
- .cal-cell:active { background: var(--ej-hover); }
- .cal-cell.today {
- background: var(--ej-red-glow); color: var(--ej-red); font-weight: 600;
- }
  .cal-cell.other-month { color: var(--ej-text-3); pointer-events: none; }
+ /* Highlight is a small circle on the number itself (not the whole cell). */
+ .cal-num {
+ line-height: 1; width: 32px; height: 32px; border-radius: 50%;
+ display: inline-flex; align-items: center; justify-content: center;
+ }
+ .cal-cell:active .cal-num { background: var(--ej-hover); }
+ .cal-cell.today .cal-num { background: var(--ej-red-glow); color: var(--ej-red); font-weight: 600; }
  /* Selected day wins the strong highlight; today keeps the faint tint above. */
- .cal-cell.selected { background: var(--ej-red); color: #fff; font-weight: 600; }
- .cal-num { line-height: 1; }
+ .cal-cell.selected .cal-num { background: var(--ej-red); color: #fff; font-weight: 600; }
  .cal-dots-row { display: flex; gap: 2px; position: absolute; bottom: 5px; left: 0; right: 0; justify-content: center; }
  .cal-dot { width: 4px; height: 4px; border-radius: 50%; }
  .cal-dot.busy { background: var(--ej-info); }
@@ -4740,6 +4751,14 @@ function priorityLabel(candidate) {
  return candidateKindLabel(candidate.kind).toLowerCase();
 }
 
+// Priority → colored left edge on the item card (no text label needed).
+function priorityAccentClass(c) {
+ if (c.importance === 'high' && c.urgency === 'high') return 'prio-critical';
+ if (c.importance === 'high') return 'prio-important';
+ if (c.urgency === 'high') return 'prio-urgent';
+ return 'prio-normal';
+}
+
 function renderTimePlanningBoard() {
  const windows = getPlanWindows();
  if (!windows.length) return '<div class="tp-empty">No open windows today.</div>';
@@ -4766,12 +4785,12 @@ function renderTimePlanningBoard() {
   if (staged.length) {
    html += '<div class="tp-subhead">Placed here</div><div class="tp-staged">';
    staged.forEach(item => {
-    html += '<div class="tp-staged-item">'+
+    html += '<div class="tp-staged-item '+priorityAccentClass(item)+'">'+
      '<div class="tp-item-main">'+
-      '<div class="tp-item-title">'+item.title.split('·')[0].trim()+'</div>'+
-      '<div class="tp-item-meta">'+candidateKindLabel(item.kind)+' · '+formatPlanMinutes(item.estMinutes)+(item.involves?' · needs '+item.involves:'')+'</div>'+
+      '<span class="tp-item-title">'+item.title.split('·')[0].trim()+'</span>'+
+      '<span class="tp-item-mins">'+formatPlanMinutes(item.estMinutes)+'</span>'+
      '</div>'+
-     '<button class="tp-remove" onclick="event.stopPropagation();removePlanItem(\''+win.id+'\',\''+item.id+'\')">Remove</button>'+
+     '<button class="tp-remove" title="Remove" aria-label="Remove" onclick="event.stopPropagation();removePlanItem(\''+win.id+'\',\''+item.id+'\')">\u2212</button>'+
     '</div>';
    });
    html += '</div>';
@@ -4780,21 +4799,22 @@ function renderTimePlanningBoard() {
   if (remaining > 0 && candidates.length) {
    html += '<div class="tp-candidates">';
    candidates.forEach(c => {
-    html += '<div class="tp-candidate">'+
+    html += '<div class="tp-candidate '+priorityAccentClass(c)+'">'+
      '<div class="tp-item-main">'+
-      '<div class="tp-item-title">'+c.title.split('·')[0].trim()+'</div>'+
-      '<div class="tp-item-meta">'+formatPlanMinutes(c.estMinutes)+' · '+priorityLabel(c)+'</div>'+
+      '<span class="tp-item-title">'+c.title.split('·')[0].trim()+'</span>'+
+      '<span class="tp-item-mins">'+formatPlanMinutes(c.estMinutes)+'</span>'+
      '</div>'+
-     '<button class="tp-add" onclick="event.stopPropagation();addCandidateToPlanWindow(\''+win.id+'\',\''+c.id+'\')">Add</button>'+
+     '<button class="tp-add" title="Add" aria-label="Add" onclick="event.stopPropagation();addCandidateToPlanWindow(\''+win.id+'\',\''+c.id+'\')">+</button>'+
     '</div>';
    });
    html += '</div>';
   } else if (remaining > 0) {
    html += '<div class="tp-empty">Nothing else fits.</div>';
   }
+  // Confirm is always available — the user can accept the window without picking anything.
   if (staged.length) {
    html += '<button class="tp-confirm" onclick="event.stopPropagation();confirmPlanWindow(\''+win.id+'\')">Confirm</button>';
-  } else if (!candidates.length) {
+  } else {
    html += '<button class="tp-confirm" onclick="event.stopPropagation();dismissPlanWindow(\''+win.id+'\')">Confirm</button>';
   }
   html += '</div>';
