@@ -1492,6 +1492,27 @@
  border-radius: 7px; transition: opacity .15s, color .15s, background .15s;
  }
  .inbox-del:hover { opacity: 1; color: var(--ej-red); background: var(--ej-hover); }
+ .inbox-actions {
+ display: flex; align-items: center; gap: 2px; flex-shrink: 0; margin-top: -2px;
+ }
+ .inbox-plan {
+ height: 28px; border: none; background: var(--ej-info-bg); color: var(--ej-info);
+ border-radius: 7px; padding: 0 8px; cursor: pointer;
+ display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 650;
+ }
+ .inbox-plan-panel {
+ margin-top: 10px; display: grid; gap: 6px;
+ }
+ .inbox-slot {
+ width: 100%; border: 1px solid var(--ej-line); background: var(--ej-hover);
+ color: var(--ej-text); border-radius: 9px; padding: 9px 10px; cursor: pointer;
+ display: flex; align-items: center; justify-content: space-between; gap: 10px;
+ font-size: 12px; text-align: left;
+ }
+ .inbox-slot:hover { border-color: var(--ej-info); }
+ .inbox-slot-main { display: flex; align-items: center; gap: 7px; min-width: 0; }
+ .inbox-slot-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+ .inbox-slot-fit { color: var(--ej-text-2); flex-shrink: 0; }
  .inbox-confirm {
  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
  }
@@ -3351,6 +3372,7 @@ function renderCal() {
 let calView = 'calendar';
 let completedInboxIds = [];
 let inboxDeleteConfirmId = null;
+let activeInboxPlanId = null;
 
 function inboxUid(source, id) { return source + ':' + id; }
 
@@ -3391,6 +3413,37 @@ function getInboxItems() {
  });
 }
 
+function findInboxCandidate(source, id) {
+ return buildCandidatePool().find(c => c.source === source && c.id === id);
+}
+
+function getInboxPlanWindows(candidate) {
+ if (!candidate) return [];
+ return getPlanWindows()
+  .filter(win => planCandidateFitsWindow(candidate, win, win.minutes - usedPlanMinutes(win.id)))
+  .slice(0, 3);
+}
+
+function renderInboxPlanChoices(it) {
+ const uid = inboxUid(it.source, it.id);
+ if (activeInboxPlanId !== uid || it.done) return '';
+ const candidate = findInboxCandidate(it.source, it.id);
+ const windows = getInboxPlanWindows(candidate);
+ if (!windows.length) return '<div class="inbox-plan-panel"><div class="tp-empty">No window fits today.</div></div>';
+ let html = '<div class="inbox-plan-panel">';
+ windows.forEach(win => {
+  html += '<button class="inbox-slot" onclick="event.stopPropagation();confirmInboxPlanToWindow(\''+it.source+'\',\''+it.id+'\',\''+win.id+'\')">'+
+   '<span class="inbox-slot-main">'+
+    '<svg width="14" height="14"><use href="#'+(win.icon || 'icon-field-time')+'"/></svg>'+
+    '<span class="inbox-slot-title">'+win.title+'</span>'+
+   '</span>'+
+   '<span class="inbox-slot-fit">'+formatPlanMinutes(candidate.estMinutes)+'</span>'+
+  '</button>';
+ });
+ html += '</div>';
+ return html;
+}
+
 function inboxRowHtml(it) {
  const tagCls = { pendingTask:'', owedReply:'owe', pendingMeeting:'meet' };
  const tagLabel = { pendingTask:'Task', owedReply:'Owe', pendingMeeting:'Meeting' };
@@ -3405,7 +3458,10 @@ function inboxRowHtml(it) {
      '<button class="del-no" onclick="event.stopPropagation();cancelDeleteInbox()">Cancel</button>'+
      '<button class="del-yes" onclick="event.stopPropagation();confirmDeleteInbox(\''+it.source+'\',\''+it.id+'\')">Delete</button>'+
     '</div>'
-  : '<button class="inbox-del" onclick="event.stopPropagation();requestDeleteInbox(\''+it.source+'\',\''+it.id+'\')"><svg width="15" height="15"><use href="#icon-trash"/></svg></button>';
+  : '<div class="inbox-actions">'+
+     (!it.done ? '<button class="inbox-plan" onclick="event.stopPropagation();toggleInboxPlan(\''+it.source+'\',\''+it.id+'\')"><svg width="14" height="14"><use href="#icon-calendar"/></svg> Plan</button>' : '')+
+     '<button class="inbox-del" onclick="event.stopPropagation();requestDeleteInbox(\''+it.source+'\',\''+it.id+'\')"><svg width="15" height="15"><use href="#icon-trash"/></svg></button>'+
+    '</div>';
  return '<div class="inbox-row'+(it.done?' done':'')+'" id="inbox-'+it.source+'-'+it.id+'">'+
    '<div class="inbox-check" onclick="event.stopPropagation();toggleInboxDone(\''+it.source+'\',\''+it.id+'\')">'+
     '<svg width="12" height="12"><use href="#icon-check-sm"/></svg>'+
@@ -3413,6 +3469,7 @@ function inboxRowHtml(it) {
    '<div class="inbox-main">'+
     '<div class="inbox-title">'+it.title.split('·')[0].trim()+'</div>'+
     '<div class="inbox-meta">'+meta.join('')+'</div>'+
+    renderInboxPlanChoices(it)+
    '</div>'+
    right+
   '</div>';
@@ -3436,6 +3493,53 @@ function renderInbox() {
   done.forEach(it => { html += inboxRowHtml(it); });
  }
  el.innerHTML = html;
+}
+
+function toggleInboxPlan(source, id) {
+ const uid = inboxUid(source, id);
+ activeInboxPlanId = activeInboxPlanId === uid ? null : uid;
+ inboxDeleteConfirmId = null;
+ renderInbox();
+}
+
+function buildPlanItem(candidate) {
+ return {
+  id: candidate.id,
+  title: candidate.title,
+  estTime: candidate.estTime,
+  estMinutes: candidate.estMinutes,
+  kind: candidate.kind,
+  importance: candidate.importance,
+  urgency: candidate.urgency,
+  involves: candidate.involves,
+  source: candidate.source,
+  reason: candidate.reason
+ };
+}
+
+function confirmInboxPlanToWindow(source, id, windowId) {
+ const candidate = findInboxCandidate(source, id);
+ const win = findPlanWindow(windowId);
+ if (!candidate || !win) return;
+ const remaining = win.minutes - usedPlanMinutes(win.id);
+ if (!planCandidateFitsWindow(candidate, win, remaining)) {
+  showToast('Does not fit this window');
+  return;
+ }
+ const item = buildPlanItem(candidate);
+ if (win.type === 'commute') confirmCommutePlanWindow(win, [item]);
+ else confirmDeskPlanWindow(win, [item]);
+ removeCandidateFromSource(item);
+ recordSignal('candidate_kind', item.kind, true);
+ recordSignal('candidate_source', item.source || 'pendingTask', true);
+ if (item.involves) recordSignal('person', item.involves, true);
+ activeInboxPlanId = null;
+ inboxDeleteConfirmId = null;
+ syncAllViews();
+ setCalView('calendar');
+ renderCal();
+ openDay(6);
+ showToast('Planned on calendar');
 }
 
 function toggleInboxDone(source, id) {
@@ -3976,6 +4080,7 @@ function removeTaskEverywhere(source, id) {
 // Re-render every data-driven view so one change propagates everywhere at once.
 function syncAllViews() {
  if (document.getElementById('todayContent')) renderTodayPage();
+ if (document.getElementById('calGrid')) renderCal();
  if (typeof calView !== 'undefined' && calView === 'tasks' && document.getElementById('calTasksView')) renderInbox();
  const analytics = document.getElementById('page-analytics');
  if (analytics && analytics.classList.contains('active')) renderAnalyticsPage();
