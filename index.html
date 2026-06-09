@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Scheduling Agent – Prototype</title>
+<script data-theme-init>
+ // Set theme before paint to avoid a flash. Follows OS; default light.
+ (function () {
+  var prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (!prefersDark) document.documentElement.setAttribute('data-theme', 'light');
+ })();
+</script>
 <style>
  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -1747,9 +1754,6 @@
  <div style="display:flex;align-items:center;gap:8px;">
  <button class="theme-toggle" onclick="openSettings()" aria-label="Settings" id="settingsBtn">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
- </button>
- <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" id="themeToggle">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
  </button>
  <div class="navbar-avatar" onclick="switchPage('contacts', document.querySelector('[data-page=contacts]'))">W</div>
  </div>
@@ -5747,57 +5751,17 @@ function renderAnalyticsPage() {
  content.innerHTML = html;
 }
 
-// ====== THEME — 3-way: dark / light / system ======
-function resolveTheme(mode) {
- if (mode === 'system' || !mode) {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
- }
- return mode;
+// ====== THEME — always follows the OS (light by default; no in-app toggle) ======
+function applySystemTheme() {
+ const prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+ // No attribute = dark styling; [data-theme="light"] = light. Default (no OS preference) → light.
+ if (prefersDark) document.documentElement.removeAttribute('data-theme');
+ else document.documentElement.setAttribute('data-theme', 'light');
 }
-function applyTheme(mode) {
- const effective = resolveTheme(mode);
- // Dark is default — only set attribute for light mode
- if (effective === 'light') {
-  document.documentElement.setAttribute('data-theme', 'light');
- } else {
-  document.documentElement.removeAttribute('data-theme');
- }
- // Update toggle icon to reflect the *mode* (not just effective theme)
- const icon = document.querySelector('#themeToggle svg');
- if (icon) {
-  if (mode === 'system') {
-   // Auto icon — half sun, half moon
-   icon.innerHTML = '<path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 6.34l-1.41 1.41M17.66 6.34l1.41-1.41"/><circle cx="12" cy="12" r="4"/>';
-  } else if (mode === 'light') {
-   icon.innerHTML = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
-  } else {
-   icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-  }
- }
+applySystemTheme();
+if (window.matchMedia) {
+ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySystemTheme);
 }
-function toggleTheme() {
- const stored = localStorage.getItem('scheduling-agent-theme') || 'system';
- // Cycle: dark → light → system → dark
- const next = stored === 'dark' ? 'light' : stored === 'light' ? 'system' : 'dark';
- if (next === 'system') {
-  localStorage.removeItem('scheduling-agent-theme');
- } else {
-  localStorage.setItem('scheduling-agent-theme', next);
- }
- applyTheme(next);
-}
-// Init theme on load
-(function initTheme() {
- const stored = localStorage.getItem('scheduling-agent-theme') || 'system';
- applyTheme(stored);
-})();
-// Listen for system theme changes — always update when in system mode
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
- const stored = localStorage.getItem('scheduling-agent-theme');
- if (!stored || stored === 'system') {
-  applyTheme('system');
- }
-});
 // ====== INIT ======
 function updateStatusTime() {
  const now = new Date();
