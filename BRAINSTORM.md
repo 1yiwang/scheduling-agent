@@ -13,6 +13,7 @@
 - **管理员**：按邮箱识别（`yi.wang.max@gmail.com`），只有管理员看到 Reset/Clear/模式；URL/key/admin 全在代码里，用户永不可见。
 - **日期**：统一 `appNow()` —— personal 用真实当天，demo 钉死 6/6。问候/时间线「现在」线/日历今日高亮/日报/分析全部跟随。
 - **UI**：去掉假状态栏；齿轮并入头像（W）单一入口；首页时间线删除重复大日期，只保留更精致的 `TODAY` 标题，`Now` 指示器回到短红线样式；Agent Suggestions 改为单行任务、`+/-` 操作、左侧优先级色边，且可不选择直接 Confirm；日历选中态改为更小的日期圆形，默认强高亮今天，点选其他日期后强高亮转移、今天保留淡色；日期详情关闭按钮加 X；主题强制浅色（同 CV 站）。
+- **日历某天详情**：升级为与首页一致的米色可编辑卡片（`+` 新增事件、reschedule/agent 提示）；设了 due 的 backlog 任务在到期当天显示红色圆点 + 「Due this day」可编辑小节；移除旧底部 Add 按钮。
 - **学习地基**：Stage A 特征埋点 + 时长滑动平均（统计，非 ML）。
 
 **下一步**
@@ -587,3 +588,72 @@ Outlook / Graph ─┼─→ [同步适配器 CalendarProvider] ──┐ 归一
 - **删除是独立动作**：每行最右小删除按钮 → 内联「Delete?」确认 → 才真正移除。
 - 完成的任务从 Agent 候选池剔除（不再被建议排期），但仍留在 Inbox 底部。
 - 排序确定性：未完成在上（按 `inboxSortScore` = 截止日×100 + 重要度×10 + 紧急度），已完成沉底。
+
+---
+
+## 数据同步与编辑模式（Sync & Edit Patterns）
+
+> 2026-06-09 阶段性总结。核心原则：**一处改动，处处同步**。
+
+### 1. 同步中枢 `syncAllViews()`
+
+所有数据改动（`editEventField` / `editInboxField` / 完成切换 / 新增 / 删除）统一调用 `syncAllViews()`，它重渲染所有受影响视图并 `saveAppData()` 持久化：
+
+```
+用户改动 → syncAllViews()
+  ├─ renderTodayPage()        首页
+  ├─ renderCal()              日历格子
+  ├─ refreshDayDetail()       已打开的某天详情（需 selectedDay + 面板 .show）
+  ├─ renderInbox()            任务视图（需 calView === 'tasks'）
+  ├─ renderAnalyticsPage()    分析页（若 active）
+  └─ saveAppData()            Supabase / localStorage
+```
+
+### 2. 三个数据源
+
+| 数据源 | 内容 | 读取方 |
+|--------|------|--------|
+| `eventsDB[year-month][day]` | 有具体时间段的日程事件 | 日历格子圆点、首页时间线、某天详情 |
+| `pendingTasksDB` / `owedRepliesDB` / `pendingMeetingsDB` | backlog 任务，有 `deadline` 无时间段 | 任务视图、Agent 候选池 |
+| `completionDB` / `completedInboxIds` | 完成状态 | 所有视图共享 |
+
+首页打勾完成事件 ↔ 任务视图打勾完成，互相同步（都读 `completionDB` / `completedInboxIds`）。
+
+### 3. 两套「米色卡片」新增/编辑模式（本质相同）
+
+**首页事件**（`index.html`）
+- **新增**：`TODAY` 标题行右侧 `+` → `addTodayEvent()`（写 `eventsDB[today]`，设 `expandedEventId`，聚焦 `.e-title-input`）
+- **渲染**：`renderEventCard(e, {editable:true})` → 米色 `renderEventEditor`
+- **字段**：Type / Time（start–end）/ Who / Location / Note；task-like 类型含 reschedule + agent 只读提示
+- **编辑**：`editEventField` / `editEventCustomKind`（自定义类型 oninput 不 re-render，防失焦）
+- **展开态**：`expandedEventId` + `toggleTodayEventExpand`（点开/收起，勾选保存）
+
+**任务视图（Inbox）**
+- **新增**：`* open` 右侧 `+` → `addInboxTask()`（写 `pendingTasksDB`，设 `expandedInboxId`，聚焦 `.inbox-title-input`）
+- **渲染**：`renderInboxDetail` 米色编辑器
+- **字段**：Type / Who / Duration / Due（`deadlineToISO` ↔ `isoToDeadline` 转换）
+- **编辑**：`editInboxField` / `editInboxCustomKind`
+- **展开态**：`expandedInboxId` + `toggleInboxExpand`
+
+两者差异仅在数据源（events vs tasks）与字段（事件有 start/end，任务有 due），交互语言与组件完全对齐——日历某天详情应对齐此模式。
+
+### 4. 日历某天详情（已升级）
+
+- **事件**：`openDay` / `refreshDayDetail` 使用 `renderEventCard(e, {compact:true, editable:true})`，与首页同款米色编辑器
+- **新增**：`dd-header` 日期右侧 `+` → `addEventToDay()`（写 `selectedDay` 对应日期）
+- **Due 联动**：设了 `deadline` 的 backlog 任务在到期当天日历格子显示黄色 due 圆点（`.cal-dot.due` = `#e0a83e`，与其他事件圆点同尺寸）；某天详情底部「Due this day」小节复用 `inboxRowHtml` + `renderInboxDetail` 可就地编辑
+- **已移除**：底部「Add Event to This Day」按钮与 `quickAddToDay()`（语音输入未来直接写入当天，不再需要此入口）
+
+### 5. Agent Suggestions 的范围（重要边界）
+
+- `getPlanWindows()` 目前**只算今天**：用 `todayMonthKey()` + `getTodayDate()` 取今天的 desk free slots（被今天 events 切碎）+ 今天可用通勤窗口。
+- 给任务设 due ≠ 把任务安排进那天的空闲时间；due 只驱动日历黄点 + 「Due this day」清单。规划入口（任务右侧日历图标 / Agent Suggestions）问的始终是「能否塞进今天剩余窗口」。
+- 候选池 `buildCandidatePool()` 来自 `pendingTasksDB` / `owedRepliesDB` / `pendingMeetingsDB`，已完成项剔除。新增任务会进候选池，但只有满足「今天某窗口剩余时间足够 + 类型适配 + 窗口未被 confirm/dismiss」才会出现。
+- 确认窗口的落地：desk window → 真生成事件写进 `eventsDB[today]`；commute window → 写进该通勤事件的 `commuteTasks`。两者都 `syncAllViews()` 持久化。
+- **未来**：若要「按 due 那天找空闲、跨天见缝插针」，需把 `getPlanWindows()` 泛化为接受任意日期，而非钉死今天。
+
+### 6. 后端存储形态
+
+- Supabase 表 `app_state`：**一个用户一行**，`data` 为 JSONB 快照（`snapshotDBs()`），含 `eventsDB` / `runtimeEvents` / `pendingTasksDB` / `owedRepliesDB` / `pendingMeetingsDB` / `completionDB` / `completedInboxIds`。
+- 任何视图的改动 → `saveAppData()` → localStorage 缓存 + `cloudSave()`（800ms 防抖）→ `app_state.upsert`。所以数据确实入库，但不是「每个 event 一行」，而是整份 JSON。
+- 这是 MVP 的合理取舍（实现快、同步简单）。未来做多设备冲突 / 团队协作 / 分析报表时，再拆为结构化表（`events` / `tasks` / `suggestions` / `learning_events`）。

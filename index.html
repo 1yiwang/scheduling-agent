@@ -242,6 +242,14 @@
 .today-title-meta {
  font-size: 12px; color: var(--ej-text-2); white-space: nowrap;
 }
+.today-title-right { display: flex; align-items: center; gap: 8px; }
+/* Inline editable event title on the timeline */
+.event-card .e-title-input {
+ flex: 1; min-width: 0; border: none; background: transparent;
+ font-size: 13px; font-weight: 500; font-family: inherit; color: var(--ej-text);
+ padding: 2px 0; border-bottom: 1px solid transparent;
+}
+.event-card .e-title-input:focus { outline: none; border-bottom: 1px solid var(--ej-info); }
 .time-plan-board { display: flex; flex-direction: column; gap: 12px; }
 .tp-window {
  background: var(--ej-card); border: 1px solid var(--ej-line);
@@ -281,10 +289,11 @@
 }
 .tp-staged, .tp-candidates { display: flex; flex-direction: column; gap: 6px; }
 .tp-staged-item, .tp-candidate {
- display: flex; align-items: center; gap: 8px;
+ display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
  border: 1px solid var(--ej-line); border-left: 3px solid var(--ej-line);
  border-radius: 9px; padding: 8px 9px;
  background: rgba(255,255,255,0.62);
+ cursor: pointer;
 }
 .tp-staged-item { border-top-color: var(--ej-info); border-right-color: var(--ej-info); border-bottom-color: var(--ej-info); background: var(--ej-info-bg); }
 /* Priority shown as a colored left edge — no extra words needed. */
@@ -804,6 +813,7 @@
  .cal-dot.social { background: #9b8fc4; }
  .cal-dot.deep { background: var(--ej-complete); }
  .cal-dot.done { opacity: 0.25; }
+ .cal-dot.due { background: #e0a83e; }
 
  /* Day detail panel */
  .day-detail {
@@ -816,7 +826,10 @@
  display: flex; justify-content: space-between; align-items: center;
  margin-bottom: 12px;
  }
+ .day-detail .dd-header-right { display: flex; align-items: center; gap: 8px; }
  .day-detail .dd-date { font-size: 18px; font-weight: 700; }
+ .dd-due-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ej-line); }
+ .dd-due-title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ej-text-2); margin-bottom: 10px; }
  .day-detail .dd-close {
  width: 28px; height: 28px; border-radius: 50%;
  background: var(--ej-hover); border: 1px solid var(--ej-line); font-size: 14px; cursor: pointer;
@@ -1616,10 +1629,25 @@
  }
  .ie-input:focus { outline: none; border-color: var(--ej-info); }
  .ie-mins-wrap { display: inline-flex; align-items: baseline; gap: 3px; color: var(--ej-text-2); font-size: 13px; }
+ .ie-date { flex: 0 1 auto; width: auto; }
  .ie-mins { flex: none; width: 64px; text-align: left; -moz-appearance: textfield; }
  .ie-mins::-webkit-outer-spin-button, .ie-mins::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+ .ie-time-pair { display: inline-flex; align-items: center; gap: 6px; }
+ .ie-time-sep { color: var(--ej-text-2); }
+ /* Read-only AI hint inside the editor — keeps the agent's reasoning visible. */
+ .ie-agent-note {
+  display: flex; align-items: flex-start; gap: 6px; margin-top: 2px;
+  font-size: 11px; line-height: 1.4; color: var(--ej-text-2);
+ }
+ .ie-agent-note svg { flex-shrink: 0; margin-top: 1px; color: var(--ej-warning); }
  /* Save = collapse the editor; subtle grey check in the bottom-right. */
- .ie-save-row { display: flex; justify-content: flex-end; margin-top: 2px; }
+ .ie-save-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+ .ie-del {
+  width: 32px; height: 32px; border-radius: 8px; cursor: pointer; margin-right: auto;
+  border: 1px solid var(--ej-line); background: var(--ej-card); color: var(--ej-text-3, var(--ej-text-2));
+  display: flex; align-items: center; justify-content: center;
+ }
+ .ie-del:hover { background: var(--ej-hover); color: var(--ej-red); }
  .ie-save {
  width: 32px; height: 32px; border-radius: 8px; cursor: pointer;
  border: 1px solid var(--ej-line); background: var(--ej-card); color: var(--ej-text-2);
@@ -1873,12 +1901,12 @@
  <div class="day-detail" id="dayDetail">
  <div class="dd-header">
  <div class="dd-date" id="ddDate"></div>
- <button class="dd-close" onclick="closeDayDetail()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+ <div class="dd-header-right">
+  <button class="tp-add-custom" title="Add event" aria-label="Add event" onclick="event.stopPropagation();addEventToDay()">+</button>
+  <button class="dd-close" onclick="closeDayDetail()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+ </div>
  </div>
  <div id="ddContent"></div>
- <button class="ios-btn outline" style="margin-top:12px;height:42px;font-size:14px;" onclick="quickAddToDay()">
- Add Event to This Day
- </button>
  </div>
  </div>
 
@@ -2156,6 +2184,13 @@ function switchPage(page, el) {
 function toggleExpand(card) {
  const ex = card.querySelector('.e-expand');
  if (ex) ex.classList.toggle('show');
+}
+
+// Today timeline events expand via state so the editor survives re-renders.
+let expandedEventId = null;
+function toggleTodayEventExpand(eventId) {
+ expandedEventId = expandedEventId === eventId ? null : eventId;
+ if (typeof syncAllViews === 'function') syncAllViews();
 }
 
 // ====== CAPTURE FLOW ======
@@ -3257,6 +3292,15 @@ function getTypeInfo(event) {
  return map[event.type] || map['busy'];
 }
 
+function getEditableTypeInfo(event) {
+ // Editable timeline cards should display the user's chosen kind first.
+ if (event.kind !== undefined && event.kind !== null && event.kind !== '') {
+  const clsMap = { meeting: 'neutral', call: 'online', social: 'social' };
+  return { label: candidateKindLabel(event.kind), cls: clsMap[event.kind] || 'neutral', icon: '' };
+ }
+ return getTypeInfo(event);
+}
+
 function getDisplayTitle(event, compact) {
  if (!compact || event.type !== 'transit' || !event.transitMode) return event.title;
  const durLabel = event.transitDuration ? ' · '+event.transitDuration : '';
@@ -3456,7 +3500,7 @@ function renderEventCard(event, options) {
  // Build time row extras (compact mode: type tag inline)
  let timeExtras = '';
  if (options.compact) {
- const ti = getTypeInfo(event);
+ const ti = options.editable ? getEditableTypeInfo(event) : getTypeInfo(event);
  timeExtras += '<span class="e-tag-inline '+ti.cls+'">'+ti.label+'</span>';
  }
 
@@ -3480,16 +3524,23 @@ function renderEventCard(event, options) {
   const transitChip = (event.type==='transit' && event.transitMode)
    ? '<span class="e-mode-chip"><svg width="13" height="13"><use href="#'+transitModeIcon(event.transitMode)+'"/></svg></span>'
    : '';
-  return '<div class="event-card '+cls.trim()+'" id="card-'+(event.id||'')+'" onclick="toggleExpand(this)" '+dataAttrs+'>'+
+  const titleHtml = options.editable
+   ? '<input class="e-title-input" value="'+escAttr(event.title)+'" onclick="event.stopPropagation()" onchange="editEventField(\''+(event.id||'')+'\',\'title\',this.value)">'
+   : '<span class="e-title">'+displayTitle+'</span>';
+  const expandContent = options.editable ? renderEventEditor(event) : expandHtml;
+  // Editable cards toggle via state (survives re-render); read-only cards use the transient class.
+  const cardClick = options.editable ? 'toggleTodayEventExpand(\''+(event.id||'')+'\')' : 'toggleExpand(this)';
+  const expandShown = options.editable && event.id === expandedEventId ? ' show' : '';
+  return '<div class="event-card '+cls.trim()+'" id="card-'+(event.id||'')+'" onclick="'+cardClick+'" '+dataAttrs+'>'+
    checkHtml+
    '<div class="e-time-row compact">'+
     '<span class="e-time">'+startTime+'</span>'+
     transitChip+
-    '<span class="e-title">'+displayTitle+'</span>'+
+    titleHtml+
     timeExtras+
    '</div>'+
    commuteTasksHtml+
-   '<div class="e-expand">'+expandHtml+'</div>'+
+   '<div class="e-expand'+expandShown+'">'+expandContent+'</div>'+
   '</div>';
  }
 
@@ -3505,6 +3556,232 @@ function renderEventCard(event, options) {
  tagsHtml+
  '<div class="e-expand">'+expandHtml+'</div>'+
  '</div>';
+}
+
+// ── Today event editing · keeps the timeline's data coherent with everything else ──
+function eventTypeToKind(type) {
+ const m = { busy:'meeting', online:'call', social:'social', deep:'meeting', transit:'meeting' };
+ return m[type] || 'meeting';
+}
+function kindToEventType(kind) {
+ const m = { meeting:'busy', social:'social', call:'online' };
+ return m[kind] || null; // null = custom, leave styling type untouched
+}
+function formatEventTime(start, end) {
+ if (!start) return '';
+ const s = minutesToTime(timeToMinutes(start)).replace(':00','');
+ if (!end) return s;
+ return s + '–' + minutesToTime(timeToMinutes(end)).replace(':00','');
+}
+
+function renderEventEditor(event) {
+ const id = event.id || '';
+ const baseKinds = [['meeting','Meeting'],['social','Social'],['call','Call']];
+ // Preserve an explicit empty string (the "More" custom state); only fall back when kind is unset.
+ const hasKind = event.kind !== undefined && event.kind !== null;
+ const curKind = hasKind ? event.kind : eventTypeToKind(event.type);
+ const isCustom = !baseKinds.some(k => k[0] === curKind);
+ const knownNonCustom = ['meeting','social','call','deep','online','busy','transit','solo','think','video'];
+ const customVal = (isCustom && knownNonCustom.indexOf(curKind) < 0) ? curKind : '';
+ const who = (event.participants || []).join(', ');
+ let seg = '';
+ baseKinds.forEach(k => {
+  seg += '<button class="ie-seg-btn'+(curKind===k[0]?' active':'')+'" onclick="event.stopPropagation();editEventField(\''+id+'\',\'kind\',\''+k[0]+'\')">'+k[1]+'</button>';
+ });
+ seg += '<button class="ie-seg-btn'+(isCustom?' active':'')+'" onclick="event.stopPropagation();setEventKindCustom(\''+id+'\')">More</button>';
+ const customRow = isCustom
+  ? '<div class="ie-row"><span class="ie-label"></span><input class="ie-input event-kind-custom" value="'+escAttr(customVal)+'" placeholder="Custom type…" oninput="editEventCustomKind(\''+id+'\',this.value)" onchange="editEventCustomKind(\''+id+'\',this.value)"></div>'
+  : '';
+ // AI extras: a read-only agent hint + the "find a better time" reschedule action.
+ const noteRow = event.agentNote
+  ? '<div class="ie-agent-note"><svg width="13" height="13"><use href="#icon-bulb"/></svg><span>'+escAttr(event.agentNote)+'</span></div>'
+  : '';
+ const rescheduleRow = ['deep','busy','online'].indexOf(event.type) >= 0
+  ? '<div class="reschedule-section">'+
+     '<div style="font-size:11px;font-weight:600;color:var(--ej-text-2);margin-bottom:6px;">Need a different time?</div>'+
+     '<button class="reschedule-btn" onclick="event.stopPropagation();rescheduleEvent(\''+id+'\')">Find New Time</button>'+
+     '<div class="reschedule-slots" id="rs-slots-'+id+'"></div>'+
+    '</div>'
+  : '';
+ return '<div class="inbox-edit" onclick="event.stopPropagation()">'+
+   '<div class="ie-row"><span class="ie-label">Type</span><div class="ie-seg">'+seg+'</div></div>'+
+   customRow+
+   '<div class="ie-row"><span class="ie-label">Time</span>'+
+     '<span class="ie-time-pair">'+
+      '<input class="ie-input ie-date" type="time" value="'+(event.startTime||'')+'" onchange="editEventField(\''+id+'\',\'startTime\',this.value)">'+
+      '<span class="ie-time-sep">–</span>'+
+      '<input class="ie-input ie-date" type="time" value="'+(event.endTime||'')+'" onchange="editEventField(\''+id+'\',\'endTime\',this.value)">'+
+     '</span></div>'+
+   '<div class="ie-row"><span class="ie-label">Who</span><input class="ie-input" value="'+escAttr(who)+'" placeholder="—" onchange="editEventField(\''+id+'\',\'participants\',this.value)"></div>'+
+   '<div class="ie-row"><span class="ie-label">Location</span><input class="ie-input" value="'+escAttr(event.loc||'')+'" placeholder="—" onchange="editEventField(\''+id+'\',\'loc\',this.value)"></div>'+
+   '<div class="ie-row"><span class="ie-label">Note</span><input class="ie-input" value="'+escAttr(event.context||'')+'" placeholder="—" onchange="editEventField(\''+id+'\',\'context\',this.value)"></div>'+
+   rescheduleRow+
+   noteRow+
+   '<div class="ie-save-row">'+
+     '<button class="ie-del" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteEvent(\''+id+'\')"><svg width="15" height="15"><use href="#icon-trash"/></svg></button>'+
+     '<button class="ie-save" title="Save" aria-label="Save" onclick="event.stopPropagation();toggleTodayEventExpand(\''+id+'\')"><svg width="16" height="16"><use href="#icon-check-sm"/></svg></button>'+
+   '</div>'+
+  '</div>';
+}
+
+function editEventField(eventId, field, value) {
+ const found = findEventById(eventId);
+ if (!found) return;
+ const e = found.event;
+ if (field === 'title') { const v = (value || '').trim(); if (v) e.title = v; }
+ else if (field === 'kind') {
+  e.kind = (value || '').trim().toLowerCase();
+  const mapped = kindToEventType(e.kind);
+  if (mapped) { e.type = mapped; e.t = mapped; }
+ }
+ else if (field === 'participants') {
+  e.participants = (value || '').split(',').map(s => s.trim()).filter(Boolean);
+ }
+ else if (field === 'loc') { e.loc = (value || '').trim(); e.locationShort = e.loc; }
+ else if (field === 'context') { e.context = (value || '').trim(); }
+ else if (field === 'startTime' || field === 'endTime') {
+  e[field] = value;
+  e.time = formatEventTime(e.startTime, e.endTime);
+ }
+ if (typeof syncAllViews === 'function') syncAllViews();
+}
+
+function editEventCustomKind(eventId, value) {
+ const found = findEventById(eventId);
+ if (!found) return;
+ found.event.kind = (value || '').trim().toLowerCase();
+ // Do not re-render on every keystroke; the save check or any later sync will persist the update.
+ if (appMode === 'live') saveAppData();
+}
+
+function setEventKindCustom(eventId) {
+ editEventField(eventId, 'kind', '');
+ const card = document.getElementById('card-' + eventId);
+ if (card) { const inp = card.querySelector('.event-kind-custom'); if (inp) inp.focus(); }
+}
+
+// Manually add an event to today's timeline (homepage). Editable, name first.
+function addTodayEvent() {
+ const key = todayMonthKey();
+ const day = getTodayDate();
+ if (!eventsDB[key]) eventsDB[key] = {};
+ if (!eventsDB[key][day]) eventsDB[key][day] = [];
+ const now = appNow();
+ let sh = Math.min(now.getHours() + 1, 22);
+ const start = String(sh).padStart(2, '0') + ':00';
+ const end = String(Math.min(sh + 1, 23)).padStart(2, '0') + ':00';
+ const id = 'usr-' + Date.now();
+ eventsDB[key][day].push({
+  id: id, t: 'busy', type: 'busy', kind: 'meeting', title: 'New event',
+  time: formatEventTime(start, end), startTime: start, endTime: end, duration: '1h',
+  loc: '', locationShort: '', participants: [],
+  transitMode: null, transitDuration: null, transitWorkable: false,
+  bufferBefore: 0, bufferAfter: 0, context: '', agentNote: '',
+  dressCode: null, returnInfo: null, followUpNeeded: false, followUpBy: null,
+  followUpStatus: 'pending', followUpNote: ''
+ });
+ expandedEventId = id; // open it so details are ready to edit
+ syncAllViews();
+ const card = document.getElementById('card-' + id);
+ if (card) {
+  card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const inp = card.querySelector('.e-title-input');
+  if (inp) { inp.focus(); inp.select(); }
+ }
+}
+
+function addEventToDay() {
+ if (!selectedDay) return;
+ const { year, month, day } = selectedDay;
+ const key = year + '-' + month;
+ if (!eventsDB[key]) eventsDB[key] = {};
+ if (!eventsDB[key][day]) eventsDB[key][day] = [];
+ const start = '09:00';
+ const end = '10:00';
+ const id = 'usr-' + Date.now();
+ eventsDB[key][day].push({
+  id: id, t: 'busy', type: 'busy', kind: 'meeting', title: 'New event',
+  time: formatEventTime(start, end), startTime: start, endTime: end, duration: '1h',
+  loc: '', locationShort: '', participants: [],
+  transitMode: null, transitDuration: null, transitWorkable: false,
+  bufferBefore: 0, bufferAfter: 0, context: '', agentNote: '',
+  dressCode: null, returnInfo: null, followUpNeeded: false, followUpBy: null,
+  followUpStatus: 'pending', followUpNote: ''
+ });
+ expandedEventId = id;
+ syncAllViews();
+ const card = document.getElementById('card-' + id);
+ if (card) {
+  card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const inp = card.querySelector('.e-title-input');
+  if (inp) { inp.focus(); inp.select(); }
+ }
+}
+
+function getTasksDueOnDate(year, month, day) {
+ return getInboxItems().filter(it => {
+  if (it.done || !it.deadline) return false;
+  const iso = deadlineToISO(it.deadline);
+  if (!iso) return false;
+  const parts = iso.split('-');
+  return parseInt(parts[0], 10) === year && parseInt(parts[1], 10) === month && parseInt(parts[2], 10) === day;
+ });
+}
+
+function getDueDaysInMonth(year, month) {
+ const dueDays = new Set();
+ getInboxItems().forEach(it => {
+  if (it.done || !it.deadline) return;
+  const iso = deadlineToISO(it.deadline);
+  if (!iso) return;
+  const parts = iso.split('-');
+  if (parseInt(parts[0], 10) === year && parseInt(parts[1], 10) === month) dueDays.add(parseInt(parts[2], 10));
+ });
+ return dueDays;
+}
+
+function renderDayDetailDueSection(items) {
+ if (!items.length) return '';
+ let h = '<div class="dd-due-section"><div class="dd-due-title">Due this day</div>';
+ items.forEach(it => { h += inboxRowHtml(it); });
+ return h + '</div>';
+}
+
+function renderDayDetailContent(year, month, day) {
+ const key = year + '-' + month;
+ const evts = (eventsDB[key] || {})[day] || [];
+ const dueItems = getTasksDueOnDate(year, month, day);
+ let html = '';
+
+ if (evts.length > 0) {
+  const sorted = [...evts].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+  const today = getTodayDate();
+  const _tN = appNow();
+  const isPastDay = year < _tN.getFullYear()
+   || (year === _tN.getFullYear() && month < (_tN.getMonth() + 1))
+   || (year === _tN.getFullYear() && month === (_tN.getMonth() + 1) && day < today);
+  const isToday = day === today && year === _tN.getFullYear() && month === (_tN.getMonth() + 1);
+  const simNow = currentSimNow();
+  let nowPlaced = false;
+  let out = '';
+  sorted.forEach(e => {
+   if (isToday && !nowPlaced && (e.startTime || '') >= simNow) {
+    out += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
+    nowPlaced = true;
+   }
+   const past = isPastDay || (isToday && (e.startTime || '') < simNow);
+   out += renderEventCard(e, { isPast: past, compact: true, editable: true });
+  });
+  if (isToday && !nowPlaced) {
+   out += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
+  }
+  html = '<div class="timeline-block">'+out+'</div>';
+ } else if (!dueItems.length) {
+  html = renderEmptyState('free-day');
+ }
+
+ html += renderDayDetailDueSection(dueItems);
+ return html;
 }
 
 function findEventById(id) {
@@ -3551,13 +3828,18 @@ function renderCal() {
  if (selectedDay && selectedDay.year===calYear && selectedDay.month===calMonth) selDay = selectedDay.day;
  else if (!selectedDay && tIsThisMonth) selDay = today;
 
+ const dueDays = getDueDaysInMonth(calYear, calMonth);
+
  for (let d=1; d<=daysInMonth; d++) {
  let cls = 'cal-cell anim-in';
  if (d===today && tIsThisMonth) cls += ' today';
  if (d===selDay) cls += ' selected';
  const evts = monthData[d]||[];
- const dotsHtml = evts.length>0
- ? '<div class="cal-dots-row">'+evts.map(e=>'<div class="cal-dot '+e.t+(getCompletion(e)===true?' done':'')+'"></div>').join('')+'</div>'
+ const hasDue = dueDays.has(d);
+ let dots = evts.map(e => '<div class="cal-dot '+e.t+(getCompletion(e)===true?' done':'')+'"></div>');
+ if (hasDue) dots.push('<div class="cal-dot due"></div>');
+ const dotsHtml = dots.length
+ ? '<div class="cal-dots-row">'+dots.join('')+'</div>'
  : '';
  grid.innerHTML += '<div class="'+cls+'" onclick="openDay('+d+')"><div class="cal-num">'+d+'</div>'+dotsHtml+'</div>';
  }
@@ -3604,8 +3886,8 @@ function setCalView(view) {
 function getInboxItems() {
  const items = [];
  pendingTasksDB.forEach(t => items.push({ id:t.id, source:'pendingTask', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:t.deadline||null, importance:t.importance, urgency:t.urgency }));
- owedRepliesDB.forEach(t => items.push({ id:t.id, source:'owedReply', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:null, importance:t.importance, urgency:t.urgency }));
- pendingMeetingsDB.forEach(t => items.push({ id:t.id, source:'pendingMeeting', title:t.title, est:t.estTime, kind:t.kind||'call', involves:t.involves||null, deadline:null, importance:t.importance, urgency:t.urgency }));
+ owedRepliesDB.forEach(t => items.push({ id:t.id, source:'owedReply', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:t.deadline||null, importance:t.importance, urgency:t.urgency }));
+ pendingMeetingsDB.forEach(t => items.push({ id:t.id, source:'pendingMeeting', title:t.title, est:t.estTime, kind:t.kind||'call', involves:t.involves||null, deadline:t.deadline||null, importance:t.importance, urgency:t.urgency }));
  items.forEach(it => { it.done = completedInboxIds.includes(inboxUid(it.source, it.id)); });
  // Open tasks first (deadline + priority, deterministic — no LLM), completed sink to the bottom.
  return items.sort((a, b) => {
@@ -3647,11 +3929,10 @@ function renderInboxPlanChoices(it) {
 }
 
 function inboxRowHtml(it) {
- const tagCls = { pendingTask:'', owedReply:'owe', pendingMeeting:'meet' };
- const tagLabel = { pendingTask:'Task', owedReply:'Owe', pendingMeeting:'Meeting' };
  const uid = inboxUid(it.source, it.id);
- const meta = ['<span class="inbox-tag '+tagCls[it.source]+'">'+tagLabel[it.source]+'</span>'];
- if (it.kind) meta.push('<span class="inbox-kind-chip">'+candidateKindLabel(it.kind)+'</span>'); // chosen type, visible at a glance
+ // First chip = the (editable) event type, so what you change is what you see first.
+ const meta = [];
+ meta.push('<span class="inbox-kind-chip">'+candidateKindLabel(it.kind)+'</span>');
  if (it.est) meta.push('<span>'+it.est+'</span>');
  if (it.involves) meta.push('<span>· '+it.involves+'</span>');
  if (it.deadline) meta.push('<span>· due '+it.deadline+'</span>');
@@ -3683,9 +3964,11 @@ function inboxRowHtml(it) {
 }
 
 // Expandable per-task editor: type, who, duration. Source task is edited in place.
-function renderInboxDetail(it) {
+function renderInboxDetail(it, saveOnclick) {
+ const collapse = saveOnclick || ('toggleInboxExpand(\''+it.source+'\',\''+it.id+'\')');
  const baseKinds = [['meeting','Meeting'],['social','Social'],['call','Call']];
- const curKind = it.kind || 'meeting';
+ const hasKind = it.kind !== undefined && it.kind !== null;
+ const curKind = hasKind ? it.kind : 'meeting';
  const isCustom = !baseKinds.some(k => k[0] === curKind);
  const knownNonCustom = ['meeting','social','call','solo','think','video'];
  const customVal = (isCustom && knownNonCustom.indexOf(curKind) < 0) ? curKind : '';
@@ -3697,7 +3980,7 @@ function renderInboxDetail(it) {
  seg += '<button class="ie-seg-btn'+(isCustom?' active':'')+'" onclick="event.stopPropagation();setInboxKindCustom(\''+it.source+'\',\''+it.id+'\')">More</button>';
  const customRow = isCustom
   ? '<div class="ie-row"><span class="ie-label"></span>'+
-     '<input class="ie-input" value="'+escAttr(customVal)+'" placeholder="Custom type…" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'kind\',this.value)"></div>'
+     '<input class="ie-input inbox-kind-custom" value="'+escAttr(customVal)+'" placeholder="Custom type…" oninput="editInboxCustomKind(\''+it.source+'\',\''+it.id+'\',this.value)" onchange="editInboxCustomKind(\''+it.source+'\',\''+it.id+'\',this.value)"></div>'
   : '';
  return '<div class="inbox-edit" onclick="event.stopPropagation()">'+
    '<div class="ie-row"><span class="ie-label">Type</span><div class="ie-seg">'+seg+'</div></div>'+
@@ -3706,24 +3989,24 @@ function renderInboxDetail(it) {
     '<input class="ie-input" value="'+escAttr(it.involves||'')+'" placeholder="—" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'involves\',this.value)"></div>'+
    '<div class="ie-row"><span class="ie-label">Duration</span>'+
     '<span class="ie-mins-wrap"><input class="ie-input ie-mins" type="number" min="5" step="5" value="'+mins+'" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'estMinutes\',this.value)">m</span></div>'+
-   '<div class="ie-save-row"><button class="ie-save" title="Save" aria-label="Save" onclick="event.stopPropagation();toggleInboxExpand(\''+it.source+'\',\''+it.id+'\')"><svg width="16" height="16"><use href="#icon-check-sm"/></svg></button></div>'+
+   '<div class="ie-row"><span class="ie-label">Due</span>'+
+    '<input class="ie-input ie-date" type="date" value="'+deadlineToISO(it.deadline)+'" onchange="editInboxField(\''+it.source+'\',\''+it.id+'\',\'deadline\',this.value)"></div>'+
+   '<div class="ie-save-row"><button class="ie-save" title="Save" aria-label="Save" onclick="event.stopPropagation();'+collapse+'"><svg width="16" height="16"><use href="#icon-check-sm"/></svg></button></div>'+
   '</div>';
 }
 
 function toggleInboxExpand(source, id) {
  const uid = inboxUid(source, id);
  expandedInboxId = expandedInboxId === uid ? null : uid;
- renderInbox();
+ syncAllViews();
 }
 
 // "More" → switch to a free-text custom type and focus the input for entry.
 function setInboxKindCustom(source, id) {
  editInboxField(source, id, 'kind', '');
  const row = document.getElementById('inbox-' + source + '-' + id);
- if (row) {
-  const inp = row.querySelector('.inbox-edit input.ie-input');
-  if (inp) inp.focus();
- }
+ const inp = row ? row.querySelector('.inbox-kind-custom') : document.querySelector('.inbox-kind-custom');
+ if (inp) inp.focus();
 }
 
 function renderInbox() {
@@ -3839,39 +4122,11 @@ function calShift(dir) {
 function openDay(day) {
  selectedDay = { year: calYear, month: calMonth, day: day };
  renderCal(); // move the strong highlight to the tapped day (today keeps a faint tint)
- const key = calYear+'-'+calMonth;
- const evts = (eventsDB[key]||{})[day]||[];
 
  document.getElementById('ddDate').textContent =
  new Date(calYear,calMonth-1,day).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
- const content = document.getElementById('ddContent');
-
- if (evts.length===0) {
- content.innerHTML = renderEmptyState('free-day');
- } else {
- // Sort by startTime
- const sorted = [...evts].sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
- const today = getTodayDate();
- const _tN = appNow();
- const isPastDay = day < today;
- const isToday = day === today && calYear === _tN.getFullYear() && calMonth === (_tN.getMonth()+1);
- const simNow = currentSimNow();
- let nowPlaced = false;
- let out = '';
- sorted.forEach(e => {
- if (isToday && !nowPlaced && (e.startTime || '') >= simNow) {
-  out += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
-  nowPlaced = true;
- }
- const past = isPastDay || (isToday && (e.startTime || '') < simNow);
- out += renderEventCard(e, {isPast: past, compact: true, showEdit: true});
- });
- if (isToday && !nowPlaced) {
-  out += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
- }
- content.innerHTML = '<div class="timeline-block">'+out+'</div>';
- }
+ document.getElementById('ddContent').innerHTML = renderDayDetailContent(calYear, calMonth, day);
 
  document.getElementById('dayDetail').classList.add('show');
  document.getElementById('dayDetail').scrollIntoView({behavior:'smooth'});
@@ -3894,8 +4149,7 @@ function renderEmptyState(type, opts) {
  case 'free-day':
   icon = 'icon-sun'; iconClass = 'sun';
   title = 'A completely free day';
-  desc = 'Nothing scheduled. Agent suggests blocking time for deep work — or just enjoy it.';
-  if (opts.showAdd) action = '<span class="empty-state-action" onclick="quickAddToDay()"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Add something</span>';
+  desc = 'Nothing scheduled. Tap + above to add an event — or just enjoy it.';
   break;
  case 'no-tasks':
   icon = 'icon-check-sm'; iconClass = 'check';
@@ -4002,13 +4256,6 @@ function renderPeoplePage() {
  h += '<button class="ios-btn outline" style="margin-top:12px;width:100%;height:42px;font-size:14px;" onclick="showToast(\'Link copied · Share with your contact\')">'+
   '<svg width="16" height="16" style="margin-right:6px;"><use href="#icon-check-sm"/></svg> Generate New Temporary Link</button>';
  content.innerHTML = h;
-}
-
-function quickAddToDay() {
- if (!selectedDay) return;
- // Close day detail, open capture with day context
- document.getElementById('dayDetail').classList.remove('show');
- startCapture();
 }
 
 // ====== TODAY PAGE RENDERING ======
@@ -4672,11 +4919,40 @@ function editInboxField(source, id, field, value) {
  if (field === 'title') { const v = (value || '').trim(); if (v) t.title = v; }
  else if (field === 'kind') t.kind = (value || '').trim().toLowerCase();
  else if (field === 'involves') t.involves = (value || '').trim() || null;
+ else if (field === 'deadline') t.deadline = value ? isoToDeadline(value) : null;
  else if (field === 'estMinutes') {
   const m = Math.max(5, parseInt(value, 10) || parseEstMinutes(t.estTime));
   t.estTime = formatPlanMinutes(m); t.estMinutes = m;
  }
  syncAllViews();
+}
+
+function editInboxCustomKind(source, id, value) {
+ const db = TASK_DBS[source] ? TASK_DBS[source]() : null;
+ if (!db) return;
+ const t = db.find(x => x.id === id);
+ if (!t) return;
+ t.kind = (value || '').trim().toLowerCase();
+ // Free typing should not re-render and steal focus. Save/check or later sync persists it.
+ if (appMode === 'live') saveAppData();
+}
+
+// Deadline strings are friendly ("Monday, Jun 8"); the <input type=date> needs ISO.
+function deadlineToISO(d) {
+ if (!d) return '';
+ if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+ const bare = d.replace(/^\w+,\s*/, ''); // drop weekday prefix
+ const parsed = new Date(bare + ' ' + appNow().getFullYear());
+ if (isNaN(parsed.getTime())) return '';
+ const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+ const dd = String(parsed.getDate()).padStart(2, '0');
+ return parsed.getFullYear() + '-' + mm + '-' + dd;
+}
+function isoToDeadline(iso) {
+ if (!iso) return null;
+ const parsed = new Date(iso + 'T00:00:00');
+ if (isNaN(parsed.getTime())) return iso;
+ return parsed.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
 function isTaskStaged(id) {
@@ -5063,12 +5339,14 @@ function renderTimePlanningBoard() {
   if (staged.length) {
    html += '<div class="tp-subhead">Placed here</div><div class="tp-staged">';
    staged.forEach(item => {
-    html += '<div class="tp-staged-item '+priorityAccentClass(item)+'">'+
+    const stagedClick = item.source ? ' onclick="togglePlanItemExpand(\''+win.id+'\',\''+item.source+'\',\''+item.id+'\')"' : '';
+    html += '<div class="tp-staged-item '+priorityAccentClass(item)+'"'+stagedClick+'>'+
      '<div class="tp-item-main">'+
       '<input class="tp-item-title-input" value="'+escAttr(item.title.split('·')[0].trim())+'" onclick="event.stopPropagation()" onchange="editStagedItemTitle(\''+win.id+'\',\''+item.id+'\',this.value)">'+
       '<span class="tp-item-mins"><input class="tp-item-mins-input" type="number" min="5" step="5" value="'+item.estMinutes+'" onclick="event.stopPropagation()" onchange="editStagedItemMins(\''+win.id+'\',\''+item.id+'\',this.value)">m</span>'+
      '</div>'+
      '<button class="tp-remove" title="Remove" aria-label="Remove" onclick="event.stopPropagation();removePlanItem(\''+win.id+'\',\''+item.id+'\')">\u2212</button>'+
+     planItemDetail(win.id, item.source, item.id)+
     '</div>';
    });
    html += '</div>';
@@ -5080,12 +5358,13 @@ function renderTimePlanningBoard() {
   if (remaining > 0 && candidates.length) {
    html += '<div class="tp-candidates">';
    candidates.forEach(c => {
-    html += '<div class="tp-candidate '+priorityAccentClass(c)+'">'+
+    html += '<div class="tp-candidate '+priorityAccentClass(c)+'" onclick="togglePlanItemExpand(\''+win.id+'\',\''+c.source+'\',\''+c.id+'\')">'+
      '<div class="tp-item-main">'+
       '<input class="tp-item-title-input" value="'+escAttr(c.title.split('·')[0].trim())+'" onclick="event.stopPropagation()" onchange="editCandidateTitle(\''+c.source+'\',\''+c.id+'\',this.value)">'+
       '<span class="tp-item-mins"><input class="tp-item-mins-input" type="number" min="5" step="5" value="'+c.estMinutes+'" onclick="event.stopPropagation()" onchange="editCandidateMins(\''+c.source+'\',\''+c.id+'\',this.value)">m</span>'+
      '</div>'+
      '<button class="tp-add" title="Add" aria-label="Add" onclick="event.stopPropagation();addCandidateToPlanWindow(\''+win.id+'\',\''+c.id+'\')">+</button>'+
+     planItemDetail(win.id, c.source, c.id)+
     '</div>';
    });
    html += '</div>';
@@ -5100,6 +5379,31 @@ function renderTimePlanningBoard() {
  });
  html += '</div>';
  return html;
+}
+
+// Agent-suggestion items expand into the same beige editor as the Tasks view.
+let expandedPlanItemId = null;
+function planItemKey(winId, source, id) { return winId + '::' + source + '::' + id; }
+function togglePlanItemExpand(winId, source, id) {
+ const key = planItemKey(winId, source, id);
+ expandedPlanItemId = expandedPlanItemId === key ? null : key;
+ syncAllViews();
+}
+// Build the inbox-shaped item (source-backed) so renderInboxDetail can edit the real task.
+function planSourceShape(source, id) {
+ const db = TASK_DBS[source] ? TASK_DBS[source]() : null;
+ if (!db) return null;
+ const t = db.find(x => x.id === id);
+ if (!t) return null;
+ return { source: source, id: id, kind: t.kind || (source === 'pendingMeeting' ? 'call' : 'solo'),
+          est: t.estTime, involves: t.involves || null, deadline: t.deadline || null };
+}
+// Editor HTML for a board item, or '' if it has no editable source task.
+function planItemDetail(winId, source, id) {
+ if (!source || expandedPlanItemId !== planItemKey(winId, source, id)) return '';
+ const shape = planSourceShape(source, id);
+ if (!shape) return '';
+ return renderInboxDetail(shape, 'togglePlanItemExpand(\''+winId+'\',\''+source+'\',\''+id+'\')');
 }
 
 function findPlanWindow(windowId) {
@@ -5320,7 +5624,10 @@ function renderTodayPage() {
  html += '<section class="today-timeline-shell">'+
   '<div class="today-title-row">'+
    '<div><div class="today-title-kicker">Today</div></div>'+
-   '<div class="today-title-meta">'+sorted.length+' events</div>'+
+   '<div class="today-title-right">'+
+    '<span class="today-title-meta">'+sorted.length+' events</span>'+
+    '<button class="tp-add-custom" title="Add event" aria-label="Add event" onclick="event.stopPropagation();addTodayEvent()">+</button>'+
+   '</div>'+
   '</div>';
 
  // ═══ Single continuous timeline · the "Now" line auto-splits past/future ═══
@@ -5332,7 +5639,7 @@ function renderTodayPage() {
    html += nowMarkerHtml;
    nowPlaced = true;
   }
-  html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true});
+  html += renderEventCard(e, {isPast: (e.startTime||'') < simNow, compact: true, showEdit: true, editable: true});
  });
  if (!nowPlaced) html += nowMarkerHtml;
  html += '</div>';
@@ -5510,21 +5817,19 @@ function rerenderCurrentView() {
 }
 
 function refreshDayDetail(year, month, day) {
- const key = year + '-' + month;
- const evts = (eventsDB[key] || {})[day] || [];
  const content = document.getElementById('ddContent');
  const ddDate = document.getElementById('ddDate');
  if (!content) return;
 
- if (evts.length === 0) {
-  // Last event deleted — show empty state then close
+ const key = year + '-' + month;
+ const evts = (eventsDB[key] || {})[day] || [];
+ const dueItems = getTasksDueOnDate(year, month, day);
+
+ if (evts.length === 0 && dueItems.length === 0) {
   content.innerHTML = renderEmptyState('free-day');
   setTimeout(() => { closeDayDetail(); }, 1200);
  } else {
-  const sorted = [...evts].sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
-  const today = getTodayDate();
-  const isPastDay = day < today;
-  content.innerHTML = '<div class="timeline-block">'+sorted.map(e => renderEventCard(e, {isPast: isPastDay, compact: true, showEdit: true})).join('')+'</div>';
+  content.innerHTML = renderDayDetailContent(year, month, day);
  }
  if (ddDate) {
   ddDate.textContent = new Date(year, month-1, day).toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
