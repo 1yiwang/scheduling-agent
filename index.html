@@ -3346,7 +3346,7 @@ function getInboxItems() {
  pendingTasksDB.forEach(t => items.push({ id:t.id, source:'pendingTask', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:t.deadline||null }));
  owedRepliesDB.forEach(t => items.push({ id:t.id, source:'owedReply', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:null }));
  pendingMeetingsDB.forEach(t => items.push({ id:t.id, source:'pendingMeeting', title:t.title, est:t.estTime, kind:t.kind||'call', involves:t.involves||null, deadline:null }));
- return items.filter(i => !completedInboxIds.includes(i.source+':'+i.id));
+ return items.filter(i => !completedInboxIds.includes(i.source+':'+i.id) && !isTaskStaged(i.id));
 }
 
 function renderInbox() {
@@ -3385,11 +3385,9 @@ function completeInboxTask(source, id) {
  if (row) row.classList.add('done');
  const uid = source+':'+id;
  if (!completedInboxIds.includes(uid)) completedInboxIds.push(uid);
- const dbs = { pendingTask: pendingTasksDB, owedReply: owedRepliesDB, pendingMeeting: pendingMeetingsDB };
- const db = dbs[source];
  setTimeout(() => {
-  if (db) { const i = db.findIndex(t => t.id === id); if (i >= 0) db.splice(i, 1); }
-  renderInbox();
+  removeTaskEverywhere(source, id);
+  syncAllViews();
  }, 260);
 }
 
@@ -3874,17 +3872,36 @@ function buildCommuteDraft(candidate, window) {
   ' and can use it for "'+candidate.title.split('·')[0].trim()+'". Does that work for you?';
 }
 
+// ── Single source of truth: a task lives in exactly one place at a time ──
+const TASK_DBS = { pendingTask: () => pendingTasksDB, owedReply: () => owedRepliesDB, pendingMeeting: () => pendingMeetingsDB };
+
+function isTaskStaged(id) {
+ return Object.values(timePlanState).some(items => items.some(it => it.id === id));
+}
+
+function purgeTaskFromPlan(id) {
+ Object.keys(timePlanState).forEach(wid => {
+  timePlanState[wid] = timePlanState[wid].filter(it => it.id !== id);
+  if (!timePlanState[wid].length) delete timePlanState[wid];
+ });
+}
+
+function removeTaskEverywhere(source, id) {
+ const db = TASK_DBS[source] ? TASK_DBS[source]() : null;
+ if (db) { const i = db.findIndex(t => t.id === id); if (i >= 0) db.splice(i, 1); }
+ purgeTaskFromPlan(id);
+}
+
+// Re-render every data-driven view so one change propagates everywhere at once.
+function syncAllViews() {
+ if (document.getElementById('todayContent')) renderTodayPage();
+ if (typeof calView !== 'undefined' && calView === 'tasks' && document.getElementById('calTasksView')) renderInbox();
+ const analytics = document.getElementById('page-analytics');
+ if (analytics && analytics.classList.contains('active')) renderAnalyticsPage();
+}
+
 function removeCandidateFromSource(candidate) {
- if (candidate.source === 'pendingTask') {
-  const idx = pendingTasksDB.findIndex(t => t.id === candidate.id);
-  if (idx >= 0) pendingTasksDB.splice(idx, 1);
- } else if (candidate.source === 'owedReply') {
-  const idx = owedRepliesDB.findIndex(t => t.id === candidate.id);
-  if (idx >= 0) owedRepliesDB.splice(idx, 1);
- } else if (candidate.source === 'pendingMeeting') {
-  const idx = pendingMeetingsDB.findIndex(t => t.id === candidate.id);
-  if (idx >= 0) pendingMeetingsDB.splice(idx, 1);
- }
+ removeTaskEverywhere(candidate.source, candidate.id);
 }
 
 function recordCommuteInteraction(cs, candidate, action) {
@@ -4224,19 +4241,19 @@ function addCandidateToPlanWindow(windowId, candidateId) {
   source: candidate.source,
   reason: candidate.reason
  }]);
- renderTodayPage();
+ syncAllViews();
  showToast('Added to '+win.title);
 }
 
 function removePlanItem(windowId, candidateId) {
  timePlanState[windowId] = getStagedItems(windowId).filter(item => item.id !== candidateId);
  if (!timePlanState[windowId].length) delete timePlanState[windowId];
- renderTodayPage();
+ syncAllViews();
 }
 
 function dismissPlanWindow(windowId) {
  if (!dismissedPlanWindows.includes(windowId)) dismissedPlanWindows.push(windowId);
- renderTodayPage();
+ syncAllViews();
 }
 
 function confirmPlanWindow(windowId) {
@@ -4252,7 +4269,7 @@ function confirmPlanWindow(windowId) {
   if (item.involves) recordSignal('person', item.involves, true);
  });
  delete timePlanState[windowId];
- renderTodayPage();
+ syncAllViews();
  showToast('Confirmed '+items.length+' item'+(items.length>1?'s':'')+' for '+win.title);
 }
 
