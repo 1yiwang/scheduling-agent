@@ -1455,9 +1455,9 @@
  display: flex; align-items: flex-start; gap: 11px;
  background: var(--ej-card); border-radius: 12px;
  padding: 13px 14px; margin-bottom: 8px;
- transition: opacity .25s ease, transform .25s ease;
+ transition: opacity .2s ease;
  }
- .inbox-row.done { opacity: 0; transform: translateX(12px); }
+ .inbox-row.done { opacity: 0.55; }
  .inbox-check {
  flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px;
  border-radius: 50%; border: 1.8px solid var(--ej-line);
@@ -1484,6 +1484,28 @@
  }
  .inbox-tag.owe { background: rgba(214,138,60,.12); color: var(--ej-amber, #c4842a); }
  .inbox-tag.meet { background: rgba(120,120,170,.14); color: var(--ej-text-2); }
+ .inbox-del {
+ flex-shrink: 0; width: 28px; height: 28px; margin-top: -2px;
+ border: none; background: transparent; cursor: pointer;
+ color: var(--ej-text-3, var(--ej-text-2)); opacity: .5;
+ display: flex; align-items: center; justify-content: center;
+ border-radius: 7px; transition: opacity .15s, color .15s, background .15s;
+ }
+ .inbox-del:hover { opacity: 1; color: var(--ej-red); background: var(--ej-hover); }
+ .inbox-confirm {
+ display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+ }
+ .inbox-confirm-q { font-size: 12px; color: var(--ej-text-2); }
+ .inbox-confirm button {
+ border: none; cursor: pointer; font-size: 12px; font-weight: 650;
+ padding: 5px 10px; border-radius: 7px;
+ }
+ .inbox-confirm .del-yes { background: var(--ej-red); color: #fff; }
+ .inbox-confirm .del-no { background: var(--ej-hover); color: var(--ej-text-2); }
+ .inbox-divider {
+ font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase;
+ color: var(--ej-text-2); margin: 16px 2px 9px;
+ }
  .inbox-empty {
  text-align: center; color: var(--ej-text-2); font-size: 13px;
  padding: 40px 20px;
@@ -3328,6 +3350,20 @@ function renderCal() {
 
 let calView = 'calendar';
 let completedInboxIds = [];
+let inboxDeleteConfirmId = null;
+
+function inboxUid(source, id) { return source + ':' + id; }
+
+function parseDeadlineDay(str) {
+ if (!str) return 99;
+ const m = str.match(/[A-Za-z]{3,}\s+(\d{1,2})/) || str.match(/(\d{1,2})/);
+ return m ? parseInt(m[1]) : 99;
+}
+
+function inboxSortScore(it) {
+ const rank = { high:0, medium:1, low:2 };
+ return parseDeadlineDay(it.deadline) * 100 + (rank[it.importance] ?? 1) * 10 + (rank[it.urgency] ?? 1);
+}
 
 function setCalView(view) {
  calView = view;
@@ -3343,52 +3379,97 @@ function setCalView(view) {
 
 function getInboxItems() {
  const items = [];
- pendingTasksDB.forEach(t => items.push({ id:t.id, source:'pendingTask', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:t.deadline||null }));
- owedRepliesDB.forEach(t => items.push({ id:t.id, source:'owedReply', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:null }));
- pendingMeetingsDB.forEach(t => items.push({ id:t.id, source:'pendingMeeting', title:t.title, est:t.estTime, kind:t.kind||'call', involves:t.involves||null, deadline:null }));
- return items.filter(i => !completedInboxIds.includes(i.source+':'+i.id) && !isTaskStaged(i.id));
+ pendingTasksDB.forEach(t => items.push({ id:t.id, source:'pendingTask', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:t.deadline||null, importance:t.importance, urgency:t.urgency }));
+ owedRepliesDB.forEach(t => items.push({ id:t.id, source:'owedReply', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:null, importance:t.importance, urgency:t.urgency }));
+ pendingMeetingsDB.forEach(t => items.push({ id:t.id, source:'pendingMeeting', title:t.title, est:t.estTime, kind:t.kind||'call', involves:t.involves||null, deadline:null, importance:t.importance, urgency:t.urgency }));
+ items.forEach(it => { it.done = completedInboxIds.includes(inboxUid(it.source, it.id)); });
+ // Open tasks first (deadline + priority, deterministic — no LLM), completed sink to the bottom.
+ return items.sort((a, b) => {
+  if (a.done !== b.done) return a.done ? 1 : -1;
+  if (a.done) return 0;
+  return inboxSortScore(a) - inboxSortScore(b);
+ });
 }
 
-function renderInbox() {
- const el = document.getElementById('calTasksView');
- if (!el) return;
- const items = getInboxItems();
+function inboxRowHtml(it) {
  const tagCls = { pendingTask:'', owedReply:'owe', pendingMeeting:'meet' };
  const tagLabel = { pendingTask:'Task', owedReply:'Owe', pendingMeeting:'Meeting' };
- let html = '<div class="inbox-head"><span class="inbox-head-title">Tasks</span><span class="inbox-head-count">'+items.length+' open</span></div>';
- if (!items.length) {
-  html += '<div class="inbox-empty">All caught up. Nothing waiting to be scheduled.</div>';
-  el.innerHTML = html;
-  return;
- }
- items.forEach(it => {
-  const meta = [];
-  meta.push('<span class="inbox-tag '+tagCls[it.source]+'">'+tagLabel[it.source]+'</span>');
-  if (it.est) meta.push('<span>'+it.est+'</span>');
-  if (it.involves) meta.push('<span>· '+it.involves+'</span>');
-  if (it.deadline) meta.push('<span>· due '+it.deadline+'</span>');
-  html += '<div class="inbox-row" id="inbox-'+it.source+'-'+it.id+'">'+
-   '<div class="inbox-check" onclick="completeInboxTask(\''+it.source+'\',\''+it.id+'\')">'+
+ const uid = inboxUid(it.source, it.id);
+ const meta = ['<span class="inbox-tag '+tagCls[it.source]+'">'+tagLabel[it.source]+'</span>'];
+ if (it.est) meta.push('<span>'+it.est+'</span>');
+ if (it.involves) meta.push('<span>· '+it.involves+'</span>');
+ if (it.deadline) meta.push('<span>· due '+it.deadline+'</span>');
+ const right = inboxDeleteConfirmId === uid
+  ? '<div class="inbox-confirm">'+
+     '<span class="inbox-confirm-q">Delete?</span>'+
+     '<button class="del-no" onclick="event.stopPropagation();cancelDeleteInbox()">Cancel</button>'+
+     '<button class="del-yes" onclick="event.stopPropagation();confirmDeleteInbox(\''+it.source+'\',\''+it.id+'\')">Delete</button>'+
+    '</div>'
+  : '<button class="inbox-del" onclick="event.stopPropagation();requestDeleteInbox(\''+it.source+'\',\''+it.id+'\')"><svg width="15" height="15"><use href="#icon-trash"/></svg></button>';
+ return '<div class="inbox-row'+(it.done?' done':'')+'" id="inbox-'+it.source+'-'+it.id+'">'+
+   '<div class="inbox-check" onclick="event.stopPropagation();toggleInboxDone(\''+it.source+'\',\''+it.id+'\')">'+
     '<svg width="12" height="12"><use href="#icon-check-sm"/></svg>'+
    '</div>'+
    '<div class="inbox-main">'+
     '<div class="inbox-title">'+it.title.split('·')[0].trim()+'</div>'+
     '<div class="inbox-meta">'+meta.join('')+'</div>'+
    '</div>'+
+   right+
   '</div>';
- });
+}
+
+function renderInbox() {
+ const el = document.getElementById('calTasksView');
+ if (!el) return;
+ const items = getInboxItems();
+ const open = items.filter(i => !i.done);
+ const done = items.filter(i => i.done);
+ let html = '<div class="inbox-head"><span class="inbox-head-title">Tasks</span><span class="inbox-head-count">'+open.length+' open</span></div>';
+ if (!items.length) {
+  html += '<div class="inbox-empty">All caught up. Nothing waiting to be scheduled.</div>';
+  el.innerHTML = html;
+  return;
+ }
+ open.forEach(it => { html += inboxRowHtml(it); });
+ if (done.length) {
+  html += '<div class="inbox-divider">Completed · '+done.length+'</div>';
+  done.forEach(it => { html += inboxRowHtml(it); });
+ }
  el.innerHTML = html;
 }
 
-function completeInboxTask(source, id) {
- const row = document.getElementById('inbox-'+source+'-'+id);
- if (row) row.classList.add('done');
- const uid = source+':'+id;
- if (!completedInboxIds.includes(uid)) completedInboxIds.push(uid);
- setTimeout(() => {
-  removeTaskEverywhere(source, id);
+function toggleInboxDone(source, id) {
+ const uid = inboxUid(source, id);
+ const i = completedInboxIds.indexOf(uid);
+ if (i >= 0) {
+  completedInboxIds.splice(i, 1);
   syncAllViews();
- }, 260);
+ } else {
+  completedInboxIds.push(uid);
+  purgeTaskFromPlan(id);
+  const row = document.getElementById('inbox-'+source+'-'+id);
+  if (row) row.classList.add('done');
+  setTimeout(syncAllViews, 220);
+ }
+}
+
+function requestDeleteInbox(source, id) {
+ inboxDeleteConfirmId = inboxUid(source, id);
+ renderInbox();
+}
+
+function cancelDeleteInbox() {
+ inboxDeleteConfirmId = null;
+ renderInbox();
+}
+
+function confirmDeleteInbox(source, id) {
+ inboxDeleteConfirmId = null;
+ const uid = inboxUid(source, id);
+ const ci = completedInboxIds.indexOf(uid);
+ if (ci >= 0) completedInboxIds.splice(ci, 1);
+ removeTaskEverywhere(source, id);
+ syncAllViews();
 }
 
 function calShift(dir) {
@@ -3698,7 +3779,7 @@ function buildCandidatePool() {
   source: c.source || 'pendingTask',
   reason: c.reason || 'Fits this commute window.',
   original: c.original || c
- }));
+ })).filter(c => !completedInboxIds.includes(inboxUid(c.source, c.id)));
 }
 
 function parseEstMinutes(est) {
