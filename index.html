@@ -3976,7 +3976,7 @@ const SUPABASE_URL = 'https://xkkhrftmwsacvnkcfpwj.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhra2hyZnRtd3NhY3Zua2NmcHdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5OTc4NDcsImV4cCI6MjA5NjU3Mzg0N30.uWKmPvIAq7v7LXjR2v8C-8ysLsmgfuZOZt42NAuKQmA';
 // Admin = you. Only these signed-in emails see management controls
 // (mode, reset, clear). Everyone else just gets their calendar + sign out.
-const ADMIN_EMAILS = ['PASTE_YOUR_ADMIN_EMAIL'];
+const ADMIN_EMAILS = ['yi.wang.max@gmail.com'];
 function isAdmin() {
  return !!(sbUser && sbUser.email
   && ADMIN_EMAILS.map(function (e) { return String(e).toLowerCase(); }).indexOf(sbUser.email.toLowerCase()) !== -1);
