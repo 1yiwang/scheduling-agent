@@ -315,6 +315,43 @@
  .csc-task .csc-task-est { font-size: 12px; color: var(--ej-text-2); margin-left: auto; white-space: nowrap; }
  .csc-task svg { flex-shrink: 0; }
  .csc-reason { font-size: 12px; color: var(--ej-text-2); margin-top: 8px; line-height: 1.4; }
+.csc-tabs { display: flex; gap: 6px; margin-top: 12px; }
+.csc-tab {
+ flex: 1; min-width: 0; border: 1px solid var(--ej-line);
+ background: transparent; color: var(--ej-text-2); border-radius: 8px;
+ padding: 8px 6px; font-size: 11px; font-weight: 600; line-height: 1.25;
+ cursor: pointer; transition: all 0.12s;
+}
+.csc-tab.active { background: var(--ej-warning-bg); border-color: var(--ej-warning); color: var(--ej-text); }
+.csc-tab:active { transform: scale(0.98); }
+.csc-chip {
+ display: inline-flex; align-items: center; gap: 4px;
+ font-size: 10px; font-weight: 700; color: var(--ej-warning);
+ text-transform: uppercase; letter-spacing: 0.35px;
+}
+.csc-draft {
+ margin-top: 10px; padding: 10px 12px; border-radius: var(--radius);
+ background: var(--ej-info-bg); border: 1px solid var(--ej-info);
+}
+.csc-draft-label {
+ font-size: 10px; font-weight: 700; color: var(--ej-info);
+ text-transform: uppercase; letter-spacing: 0.35px; margin-bottom: 5px;
+}
+.csc-draft-text { font-size: 12px; color: var(--ej-text); line-height: 1.45; user-select: text; -webkit-user-select: text; }
+.csc-draft-input {
+ width: 100%; min-height: 64px; resize: vertical;
+ font-family: var(--font-body); font-size: 12px; line-height: 1.45;
+ color: var(--ej-text); background: var(--ej-card);
+ border: 1px solid var(--ej-info); border-radius: 6px; padding: 8px 9px;
+ outline: none; user-select: text; -webkit-user-select: text;
+}
+.csc-draft-input:focus { box-shadow: 0 0 0 2px var(--ej-info-bg); }
+.csc-draft-hint { font-size: 11px; color: var(--ej-text-3); margin-top: 5px; }
+.csc-learned {
+ margin-top: 10px; font-size: 12px; font-weight: 600;
+ color: var(--ej-complete); background: var(--ej-complete-bg);
+ border-radius: 7px; padding: 7px 9px;
+}
  .csc-actions { display: flex; gap: 8px; margin-top: 12px; }
  .csc-actions .csc-btn {
   flex: 1; height: 38px; border-radius: 8px; border: 1px solid var(--ej-line);
@@ -2591,9 +2628,10 @@ const eventsDB = {
  6: [
  {id:evId(6,1),t:'deep',type:'deep',title:'NEUR.ON Q3 Product Roadmap',time:'7:30–9:00 AM',startTime:'07:30',endTime:'09:00',duration:'1h 30m',loc:'Home · Fribourg',locationShort:'Home',participants:[],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Finalize Q3 product roadmap for NEUR.ON platform',agentNote:'Saturday morning · best focus window. Protected by preference learning.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
  {id:evId(6,2),t:'online',type:'online',title:'Noxtua Engineering Sync',time:'9:00–9:30 AM',startTime:'09:00',endTime:'09:30',duration:'30m',loc:'Zoom',locationShort:'Zoom',participants:['Noxtua Engineering team'],transitMode:null,transitDuration:null,transitWorkable:false,bufferBefore:2,bufferAfter:2,context:'Weekly sync · Noxtua legal AI product update',agentNote:'You take this from home. Online → no transit needed.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
- {id:evId(6,3),t:'transit',type:'transit',title:'Train: Fribourg → Zurich HB',time:'5:00–5:45 PM',startTime:'17:00',endTime:'17:45',duration:'45m',loc:'Fribourg → Zurich',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:15,bufferAfter:0,context:'Travel to Zurich for alumni dinner',agentNote:'Train = productive time. You\'ve taken calls on this route before.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
- {id:evId(6,4),t:'transit',type:'transit',title:'Walk: Zurich HB → Kronenhalle',time:'5:45–6:00 PM',startTime:'17:45',endTime:'18:00',duration:'15m',loc:'Zurich HB → Kronenhalle',locationShort:'Zurich HB',participants:[],transitMode:'walk',transitDuration:'15 min',transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Walk from station to restaurant',agentNote:'Walking = unavailable. Short walk through Zurich old town.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
- {id:evId(6,5),t:'social',type:'social',title:'Swiss Study Foundation Alumni Dinner',time:'6:00–9:30 PM',startTime:'18:00',endTime:'21:30',duration:'3h 30m',loc:'Kronenhalle · Zurich',locationShort:'Kronenhalle, Zurich',participants:['Swiss Study Foundation alumni'],transitMode:'walk',transitDuration:'15 min',transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Annual alumni gathering · good networking',agentNote:'Expected to run late. Social event · enjoy.',dressCode:'Business casual',returnInfo:'Last train to Fribourg ~11:30 PM',followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
+ {id:evId(6,3),t:'transit',type:'transit',title:'Train: Fribourg → Bern',time:'1:15–1:45 PM',startTime:'13:15',endTime:'13:45',duration:'30m',loc:'Fribourg → Bern',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'30 min',transitWorkable:true,bufferBefore:0,bufferAfter:0,context:'Short train hop before the Zurich trip. Demo window for commute learning.',agentNote:'Train = usable for a call, voice note, or light reading.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(6,4),t:'transit',type:'transit',title:'Train: Fribourg → Zurich HB',time:'5:00–5:45 PM',startTime:'17:00',endTime:'17:45',duration:'45m',loc:'Fribourg → Zurich',locationShort:'Fribourg HB',participants:[],transitMode:'train',transitDuration:'45 min',transitWorkable:true,bufferBefore:15,bufferAfter:0,context:'Travel to Zurich for alumni dinner',agentNote:'Train = productive time. You\'ve taken calls on this route before.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(6,5),t:'transit',type:'transit',title:'Walk: Zurich HB → Kronenhalle',time:'5:45–6:00 PM',startTime:'17:45',endTime:'18:00',duration:'15m',loc:'Zurich HB → Kronenhalle',locationShort:'Zurich HB',participants:[],transitMode:'walk',transitDuration:'15 min',transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Walk from station to restaurant',agentNote:'Walking = unavailable. Short walk through Zurich old town.',dressCode:null,returnInfo:null,followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''},
+ {id:evId(6,6),t:'social',type:'social',title:'Swiss Study Foundation Alumni Dinner',time:'6:00–9:30 PM',startTime:'18:00',endTime:'21:30',duration:'3h 30m',loc:'Kronenhalle · Zurich',locationShort:'Kronenhalle, Zurich',participants:['Swiss Study Foundation alumni'],transitMode:'walk',transitDuration:'15 min',transitWorkable:false,bufferBefore:0,bufferAfter:0,context:'Annual alumni gathering · good networking',agentNote:'Expected to run late. Social event · enjoy.',dressCode:'Business casual',returnInfo:'Last train to Fribourg ~11:30 PM',followUpNeeded:false,followUpBy:null,followUpStatus:'pending',followUpNote:''}
  ],
  // ── Jun 8 (Mon) ──
  8: [
@@ -2731,7 +2769,7 @@ const todayFreeSlots = [
 const pendingTasksDB = [
  { id:'p1', title:'Finalize SLTA quarterly newsletter · send to members',
  deadline:'Monday, Jun 8', priority:'High', estTime:'~2h',
- importance:'high', urgency:'high', // Important + Urgent · Do First
+  importance:'high', urgency:'high', kind:'solo', involves:null, // Important + Urgent · Do First
  suggestions: [
  { slot:'Sunday, Jun 7 · 9:00–11:00 AM', reason:'Best deep-work window. No transit. Home all morning.', best:true },
  { slot:'Monday, Jun 8 · 7:00–9:00 AM', reason:'Last chance before deadline. Tight but doable.', best:false }
@@ -2739,7 +2777,7 @@ const pendingTasksDB = [
  },
  { id:'p2', title:'NEUR.ON Series A investor deck · draft for review',
  deadline:'Wednesday, Jun 10', priority:'High', estTime:'~3h',
- importance:'high', urgency:'medium', // Important, Not Urgent · Schedule
+  importance:'high', urgency:'medium', kind:'solo', involves:null, // Important, Not Urgent · Schedule
  suggestions: [
  { slot:'Monday, Jun 8 · 8:00–11:00 AM', reason:'3h deep-work block. No meetings. Home office.', best:true },
  { slot:'Sunday, Jun 7 · 1:00–4:00 PM', reason:'Free afternoon. Agent will protect from interruptions.', best:false },
@@ -2748,7 +2786,7 @@ const pendingTasksDB = [
  },
  { id:'p3', title:'Swiss AI Center · board briefing for SME workshop',
  deadline:'Thursday, Jun 11', priority:'Medium', estTime:'~1.5h',
- importance:'medium', urgency:'low', // Not Important, Not Urgent · Do Later
+  importance:'medium', urgency:'low', kind:'think', involves:null, // Not Important, Not Urgent · Do Later
  suggestions: [
  { slot:'Monday, Jun 8 · 4:00–5:30 PM', reason:'After your last call. Good wind-down task.', best:true },
  { slot:'Tuesday, Jun 9 · 1:00–2:30 PM', reason:'Post-lunch. Light cognitive load is fine for briefing prep.', best:false }
@@ -2756,12 +2794,30 @@ const pendingTasksDB = [
  },
  { id:'p4', title:'Reply to Anna · SIX AI Event follow-up',
  deadline:'Sunday, Jun 7', priority:'Medium', estTime:'~15m',
- importance:'low', urgency:'high', // Not Important, Urgent · Delegate/Quick
+  importance:'low', urgency:'high', kind:'solo', involves:'Anna', // Not Important, Urgent · Delegate/Quick
  suggestions: [
  { slot:'Today · 12:30–12:45 PM', reason:'Quick reply. 15 min between lunch and next block.', best:true },
  { slot:'Today · 4:00–4:15 PM', reason:'End of afternoon lull. Knock it out fast.', best:false }
  ]
  }
+];
+
+const owedRepliesDB = [
+ { id:'or1', title:'Voice note to Anna · confirm Zurich arrival', estTime:'~10m', kind:'call',
+  importance:'medium', urgency:'high', involves:'Anna', source:'owedReply',
+  reason:'You owe Anna a quick confirmation before tonight.' },
+ { id:'or2', title:'Reply to Redalpine · investor follow-up', estTime:'~15m', kind:'solo',
+  importance:'high', urgency:'medium', involves:'Redalpine VC', source:'owedReply',
+  reason:'Short reply, but relationship-sensitive.' }
+];
+
+const pendingMeetingsDB = [
+ { id:'pm1', title:'15-min call with Lukas · unblock roadmap detail', estTime:'~15m', kind:'call',
+  importance:'high', urgency:'medium', involves:'Lukas', source:'pendingMeeting',
+  reason:'A short voice call fits a commute better than a focus block.' },
+ { id:'pm2', title:'Quick video check-in with Marie · SLTA minutes', estTime:'~20m', kind:'video',
+  importance:'medium', urgency:'medium', involves:'Marie', source:'pendingMeeting',
+  reason:'Train is high-quality enough for a short video check-in.' }
 ];
 
 // ====== SHARED EVENT RENDERING ======
@@ -3234,6 +3290,109 @@ function renderGreetingCard(unmarkedPast, pendingCount, freeHrs) {
 // ── Commute scheduling: match a light task to a workable transit window ──
 let commuteSuggestionDismissed = false;
 let currentCommuteSuggestion = null;
+let selectedCommuteOptionIdx = 0;
+let commuteDraftState = null;
+const LEARNING_STORAGE_KEY = 'schedulingAgentLearning.v1';
+let interactionLog = [];
+let prefStore = {};
+
+function loadLearningState() {
+ try {
+  const raw = localStorage.getItem(LEARNING_STORAGE_KEY);
+  if (!raw) return;
+  const parsed = JSON.parse(raw);
+  prefStore = parsed.prefStore || {};
+  interactionLog = parsed.interactionLog || [];
+ } catch (e) {
+  prefStore = {};
+  interactionLog = [];
+ }
+}
+
+function saveLearningState() {
+ try {
+  localStorage.setItem(LEARNING_STORAGE_KEY, JSON.stringify({ prefStore, interactionLog }));
+ } catch (e) {}
+}
+
+loadLearningState();
+
+function prefKey(dimension, key) {
+ return dimension + '::' + key;
+}
+
+function getPreference(dimension, key) {
+ const id = prefKey(dimension, key || 'unknown');
+ if (!prefStore[id]) {
+  prefStore[id] = {
+   dimension,
+   key: key || 'unknown',
+   alpha: 1,
+   beta: 1,
+   confidence: 0.5,
+   sampleCount: 0,
+   lastUpdated: null
+  };
+ }
+ return prefStore[id];
+}
+
+function betaConfidence(pref) {
+ const total = pref.alpha + pref.beta;
+ return total ? pref.alpha / total : 0.5;
+}
+
+function recordSignal(dimension, key, accepted) {
+ const pref = getPreference(dimension, key);
+ if (accepted) pref.alpha += 1;
+ else pref.beta += 1;
+ pref.sampleCount += 1;
+ pref.confidence = betaConfidence(pref);
+ pref.lastUpdated = new Date().toISOString();
+ saveLearningState();
+ return pref;
+}
+
+function prefScore(candidate) {
+ const kindPref = betaConfidence(getPreference('candidate_kind', candidate.kind));
+ const personPref = candidate.involves ? betaConfidence(getPreference('person', candidate.involves)) : 0.5;
+ const sourcePref = betaConfidence(getPreference('candidate_source', candidate.source || 'task'));
+ return (kindPref - 0.5) * 20 + (personPref - 0.5) * 12 + (sourcePref - 0.5) * 8;
+}
+
+function importanceScore(value) {
+ if (value === 'high') return 3;
+ if (value === 'medium') return 2;
+ return 1;
+}
+
+function buildCandidatePool() {
+ const pending = pendingTasksDB.map(t => ({
+  id: t.id,
+  title: t.title,
+  estTime: t.estTime,
+  kind: t.kind || 'solo',
+  importance: t.importance || 'medium',
+  urgency: t.urgency || 'medium',
+  involves: t.involves || null,
+  source: 'pendingTask',
+  reason: 'Pending task that can move out of a focus slot.',
+  original: t
+ }));
+ return pending.concat(owedRepliesDB, pendingMeetingsDB).map(c => ({
+  id: c.id,
+  title: c.title,
+  estTime: c.estTime,
+  estMinutes: c.estMinutes || parseEstMinutes(c.estTime),
+  kind: c.kind || 'solo',
+  importance: c.importance || 'medium',
+  urgency: c.urgency || 'medium',
+  involves: c.involves || null,
+  source: c.source || 'pendingTask',
+  reason: c.reason || 'Fits this commute window.',
+  original: c.original || c
+ }));
+}
 
 function parseEstMinutes(est) {
  if (!est) return 999;
@@ -3252,7 +3411,26 @@ function windowMinutes(ev) {
  return e - s;
 }
 
-function findCommuteScheduleSuggestion() {
+function candidateFitsWorkability(candidate, work) {
+ if (work.score >= 3) return true;
+ if (work.score === 2) return candidate.kind !== 'video';
+ if (work.score === 1) return candidate.kind === 'call' || candidate.kind === 'think';
+ return false;
+}
+
+function candidateKindLabel(kind) {
+ const map = { solo:'Task', call:'Call', video:'Video', think:'Think' };
+ return map[kind] || 'Task';
+}
+
+function scoreCandidate(candidate) {
+ return importanceScore(candidate.importance) * 18 +
+  importanceScore(candidate.urgency) * 14 +
+  Math.max(0, 30 - candidate.estMinutes) * 0.2 +
+  prefScore(candidate);
+}
+
+function findCommuteSuggestions() {
  const key = '2026-6', today = 6;
  const evts = (eventsDB[key]||{})[today]||[];
  // Upcoming transit windows you can actually work in (score >= 2), not already filled
@@ -3260,57 +3438,215 @@ function findCommuteScheduleSuggestion() {
   .filter(e => e.type==='transit' && getWorkability(e.transitMode).score >= 2 && !(e.commuteTasks && e.commuteTasks.length))
   .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
  if (!windows.length) return null;
- // A light pending task (<= 30 min) that could ride along instead of taking a focus slot
- const task = pendingTasksDB.find(t => parseEstMinutes(t.estTime) <= 30);
- if (!task) return null;
- const win = windows.find(w => windowMinutes(w) >= parseEstMinutes(task.estTime));
- if (!win) return null;
- return { window: win, task: task, work: getWorkability(win.transitMode) };
+ const candidates = buildCandidatePool();
+ for (const win of windows) {
+  const work = getWorkability(win.transitMode);
+  const winMins = windowMinutes(win);
+  const ranked = candidates
+   .filter(c => c.estMinutes <= winMins && candidateFitsWorkability(c, work))
+   .map(c => ({
+    ...c,
+    score: scoreCandidate(c),
+    fitReason: work.reason + ' · ' + c.estMinutes + ' min fits in this ' + winMins + '-min window.'
+   }))
+   .sort((a,b)=>b.score-a.score)
+   .slice(0,3);
+  if (ranked.length) return { window: win, options: ranked, work, selectedIdx: selectedCommuteOptionIdx || 0 };
+ }
+ return null;
+}
+
+function findCommuteScheduleSuggestion() {
+ return findCommuteSuggestions();
 }
 
 function renderCommuteSuggestCard(cs) {
  const startDisp = cs.window.time.split('–')[0].trim();
  const mode = cs.window.transitMode;
  const mins = windowMinutes(cs.window);
- const shortTitle = cs.task.title.split('·')[0].trim();
+ const activeIdx = Math.min(selectedCommuteOptionIdx, cs.options.length-1);
+ const selected = cs.options[activeIdx] || cs.options[0];
+ const shortTitle = selected.title.split('·')[0].trim();
+ const isOther = !!selected.involves;
+ let tabs = '<div class="csc-tabs">';
+ cs.options.forEach((opt, idx) => {
+  const active = idx === activeIdx ? ' active' : '';
+  tabs += '<button class="csc-tab'+active+'" onclick="event.stopPropagation();selectCommuteOption('+idx+')">'+
+   '<span class="csc-chip">'+candidateKindLabel(opt.kind)+'</span><br>'+opt.title.split('·')[0].trim()+
+  '</button>';
+ });
+ tabs += '</div>';
+ const draftHtml = (commuteDraftState && commuteDraftState.candidateId === selected.id) ?
+  '<div class="csc-draft">'+
+   '<div class="csc-draft-label">'+(commuteDraftState.sent ? 'Draft sent' : 'Your message draft · edit before sending')+'</div>'+
+   (commuteDraftState.sent ?
+    '<div class="csc-draft-text" id="commuteDraftText">'+commuteDraftState.text+'</div>' :
+    '<textarea class="csc-draft-input" id="commuteDraftInput" onclick="event.stopPropagation()" oninput="commuteDraftState.text=this.value">'+commuteDraftState.text+'</textarea>'+
+    '<div class="csc-draft-hint">AI drafted this — make it yours, then copy or mark sent.</div>')+
+  '</div>' : '';
+ const learnedHtml = (commuteDraftState && commuteDraftState.learned) ?
+  '<div class="csc-learned"><svg width="13" height="13"><use href="#icon-check-sm"/></svg> Learned · next suggestions will favor '+candidateKindLabel(selected.kind).toLowerCase()+'s like this</div>' : '';
  return '<div class="commute-suggest-card anim-in" id="commuteSuggestCard">'+
   '<div class="csc-header"><svg width="16" height="16"><use href="#icon-field-transit"/></svg> Agent suggestion · commute</div>'+
   '<div class="csc-headline">Your '+startDisp+' '+mode+' is a '+mins+'-min mobile-office window.</div>'+
-  '<div class="csc-sub">Use it for a light task instead of burning a focus slot?</div>'+
+  '<div class="csc-sub">Pick one use for this commute. I will remember what you choose.</div>'+
+  tabs+
   '<div class="csc-task">'+
    '<svg width="15" height="15"><use href="#icon-check-sm"/></svg>'+
    '<span class="csc-task-title">'+shortTitle+'</span>'+
-   '<span class="csc-task-est">'+cs.task.estTime+'</span>'+
+   '<span class="csc-task-est">'+selected.estTime+'</span>'+
   '</div>'+
-  '<div class="csc-reason">'+cs.work.reason+' — '+cs.task.estTime.replace('~','')+' fits comfortably.</div>'+
+  '<div class="csc-reason">'+selected.fitReason+' '+(selected.involves ? 'Involves '+selected.involves+'; I will draft the message first.' : selected.reason)+'</div>'+
+  draftHtml+
+  learnedHtml+
   '<div class="csc-actions">'+
    '<button class="csc-btn" onclick="event.stopPropagation();dismissCommuteSchedule()"><svg width="14" height="14"><use href="#icon-dismiss-sm"/></svg> Not now</button>'+
-   '<button class="csc-btn confirm" onclick="event.stopPropagation();confirmCommuteSchedule()"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Schedule in commute</button>'+
+   (commuteDraftState && commuteDraftState.candidateId === selected.id && !commuteDraftState.sent ?
+    '<button class="csc-btn" onclick="event.stopPropagation();copyCommuteDraft()">Copy</button>'+
+    '<button class="csc-btn confirm" onclick="event.stopPropagation();markCommuteDraftSent()"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Mark sent</button>' :
+    '<button class="csc-btn confirm" onclick="event.stopPropagation();confirmCommuteSchedule()"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> '+(isOther?'Draft message':'Schedule in commute')+'</button>')+
   '</div>'+
  '</div>';
+}
+
+function selectCommuteOption(idx) {
+ selectedCommuteOptionIdx = idx;
+ commuteDraftState = null;
+ renderTodayPage();
 }
 
 function confirmCommuteSchedule() {
  const cs = currentCommuteSuggestion;
  if (!cs) return;
+ const candidate = cs.options[Math.min(selectedCommuteOptionIdx, cs.options.length-1)] || cs.options[0];
+ if (!candidate) return;
+ if (candidate.involves && !(commuteDraftState && commuteDraftState.candidateId === candidate.id)) {
+  commuteDraftState = {
+   candidateId: candidate.id,
+   text: buildCommuteDraft(candidate, cs.window),
+   sent: false,
+   learned: false
+  };
+  recordCommuteInteraction(cs, candidate, 'drafted');
+  renderTodayPage();
+  showToast('Draft ready for '+candidate.involves);
+  return;
+ }
  const ev = cs.window;
- const shortTitle = cs.task.title.split('·')[0].trim();
+ const shortTitle = candidate.title.split('·')[0].trim();
  ev.commuteTasks = ev.commuteTasks || [];
- ev.commuteTasks.push({ title: shortTitle, est: cs.task.estTime });
+ ev.commuteTasks.push({ title: shortTitle, est: candidate.estTime });
  ev.agentNote = (ev.agentNote ? ev.agentNote+' ' : '') + 'Scheduled "'+shortTitle+'" during this commute.';
- const idx = pendingTasksDB.findIndex(t => t.id === cs.task.id);
- if (idx >= 0) pendingTasksDB.splice(idx, 1);
+ removeCandidateFromSource(candidate);
+ recordCommuteInteraction(cs, candidate, 'accepted');
  const startDisp = ev.time.split('–')[0].trim();
+ selectedCommuteOptionIdx = 0;
+ commuteDraftState = null;
  currentCommuteSuggestion = null;
  renderTodayPage();
- showToast('Scheduled into your '+startDisp+' '+ev.transitMode+' · '+shortTitle);
+ showToast('Scheduled into your '+startDisp+' '+ev.transitMode+' · learned this preference');
 }
 
 function dismissCommuteSchedule() {
+ if (currentCommuteSuggestion && currentCommuteSuggestion.options && currentCommuteSuggestion.options.length) {
+  const candidate = currentCommuteSuggestion.options[Math.min(selectedCommuteOptionIdx, currentCommuteSuggestion.options.length-1)] || currentCommuteSuggestion.options[0];
+  recordCommuteInteraction(currentCommuteSuggestion, candidate, 'dismissed');
+ }
  commuteSuggestionDismissed = true;
  currentCommuteSuggestion = null;
+ commuteDraftState = null;
  renderTodayPage();
  showToast('Dismissed — commute left free');
+}
+
+function buildCommuteDraft(candidate, window) {
+ const startDisp = window.time.split('–')[0].trim();
+ return 'Hi '+candidate.involves+', I have a '+window.transitMode+' window at '+startDisp+
+  ' and can use it for "'+candidate.title.split('·')[0].trim()+'". Does that work for you?';
+}
+
+function removeCandidateFromSource(candidate) {
+ if (candidate.source === 'pendingTask') {
+  const idx = pendingTasksDB.findIndex(t => t.id === candidate.id);
+  if (idx >= 0) pendingTasksDB.splice(idx, 1);
+ } else if (candidate.source === 'owedReply') {
+  const idx = owedRepliesDB.findIndex(t => t.id === candidate.id);
+  if (idx >= 0) owedRepliesDB.splice(idx, 1);
+ } else if (candidate.source === 'pendingMeeting') {
+  const idx = pendingMeetingsDB.findIndex(t => t.id === candidate.id);
+  if (idx >= 0) pendingMeetingsDB.splice(idx, 1);
+ }
+}
+
+function recordCommuteInteraction(cs, candidate, action) {
+ if (!candidate) return;
+ interactionLog.push({
+  ts: new Date().toISOString(),
+  action,
+  context: {
+   windowId: cs.window.id,
+   route: cs.window.loc,
+   mode: cs.window.transitMode,
+   minutes: windowMinutes(cs.window)
+  },
+  top3: (cs.options || []).map(o => ({ id:o.id, kind:o.kind, source:o.source, involves:o.involves || null })),
+  chosenIdx: selectedCommuteOptionIdx,
+  candidateId: candidate.id,
+  kind: candidate.kind,
+  source: candidate.source,
+  involves: candidate.involves || null,
+  draftGenerated: action === 'drafted',
+  draftSent: action === 'sent'
+ });
+ if (action === 'accepted' || action === 'sent') {
+  recordSignal('candidate_kind', candidate.kind, true);
+  recordSignal('candidate_source', candidate.source || 'pendingTask', true);
+  if (candidate.involves) recordSignal('person', candidate.involves, true);
+ } else if (action === 'dismissed') {
+  recordSignal('candidate_kind', candidate.kind, false);
+  recordSignal('candidate_source', candidate.source || 'pendingTask', false);
+  if (candidate.involves) recordSignal('person', candidate.involves, false);
+ }
+ saveLearningState();
+}
+
+function syncCommuteDraftFromInput() {
+ const input = document.getElementById('commuteDraftInput');
+ if (input && commuteDraftState) commuteDraftState.text = input.value;
+}
+
+function copyCommuteDraft() {
+ if (!commuteDraftState) return;
+ syncCommuteDraftFromInput();
+ if (navigator.clipboard && navigator.clipboard.writeText) {
+  navigator.clipboard.writeText(commuteDraftState.text).then(()=>showToast('Draft copied')).catch(()=>showToast('Draft ready to copy'));
+ } else {
+  showToast('Draft ready to copy');
+ }
+}
+
+function markCommuteDraftSent() {
+ const cs = currentCommuteSuggestion;
+ if (!cs || !commuteDraftState) return;
+ syncCommuteDraftFromInput();
+ const candidate = cs.options.find(o => o.id === commuteDraftState.candidateId);
+ commuteDraftState.sent = true;
+ commuteDraftState.learned = true;
+ if (candidate) {
+  recordCommuteInteraction(cs, candidate, 'sent');
+  const ev = cs.window;
+  const shortTitle = candidate.title.split('·')[0].trim();
+  ev.commuteTasks = ev.commuteTasks || [];
+  if (!ev.commuteTasks.some(t => t.title === shortTitle)) {
+   ev.commuteTasks.push({ title: shortTitle, est: candidate.estTime });
+   ev.agentNote = (ev.agentNote ? ev.agentNote+' ' : '') + 'Scheduled "'+shortTitle+'" during this commute after message approval.';
+  }
+  removeCandidateFromSource(candidate);
+ }
+ selectedCommuteOptionIdx = 0;
+ currentCommuteSuggestion = null;
+ renderTodayPage();
+ showToast('Marked sent · scheduled into commute · learned this preference');
 }
 
 function renderTodayPage() {
