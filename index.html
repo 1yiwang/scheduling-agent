@@ -1445,6 +1445,49 @@
  .an-seg-btn.active {
  background: var(--ej-info); color: #fff;
  }
+ .inbox-head {
+ display: flex; align-items: baseline; justify-content: space-between;
+ margin: 2px 2px 10px;
+ }
+ .inbox-head-title { font-size: 15px; font-weight: 650; }
+ .inbox-head-count { font-size: 12px; color: var(--ej-text-2); }
+ .inbox-row {
+ display: flex; align-items: flex-start; gap: 11px;
+ background: var(--ej-card); border-radius: 12px;
+ padding: 13px 14px; margin-bottom: 8px;
+ transition: opacity .25s ease, transform .25s ease;
+ }
+ .inbox-row.done { opacity: 0; transform: translateX(12px); }
+ .inbox-check {
+ flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px;
+ border-radius: 50%; border: 1.8px solid var(--ej-line);
+ cursor: pointer; display: flex; align-items: center; justify-content: center;
+ color: transparent; transition: border-color .15s, background .15s, color .15s;
+ }
+ .inbox-check:hover { border-color: var(--ej-info); }
+ .inbox-row.done .inbox-check {
+ background: var(--ej-info); border-color: var(--ej-info); color: #fff;
+ }
+ .inbox-main { flex: 1; min-width: 0; }
+ .inbox-title {
+ font-size: 14px; font-weight: 550; line-height: 1.35;
+ }
+ .inbox-row.done .inbox-title { text-decoration: line-through; color: var(--ej-text-2); }
+ .inbox-meta {
+ display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+ margin-top: 5px; font-size: 11.5px; color: var(--ej-text-2);
+ }
+ .inbox-tag {
+ font-size: 10px; font-weight: 650; letter-spacing: .02em;
+ padding: 2px 7px; border-radius: 5px;
+ background: var(--ej-info-bg); color: var(--ej-info);
+ }
+ .inbox-tag.owe { background: rgba(214,138,60,.12); color: var(--ej-amber, #c4842a); }
+ .inbox-tag.meet { background: rgba(120,120,170,.14); color: var(--ej-text-2); }
+ .inbox-empty {
+ text-align: center; color: var(--ej-text-2); font-size: 13px;
+ padding: 40px 20px;
+ }
  .analytics-card {
  background: var(--ej-card); border-radius: var(--radius);
  padding: 16px 18px; margin-bottom: 10px;
@@ -1651,6 +1694,12 @@
 
  <!-- PAGE: Calendar -->
  <div class="page" id="page-calendar">
+ <div class="an-seg">
+ <button class="an-seg-btn active" id="calSegCal" onclick="setCalView('calendar')">Calendar</button>
+ <button class="an-seg-btn" id="calSegTask" onclick="setCalView('tasks')">Tasks</button>
+ </div>
+
+ <div id="calCalendarView">
  <div class="cal-header-row">
  <div class="cal-month" id="calMonthLabel">June 2026</div>
  <div class="cal-nav">
@@ -1673,6 +1722,9 @@
  Add Event to This Day
  </button>
  </div>
+ </div>
+
+ <div id="calTasksView" style="display:none;"></div>
  </div>
 
  <!-- PAGE: Coordinate -->
@@ -3274,6 +3326,73 @@ function renderCal() {
  }
 }
 
+let calView = 'calendar';
+let completedInboxIds = [];
+
+function setCalView(view) {
+ calView = view;
+ const isCal = view === 'calendar';
+ document.getElementById('calSegCal').classList.toggle('active', isCal);
+ document.getElementById('calSegTask').classList.toggle('active', !isCal);
+ document.getElementById('calCalendarView').style.display = isCal ? '' : 'none';
+ document.getElementById('calTasksView').style.display = isCal ? 'none' : '';
+ const sub = document.getElementById('pageSubtitle');
+ if (sub) sub.textContent = isCal ? 'Browse any day · tap to expand' : 'Everything waiting to be scheduled';
+ if (!isCal) renderInbox();
+}
+
+function getInboxItems() {
+ const items = [];
+ pendingTasksDB.forEach(t => items.push({ id:t.id, source:'pendingTask', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:t.deadline||null }));
+ owedRepliesDB.forEach(t => items.push({ id:t.id, source:'owedReply', title:t.title, est:t.estTime, kind:t.kind||'solo', involves:t.involves||null, deadline:null }));
+ pendingMeetingsDB.forEach(t => items.push({ id:t.id, source:'pendingMeeting', title:t.title, est:t.estTime, kind:t.kind||'call', involves:t.involves||null, deadline:null }));
+ return items.filter(i => !completedInboxIds.includes(i.source+':'+i.id));
+}
+
+function renderInbox() {
+ const el = document.getElementById('calTasksView');
+ if (!el) return;
+ const items = getInboxItems();
+ const tagCls = { pendingTask:'', owedReply:'owe', pendingMeeting:'meet' };
+ const tagLabel = { pendingTask:'Task', owedReply:'Owe', pendingMeeting:'Meeting' };
+ let html = '<div class="inbox-head"><span class="inbox-head-title">Tasks</span><span class="inbox-head-count">'+items.length+' open</span></div>';
+ if (!items.length) {
+  html += '<div class="inbox-empty">All caught up. Nothing waiting to be scheduled.</div>';
+  el.innerHTML = html;
+  return;
+ }
+ items.forEach(it => {
+  const meta = [];
+  meta.push('<span class="inbox-tag '+tagCls[it.source]+'">'+tagLabel[it.source]+'</span>');
+  if (it.est) meta.push('<span>'+it.est+'</span>');
+  if (it.involves) meta.push('<span>· '+it.involves+'</span>');
+  if (it.deadline) meta.push('<span>· due '+it.deadline+'</span>');
+  html += '<div class="inbox-row" id="inbox-'+it.source+'-'+it.id+'">'+
+   '<div class="inbox-check" onclick="completeInboxTask(\''+it.source+'\',\''+it.id+'\')">'+
+    '<svg width="12" height="12"><use href="#icon-check-sm"/></svg>'+
+   '</div>'+
+   '<div class="inbox-main">'+
+    '<div class="inbox-title">'+it.title.split('·')[0].trim()+'</div>'+
+    '<div class="inbox-meta">'+meta.join('')+'</div>'+
+   '</div>'+
+  '</div>';
+ });
+ el.innerHTML = html;
+}
+
+function completeInboxTask(source, id) {
+ const row = document.getElementById('inbox-'+source+'-'+id);
+ if (row) row.classList.add('done');
+ const uid = source+':'+id;
+ if (!completedInboxIds.includes(uid)) completedInboxIds.push(uid);
+ const dbs = { pendingTask: pendingTasksDB, owedReply: owedRepliesDB, pendingMeeting: pendingMeetingsDB };
+ const db = dbs[source];
+ setTimeout(() => {
+  if (db) { const i = db.findIndex(t => t.id === id); if (i >= 0) db.splice(i, 1); }
+  renderInbox();
+ }, 260);
+}
+
 function calShift(dir) {
  calMonth+=dir;
  if (calMonth>12){calMonth=1;calYear++;}
@@ -3299,7 +3418,22 @@ function openDay(day) {
  const sorted = [...evts].sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
  const today = 6; // June 6 demo fixed
  const isPastDay = day < today;
- content.innerHTML = sorted.map(e => renderEventCard(e, {isPast: isPastDay, compact: true, showEdit: true})).join('');
+ const isToday = day === today && calYear === 2026 && calMonth === 6;
+ const simNow = '11:00';
+ let nowPlaced = false;
+ let out = '';
+ sorted.forEach(e => {
+ if (isToday && !nowPlaced && (e.startTime || '') >= simNow) {
+  out += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
+  nowPlaced = true;
+ }
+ const past = isPastDay || (isToday && (e.startTime || '') < simNow);
+ out += renderEventCard(e, {isPast: past, compact: true, showEdit: true});
+ });
+ if (isToday && !nowPlaced) {
+  out += '<div class="now-marker"><span class="now-line"></span><span class="now-label">Now · '+simNow+'</span><span class="now-line"></span></div>';
+ }
+ content.innerHTML = out;
  }
 
  document.getElementById('dayDetail').classList.add('show');
