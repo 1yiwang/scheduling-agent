@@ -1,16 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Scheduling Agent – Prototype</title>
-<script data-theme-init>
- // Set theme before paint to avoid a flash. Follows OS; default light.
- (function () {
-  var prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  if (!prefersDark) document.documentElement.setAttribute('data-theme', 'light');
- })();
-</script>
 <style>
  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -5751,17 +5744,8 @@ function renderAnalyticsPage() {
  content.innerHTML = html;
 }
 
-// ====== THEME — always follows the OS (light by default; no in-app toggle) ======
-function applySystemTheme() {
- const prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
- // No attribute = dark styling; [data-theme="light"] = light. Default (no OS preference) → light.
- if (prefersDark) document.documentElement.removeAttribute('data-theme');
- else document.documentElement.setAttribute('data-theme', 'light');
-}
-applySystemTheme();
-if (window.matchMedia) {
- window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySystemTheme);
-}
+// ====== THEME — always light (data-theme="light" is hardcoded on <html>) ======
+// Like the CV site: light-only, never follows the OS. No toggle, no flash.
 // ====== INIT ======
 function updateStatusTime() {
  const now = new Date();
