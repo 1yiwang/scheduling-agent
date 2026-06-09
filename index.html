@@ -1147,6 +1147,22 @@
  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
  }
  .overlay.show { display: flex; }
+ .settings-sheet {
+ background: var(--ej-overlay); border-radius: 20px 20px 0 0;
+ width: 100%; max-width: var(--max-w);
+ padding: 16px 20px 28px;
+ animation: sheetUp 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+ }
+ .settings-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+ .settings-title { font-size: 18px; font-weight: 700; color: var(--ej-text); }
+ .settings-x { background: none; border: none; color: var(--ej-text-2); cursor: pointer; padding: 4px; display: flex; }
+ .settings-group { margin-bottom: 8px; }
+ .settings-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ej-text-2); margin-bottom: 10px; }
+ .settings-seg { display: flex; gap: 4px; background: var(--ej-bg); border-radius: 12px; padding: 4px; }
+ .settings-seg-btn { flex: 1; border: none; background: transparent; color: var(--ej-text-2); font-size: 14px; font-weight: 600; padding: 9px 0; border-radius: 9px; cursor: pointer; transition: all 0.18s; }
+ .settings-seg-btn.active { background: var(--ej-card); color: var(--ej-text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+ .settings-hint { font-size: 13px; color: var(--ej-text-2); line-height: 1.5; margin-top: 12px; }
+ .settings-danger { margin-top: 14px; width: 100%; border: 1px solid var(--ej-danger, #e5484d); background: transparent; color: var(--ej-danger, #e5484d); font-size: 13px; font-weight: 600; padding: 10px 0; border-radius: 10px; cursor: pointer; }
  .overlay-sheet {
  background: var(--ej-overlay); border-radius: 20px 20px 0 0;
  width: 100%; max-width: var(--max-w); min-height: 300px;
@@ -1726,6 +1742,9 @@
  <div class="navbar-subtitle" id="pageSubtitle">Saturday, June 6, 2026</div>
  </div>
  <div style="display:flex;align-items:center;gap:8px;">
+ <button class="theme-toggle" onclick="openSettings()" aria-label="Settings" id="settingsBtn">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+ </button>
  <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" id="themeToggle">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
  </button>
@@ -1961,6 +1980,25 @@
   <button class="ios-btn primary" style="flex:1;" id="conflictConfirmBtn" onclick="applyConflictResolution()" disabled>Choose a solution</button>
  </div>
  </div>
+ </div>
+</div>
+
+<!-- Settings -->
+<div class="overlay" id="settingsOverlay" onclick="if(event.target===this)closeSettings()">
+ <div class="settings-sheet">
+  <div class="settings-head">
+   <div class="settings-title">Settings</div>
+   <button class="settings-x" onclick="closeSettings()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="settings-group">
+   <div class="settings-label">Data</div>
+   <div class="settings-seg">
+    <button class="settings-seg-btn" id="modeSegDemo" onclick="setAppMode('demo')">Demo</button>
+    <button class="settings-seg-btn" id="modeSegLive" onclick="setAppMode('live')">My data</button>
+   </div>
+   <div class="settings-hint" id="modeHint"></div>
+   <button class="settings-danger" id="modeClearBtn" onclick="clearLiveData()" style="display:none;">Clear my data</button>
+  </div>
  </div>
 </div>
 
@@ -2571,6 +2609,7 @@ function finalizeEvent(event) {
 
  // Add event
  eventsDB[monthKey][dayNum].push(event);
+ saveAppData();
 
  // Show success
  document.getElementById('captureStepConflict').style.display = 'none';
@@ -3846,6 +3885,78 @@ function saveLearningState() {
 
 loadLearningState();
 
+// ══════════ APP DATA PERSISTENCE · demo seed vs your live data ══════════
+const APP_DATA_KEY = 'schedulingAgentData.v1';
+const APP_MODE_KEY = 'schedulingAgentMode.v1';
+let appMode = (function () { try { return localStorage.getItem(APP_MODE_KEY) || 'demo'; } catch (e) { return 'demo'; } })();
+
+function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
+function snapshotDBs() {
+ return { eventsDB, runtimeEvents, pendingTasksDB, owedRepliesDB, pendingMeetingsDB, completionDB, completedInboxIds };
+}
+function replaceObjInPlace(target, src) { Object.keys(target).forEach(k => delete target[k]); Object.assign(target, src || {}); }
+function replaceArrInPlace(target, src) { target.length = 0; (src || []).forEach(x => target.push(x)); }
+function loadDBsFrom(data) {
+ replaceObjInPlace(eventsDB, data.eventsDB);
+ replaceObjInPlace(runtimeEvents, data.runtimeEvents);
+ replaceArrInPlace(pendingTasksDB, data.pendingTasksDB);
+ replaceArrInPlace(owedRepliesDB, data.owedRepliesDB);
+ replaceArrInPlace(pendingMeetingsDB, data.pendingMeetingsDB);
+ replaceObjInPlace(completionDB, data.completionDB);
+ completedInboxIds = data.completedInboxIds || [];
+}
+function emptyDBs() {
+ loadDBsFrom({ eventsDB: { '2026-6': {} }, runtimeEvents: {}, pendingTasksDB: [], owedRepliesDB: [], pendingMeetingsDB: [], completionDB: {}, completedInboxIds: [] });
+}
+// Capture the in-code demo dataset once, pristine, before any mutation.
+const DEMO_SEED = deepClone(snapshotDBs());
+
+function saveAppData() {
+ if (appMode !== 'live') return;
+ try { localStorage.setItem(APP_DATA_KEY, JSON.stringify(snapshotDBs())); } catch (e) {}
+}
+function applyAppMode() {
+ if (appMode === 'live') {
+  let raw = null;
+  try { raw = localStorage.getItem(APP_DATA_KEY); } catch (e) {}
+  if (raw) { try { loadDBsFrom(JSON.parse(raw)); } catch (e) { emptyDBs(); } }
+  else { emptyDBs(); }
+ } else {
+  loadDBsFrom(deepClone(DEMO_SEED));
+ }
+}
+function setAppMode(mode) {
+ appMode = mode;
+ try { localStorage.setItem(APP_MODE_KEY, mode); } catch (e) {}
+ applyAppMode();
+ if (typeof closeDayDetail === 'function') closeDayDetail();
+ renderSettings();
+ syncAllViews();
+ if (document.getElementById('calGrid')) renderCal();
+ showToast(mode === 'live' ? 'Your data · saved on this device' : 'Demo data loaded');
+}
+function clearLiveData() {
+ try { localStorage.removeItem(APP_DATA_KEY); } catch (e) {}
+ if (appMode === 'live') { emptyDBs(); renderSettings(); syncAllViews(); if (document.getElementById('calGrid')) renderCal(); showToast('Cleared · starting fresh'); }
+}
+applyAppMode();
+
+function renderSettings() {
+ const demo = document.getElementById('modeSegDemo');
+ const live = document.getElementById('modeSegLive');
+ const hint = document.getElementById('modeHint');
+ const clearBtn = document.getElementById('modeClearBtn');
+ if (!demo || !live) return;
+ demo.classList.toggle('active', appMode === 'demo');
+ live.classList.toggle('active', appMode === 'live');
+ if (hint) hint.textContent = appMode === 'live'
+  ? 'Your own events & tasks, saved on this device. Changes stay after refresh.'
+  : 'A sample day for showing the app. Nothing you change is saved.';
+ if (clearBtn) clearBtn.style.display = appMode === 'live' ? 'block' : 'none';
+}
+function openSettings() { renderSettings(); document.getElementById('settingsOverlay').classList.add('show'); }
+function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
+
 function prefKey(dimension, key) {
  return dimension + '::' + key;
 }
@@ -4206,6 +4317,7 @@ function syncAllViews() {
  if (typeof calView !== 'undefined' && calView === 'tasks' && document.getElementById('calTasksView')) renderInbox();
  const analytics = document.getElementById('page-analytics');
  if (analytics && analytics.classList.contains('active')) renderAnalyticsPage();
+ saveAppData();
 }
 
 function removeCandidateFromSource(candidate) {
@@ -4905,6 +5017,7 @@ function confirmFreeSlot(fi) {
 
  // Also store in runtimeEvents for findEventById (belt-and-suspenders)
  runtimeEvents[evId] = event;
+ saveAppData();
 
  // Remove accepted slot and all conflicting slots from free slots
  const accStart = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
@@ -4972,6 +5085,7 @@ function deleteEvent(eventId) {
     if (Object.keys(eventsDB[monthKey]).length === 0) delete eventsDB[monthKey];
     // Also remove from runtimeEvents
     delete runtimeEvents[eventId];
+    saveAppData();
     // Collapse card with animation before re-render
     const card = document.getElementById('card-'+eventId);
     if (card) {
@@ -4999,6 +5113,7 @@ function deleteEvent(eventId) {
  if (runtimeEvents[eventId]) {
   const deleted = runtimeEvents[eventId];
   delete runtimeEvents[eventId];
+  saveAppData();
   const card = document.getElementById('card-'+eventId);
   if (card) {
    card.style.transition = 'opacity 0.3s, max-height 0.3s, margin 0.3s, padding 0.3s';
@@ -5332,6 +5447,7 @@ function saveEventEdit(eventId) {
 
  // Learn the corrected duration → feeds predictDurationMinutes (and Stage A features)
  recordObservedDuration(e.type, (e.participants && e.participants[0]) || null, windowMinutes(e));
+ saveAppData();
 
  // Re-render the card
  const card = document.querySelector('[data-event-id="'+eventId+'"]');
@@ -5382,6 +5498,7 @@ function cancelEdit(eventId) {
 // ====== COMPLETION TRACKING ======
 function markComplete(eventId, status) {
  completionDB[eventId] = status;
+ saveAppData();
 
  // Update the event card + visual state
  const card = document.querySelector('[data-event-id="'+eventId+'"]');

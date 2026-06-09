@@ -502,6 +502,27 @@ Outlook / Graph ─┼─→ [同步适配器 CalendarProvider] ──┐ 归一
 4. **OAuth tokens**（加密）。
 5. **用户偏好档案**（CLAUDE.md 式声明）。
 
+### 已落地 ✅：Demo 数据 vs 我的数据（双模式持久化）
+> 一份代码同时满足两个需求：**给别人看用 Demo 故事，自己用从零开始且数据不丢。**
+- 启动时捕获代码里的精编数据为 `DEMO_SEED`（pristine 克隆），两模式切换：
+  - **Demo 模式**（默认）：加载 `DEMO_SEED`，任何改动**不落盘**——展示永远不会污染真实数据。
+  - **My data 模式**：从 `localStorage` 读回，首次为空 → 白板起步；每次变更 `saveAppData()` 落盘，刷新不丢。
+- 落盘的 DB：`eventsDB / runtimeEvents / pendingTasksDB / owedRepliesDB / pendingMeetingsDB / completionDB / completedInboxIds`。
+- 写入钩子：`syncAllViews()` + 各 mutation 点（capture 提交、accept 建议、删除、编辑、完成）。`appMode!=='live'` 时静默跳过。
+- 入口：导航栏齿轮 → Settings 浮层（Demo / My data 切换 + Clear my data）。
+- 接口与未来 Stage 1 后端一致：`snapshotDBs / loadDBsFrom / saveAppData / applyAppMode`，换实现不动引擎。
+- 测试：`tests/persistence.test.js`（seed 捕获、白板清空、demo 不落盘、快照 roundtrip 无损）。
+
+### 部署（线 A · 给别人展示）
+- 单文件静态页 → GitHub Pages：Repo → Settings → Pages → Source: `Deploy from a branch` → `main` / `root` → 几分钟后 `https://1yiwang.github.io/scheduling-agent/`。
+- 给别人看走 Demo 模式（默认即是）；自己用切 My data。
+
+### 语音输入路线（线 B · Step 2，待做）
+> 决定：STT 用 **云端 Whisper**（更准、支持中英混说）；key 走 **serverless 代理**（产品要给别人用，绝不前端裸 key）。
+- 流水线：按住说话 → ① 录音上传代理（Vercel/CF Workers 藏 key）→ ② Whisper 转写 → ③ LLM function-calling 解析为结构化事件（**注入当前真实日期**才能解「明天下午三点」）→ ④ **可编辑草稿卡**（哪天/几点/多久全可改）→ ⑤ 确认才写日历 → ⑥ 纠正进 `interactionLog`，越用越准。
+- 「识别/写入出错」对策：**绝不自动写**，永远先给可编辑草稿；解析置信度低 → 高亮该项追问一句而非猜。
+- 现有 `startCapture` 多步向导（目前模拟、写死日期）将被这条真流水线替换。
+
 ---
 
 ## 北极星：学习成本 = 0（设计标准）
