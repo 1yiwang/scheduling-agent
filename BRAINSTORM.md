@@ -1048,6 +1048,13 @@ Agent 分析：
 
 > Claude Code 审查 `index.html`（~7236 行）的 learning infrastructure，对照 BRAINSTORM.md 和 learning agent.md 的设计。以下按严重程度排列。
 
+### 进度更新（2026-06-10）
+
+- ✅ 已先修正学习路径质量：Desk Plan / Agent Loop 接受路径写入 normalized `interactionLog`；`prefScore` source fallback 统一为 `pendingTask`；Desk-planned / agent-loop event 保留 `sourceTaskId`、`kind`、analytics `type`。
+- ✅ 已完成 Phase C 第一刀：`supabase-schema.sql` 创建 `interaction_log` / `pref_store` / `duration_observations` 三张学习表（RLS 开启），前端在保留 `app_state` blob 兼容快照的同时 best-effort 双写三张表。
+- ✅ 线上验证：用户在 `calendar.yiwang.dev` 操作后，Supabase 已看到 `pendingTask`、`social` 等 `source/kind` 行，说明新产生的学习信号已进入规范化表。
+- ⏭️ 下一步：从 `interaction_log` 做真实趋势分析（本周 vs 上周、接受率变化），并设计旧 `app_state.data.learning` 的历史回填脚本。
+
 ### 🔴 CRITICAL
 
 #### 债务 1：Supabase 单 JSON Blob 是学习数据的错误存储模型
