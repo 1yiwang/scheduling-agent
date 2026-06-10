@@ -4588,8 +4588,49 @@ function detectFollowUpsDue() {
  return moves;
 }
 
+function eventIsPastForAgent(year, month, day, ev) {
+ const tN = appNow();
+ const eventDate = new Date(year, month - 1, day);
+ const today = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate());
+ if (eventDate < today) return true;
+ if (eventDate > today) return false;
+ return (ev.endTime || ev.startTime || '') < currentSimNow();
+}
+
+function detectCleanupNeeded() {
+ const moves = [];
+ for (const mk of Object.keys(eventsDB)) {
+  const parts = mk.split('-');
+  const year = parseInt(parts[0], 10), month = parseInt(parts[1], 10);
+  for (const dk of Object.keys(eventsDB[mk])) {
+   const day = parseInt(dk, 10);
+   (eventsDB[mk][dk] || []).forEach(ev => {
+    if (!['deep','busy','online'].includes(ev.type)) return;
+    if (getCompletion(ev) !== null) return;
+    if (!eventIsPastForAgent(year, month, day, ev)) return;
+    moves.push({
+     id: 'move-cleanup-' + ev.id,
+     type: 'cleanup_unmarked',
+     severity: 'normal',
+     daysUntil: 0,
+     title: 'Mark ' + conflictShortTitle(ev.title),
+     dueShort: 'unmarked',
+     subject: { eventId: ev.id },
+     mins: 0,
+     dueISO: year + '-' + pad2(month) + '-' + pad2(day),
+     proposedActions: [
+      { label: 'Done', fn: 'markComplete', payload: { eventId: ev.id, status: true } },
+      { label: 'Not done', fn: 'markComplete', payload: { eventId: ev.id, status: false } }
+     ]
+    });
+   });
+  }
+ }
+ return moves;
+}
+
 // Registry — add a new proactive capability by pushing a detector here.
-const MOVE_DETECTORS = [detectExistingConflicts, detectFollowUpsDue, detectDeadlineRisk];
+const MOVE_DETECTORS = [detectExistingConflicts, detectFollowUpsDue, detectCleanupNeeded, detectDeadlineRisk];
 
 function runAgentLoop() {
  let moves = [];
@@ -4715,6 +4756,8 @@ function runMoveAction(moveId, actionIdx) {
   moveEventToSlot(p.eventId, p.year, p.month, p.day, p.startMin, p.mins);
  } else if (a.fn === 'markFollowUpDone') {
   markFollowUpDone(a.payload.eventId);
+ } else if (a.fn === 'markComplete') {
+  markComplete(a.payload.eventId, a.payload.status);
  }
 }
 

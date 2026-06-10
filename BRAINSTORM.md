@@ -703,7 +703,7 @@ runAgentLoop(horizon=7d)
 | **Conflict** 冲突消解 | 双重预订 / 排进不可工作时段（如 walk）| ✅ 调度即校验（`detectSlotConflict`，warn+覆盖+学习）+ 主动巡检（`detectExistingConflicts` 进 `MOVE_DETECTORS`，简报一键挪走其中一个）|
 | **Prep** 会前准备 | 重要会前无准备块 | ❌ 无 |
 | **Follow-up** 会后跟进 | 会后欠的消息/笔记 | ✅ 已实现（`detectFollowUpsDue` 扫描 due today / overdue 的 pending follow-up，简报一键 Done） |
-| **Cleanup** 收尾 | 过去事件未标记完成 | ⚠️ 统计有但不主动催 |
+| **Cleanup** 收尾 | 过去事件未标记完成 | ✅ 已实现（`detectCleanupNeeded` 扫描过去未标记的 work events，简报一键 Done / Not done） |
 | **Rebalance** 重排 | 今天过载 → 建议挪 | ❌ 无 |
 | **Energy Guard** 精力守护 | 3 个 deep work 背靠背无缓冲 → 建议插入 break 或交换时段 | ❌ 无 |
 | **Context Switch Cost** 切换成本 | deep→meeting→deep→meeting 频繁切换 → 建议聚合同类任务 | ❌ 无 |
@@ -1057,7 +1057,8 @@ Agent 分析：
 - ✅ 已完成历史回填：登录拉取 blob 后，`buildBackfillRows` 把旧 `app_state.data.learning`（interactionLog / prefStore / durationStore）一次性写入三张规范化表。`pref_store` 用 upsert 天然幂等；append-only 表靠 blob 内 `learningBackfilledAt` 标记只回填一次。`durationStore` 只存聚合，按 `count` 展开成均值行以保证趋势不失真。
 - ✅ 已完成 Conflict 主动巡检：Agent Loop 会扫描 horizon 内已存在的重叠事件，选择较短/后开始的事件作为可移动对象，并给出一键 `moveEventToSlot` 动作。
 - ✅ 已完成 Overdue Follow-up Detector：`detectFollowUpsDue` 会把 due today / overdue 的 pending follow-up 放进 Agent Loop，并提供一键 Done。
-- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Prep / Cleanup / Rebalance detectors。
+- ✅ 已完成 Cleanup Detector：`detectCleanupNeeded` 会把过去未标记完成状态的 deep/busy/online 事件放进 Agent Loop，并复用 `markComplete` 一键标记 Done / Not done。
+- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Prep / Rebalance detectors。
 
 ### 🔴 CRITICAL
 

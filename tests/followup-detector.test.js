@@ -89,7 +89,7 @@ assert.strictEqual(follow.subject.eventId, 'investor-call', 'move subject should
 assert(follow.title.includes('Send updated deck'), 'move title should use the follow-up note when available');
 assert.strictEqual(follow.proposedActions.length, 1, 'follow-up move should have one done action');
 assert.strictEqual(follow.proposedActions[0].fn, 'markFollowUpDone', 'follow-up action should mark it done');
-assert(!moves.some(m => m.subject && m.subject.eventId === 'future-call'), 'future follow-up should not be shown yet');
+assert(!moves.some(m => m.type === 'follow_up_due' && m.subject && m.subject.eventId === 'future-call'), 'future follow-up should not be shown yet');
 
 app.runMoveAction(follow.id, 0);
 const ev = app.eventsDB['2026-6'][2][0];
