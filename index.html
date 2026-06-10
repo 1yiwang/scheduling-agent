@@ -4690,8 +4690,73 @@ function detectPrepNeeded() {
  return moves;
 }
 
+// A day is "overloaded" once committed work blocks pass this many minutes.
+const OVERLOAD_MINUTES = 8 * 60;
+
+function dayWorkMinutes(year, month, day) {
+ return getDayEvents(year, month, day)
+  .filter(e => ['deep','busy','online'].includes(e.type))
+  .reduce((sum, e) => sum + Math.max(0, timeToMinutes(e.endTime) - timeToMinutes(e.startTime)), 0);
+}
+
+// Pick the safest block to move off an overloaded day: only focus blocks (deep)
+// are auto-movable — meetings carry participants, so we never shuffle them.
+function pickRebalanceEvent(year, month, day) {
+ const focus = getDayEvents(year, month, day)
+  .filter(e => e.type === 'deep')
+  .sort((a, b) => {
+   const da = timeToMinutes(a.endTime) - timeToMinutes(a.startTime);
+   const db = timeToMinutes(b.endTime) - timeToMinutes(b.startTime);
+   if (da !== db) return da - db;
+   return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+  });
+ return focus[0] || null;
+}
+
+function detectOverloadRebalance() {
+ const moves = [];
+ const tN = appNow();
+ const startDate = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate());
+ for (let d = new Date(startDate); d <= new Date(startDate.getTime() + AGENT_HORIZON_DAYS * 86400000); d.setDate(d.getDate() + 1)) {
+  const year = d.getFullYear(), month = d.getMonth() + 1, day = d.getDate();
+  if (dayWorkMinutes(year, month, day) <= OVERLOAD_MINUTES) continue;
+  const movable = pickRebalanceEvent(year, month, day);
+  if (!movable) continue; // nothing safe to move → don't nag
+  const mins = timeToMinutes(movable.endTime) - timeToMinutes(movable.startTime);
+  const actions = [];
+  for (let t = new Date(startDate); t <= new Date(startDate.getTime() + AGENT_HORIZON_DAYS * 86400000) && actions.length < 3; t.setDate(t.getDate() + 1)) {
+   const ty = t.getFullYear(), tm = t.getMonth() + 1, td = t.getDate();
+   if (ty === year && tm === month && td === day) continue; // not the same day
+   if (dayWorkMinutes(ty, tm, td) + mins > OVERLOAD_MINUTES) continue; // don't overload the target
+   const win = getFreeWindowsForDate(ty, tm, td, mins, null)[0];
+   if (!win) continue;
+   actions.push({
+    label: agentDayLabel(new Date(ty, tm - 1, td)) + ' ' + minutesToTime(win.start).replace(':00', ''),
+    fn: 'moveEventToSlot',
+    payload: { eventId: movable.id, year: ty, month: tm, day: td, startMin: win.start, mins: mins }
+   });
+  }
+  if (!actions.length) continue; // nowhere lighter to move it → stay quiet
+  const daysUntil = Math.round((new Date(year, month - 1, day) - startDate) / 86400000);
+  const hours = Math.round(dayWorkMinutes(year, month, day) / 60 * 10) / 10;
+  moves.push({
+   id: 'move-rebalance-' + year + '-' + month + '-' + day + '-' + movable.id,
+   type: 'overload_rebalance',
+   severity: 'normal',
+   daysUntil: daysUntil,
+   title: 'Lighten ' + conflictShortTitle(movable.title),
+   dueShort: hours + 'h booked',
+   subject: { eventId: movable.id },
+   mins: mins,
+   dueISO: year + '-' + pad2(month) + '-' + pad2(day),
+   proposedActions: actions
+  });
+ }
+ return moves;
+}
+
 // Registry — add a new proactive capability by pushing a detector here.
-const MOVE_DETECTORS = [detectExistingConflicts, detectFollowUpsDue, detectCleanupNeeded, detectPrepNeeded, detectDeadlineRisk];
+const MOVE_DETECTORS = [detectExistingConflicts, detectFollowUpsDue, detectCleanupNeeded, detectPrepNeeded, detectOverloadRebalance, detectDeadlineRisk];
 
 function runAgentLoop() {
  let moves = [];

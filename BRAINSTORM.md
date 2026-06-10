@@ -704,7 +704,7 @@ runAgentLoop(horizon=7d)
 | **Prep** 会前准备 | 重要会前无准备块 | ✅ 已实现（`detectPrepNeeded` 扫描未来重要 busy/online 会议，会议前一键创建 30m prep block） |
 | **Follow-up** 会后跟进 | 会后欠的消息/笔记 | ✅ 已实现（`detectFollowUpsDue` 扫描 due today / overdue 的 pending follow-up，简报一键 Done） |
 | **Cleanup** 收尾 | 过去事件未标记完成 | ✅ 已实现（`detectCleanupNeeded` 扫描过去未标记的 work events，简报一键 Done / Not done） |
-| **Rebalance** 重排 | 今天过载 → 建议挪 | ❌ 无 |
+| **Rebalance** 重排 | 某天过载 → 建议挪 | ✅ 已实现（`detectOverloadRebalance` 扫描 horizon 内 work 时长 >8h 的日子，挑最短 deep block 一键挪到未过载的有空档日） |
 | **Energy Guard** 精力守护 | 3 个 deep work 背靠背无缓冲 → 建议插入 break 或交换时段 | ❌ 无 |
 | **Context Switch Cost** 切换成本 | deep→meeting→deep→meeting 频繁切换 → 建议聚合同类任务 | ❌ 无 |
 | **Travel Optimize** 出行合并 | 两天各有一个 Zürich 的会 → 建议合并到同一天节省往返 | ❌ 无 |
@@ -1059,7 +1059,8 @@ Agent 分析：
 - ✅ 已完成 Overdue Follow-up Detector：`detectFollowUpsDue` 会把 due today / overdue 的 pending follow-up 放进 Agent Loop，并提供一键 Done。
 - ✅ 已完成 Cleanup Detector：`detectCleanupNeeded` 会把过去未标记完成状态的 deep/busy/online 事件放进 Agent Loop，并复用 `markComplete` 一键标记 Done / Not done。
 - ✅ 已完成 Prep Detector：判定靠事件 `type`（`busy` 线下 / `online` 线上）+ 有 `participants` 或 `context`，不是某个 "meeting" 标签；会议前有 30 分钟空窗才提示，一键创建 `prepForEventId` 标记的 prep block。与其它所有 move 一样，卡片右侧 `×` 可 `dismissMove` 跳过（当前会话内有效），用户不想准备就直接忽略。
-- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Rebalance Detector。
+- ✅ 已完成 Rebalance Detector：`detectOverloadRebalance` 扫描 horizon 内每天 work（deep/busy/online）时长，超过 `OVERLOAD_MINUTES`（8h）判定过载，只挑最短的 deep focus block（不动带 participants 的会议）一键挪到未过载且有空档的日子，复用 `moveEventToSlot`。
+- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Energy Guard / Context Switch Cost 等 detectors。
 
 ### 🔴 CRITICAL
 
