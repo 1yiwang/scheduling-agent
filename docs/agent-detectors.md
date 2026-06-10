@@ -177,9 +177,21 @@ const MOVE_DETECTORS = [
 | `applyCuration(moves, decision)` | **安全核心（纯函数）**：套用 `{order,folded}` → `{visible,folded}`，强制护栏：critical 必可见且置顶、未知 id 忽略、缺失 move 补回、critical 永不被折叠、非法决策回退默认序 |
 | `currentMoves()` | UI/动作共享的规范列表 = `mergeMoves(runAgentLoop())`。`runMoveAction`/`confirmMoveCustomSlot`/`dismissMove` 都走它，保证动作索引与合并 dismiss 一致 |
 
-**决策对象契约**（rules 与未来 LLM 输出同形）：`{ order: [moveId...], folded: [moveId...] }`，只含 id，不含任何动作 payload——这是 LLM 无法越权排程的结构性保证。
+**决策对象契约**（rules 与 LLM 输出同形）：`{ order: [moveId...], folded: [moveId...] }`，只含 id，不含任何动作 payload——这是 LLM 无法越权排程的结构性保证。
 
-测试：`tests/merge-moves.test.js` · `tests/apply-curation.test.js`（护栏，最关键）· `tests/agent-context.test.js` · `tests/curate-rules.test.js`。
+**LLM 策展（个人版，BYO key）**：
+
+| 函数 / 文件 | 职责 |
+|---|---|
+| `buildCuratePrompt(moves, ctx)` | 构造 system+user 消息：候选 move 精简表 + 画像卡，强约束「只回 JSON、只用已知 id、只排序/折叠」 |
+| `parseCurateResponse(text, moves)` | 解析模型回复（容忍前后散文），过滤未知 id；无法解析返回 `null` |
+| `llmChat(messages)` | 经 `/api/llm` 代理发起非流式请求 |
+| `curateMovesLLM(moves, ctx, transport?)` | async;失败/无效 → 回退 `curateMovesRules`。`transport` 可注入便于测试 |
+| `curateForRender` / `requestLLMCuration` | 渲染先返回规则版,后台按 `movesSignature` 缓存 LLM 决策,完成后 `syncAllViews` 重渲染 |
+| `api/llm.js` | Vercel serverless 代理:同源守卫,转发到 `${baseUrl}/chat/completions`,key 由客户端每次携带、不存服务端 |
+| 配置 | `schedulingAgentLLM.v1`(localStorage,不入云):`{enabled,provider,baseUrl,model,apiKey}`,预设 DeepSeek |
+
+测试：`tests/merge-moves.test.js` · `tests/apply-curation.test.js`（护栏，最关键）· `tests/agent-context.test.js` · `tests/curate-rules.test.js` · `tests/llm-config.test.js` · `tests/curate-llm.test.js`。
 
 > 完整设计与 Phase B（Settings + BYO-key LLM）见 `docs/superpowers/plans/2026-06-10-agent-curation-layer.md`。
 

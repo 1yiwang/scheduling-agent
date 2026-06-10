@@ -2178,6 +2178,21 @@
    <input id="displayNameInput" type="text" placeholder="Your name" onchange="setDisplayName(this.value)" style="width:100%;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
    <button class="settings-danger" id="signOutBtn" onclick="cloudSignOut()" style="display:none;margin-top:10px;">Sign out</button>
   </div>
+  <div class="settings-group" id="aiGroup" style="display:none;margin-top:20px;">
+   <div class="settings-label">AI assistant</div>
+   <div class="settings-hint" style="margin-top:0;margin-bottom:8px;">Use your own model to prioritize suggestions. Your key stays on this device and is never saved to our servers.</div>
+   <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ej-text);cursor:pointer;">
+    <input id="llmEnabled" type="checkbox" onchange="updateLLMConfig({enabled:this.checked})"> Smart ranking
+   </label>
+   <div class="settings-label" style="margin-top:14px;">Base URL</div>
+   <input id="llmBaseUrl" type="text" placeholder="https://api.deepseek.com" onchange="updateLLMConfig({baseUrl:this.value})" style="width:100%;margin-top:4px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
+   <div class="settings-label" style="margin-top:14px;">Model</div>
+   <input id="llmModel" type="text" placeholder="deepseek-chat" onchange="updateLLMConfig({model:this.value})" style="width:100%;margin-top:4px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
+   <div class="settings-label" style="margin-top:14px;">API key</div>
+   <input id="llmApiKey" type="password" autocomplete="off" placeholder="sk-..." onchange="updateLLMConfig({apiKey:this.value})" style="width:100%;margin-top:4px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
+   <button class="settings-seg-btn" onclick="testLLMConnection()" style="background:var(--ej-bg);margin-top:12px;">Test connection</button>
+   <div class="settings-hint" id="llmStatus" style="margin-top:8px;"></div>
+  </div>
  </div>
 </div>
 
@@ -4933,10 +4948,107 @@ function curateMovesRules(moves, context) {
  return { order: order, folded: folded };
 }
 
+// ── LLM curator (personal mode, BYO key) ──────────────────────────────────
+// rank_only: the model only returns { order, folded } of EXISTING ids. It never
+// writes copy or actions. applyCuration still enforces the safety guardrails, so
+// a bad model response can at worst reorder non-criticals.
+
+function buildCuratePrompt(moves, context) {
+ const slim = (moves || []).map(m => ({
+  id: m.id, type: m.type, severity: m.severity,
+  daysUntil: m.daysUntil, title: m.title
+ }));
+ const sys = 'You prioritize a personal scheduling assistant\'s suggestion cards. '
+  + 'You ONLY rank and fold. You never invent cards, never edit text, never schedule. '
+  + 'Return STRICT JSON: {"order":[ids most important first],"folded":[ids to hide under More]}. '
+  + 'Use ONLY ids from the candidates. Critical items must stay near the top. '
+  + 'Demote types the user often dismisses. No prose, JSON only.';
+ const user = 'Context: ' + JSON.stringify(context || {}) + '\nCandidates: ' + JSON.stringify(slim);
+ return [
+  { role: 'system', content: sys },
+  { role: 'user', content: user }
+ ];
+}
+
+// Parse a model reply into a validated decision of known ids, or null if it isn't
+// usable (caller then falls back to the rules curator).
+function parseCurateResponse(text, moves) {
+ if (!text || typeof text !== 'string') return null;
+ let obj = null;
+ try { obj = JSON.parse(text); } catch (e) {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) { try { obj = JSON.parse(match[0]); } catch (e2) { obj = null; } }
+ }
+ if (!obj || typeof obj !== 'object') return null;
+ const known = {};
+ (moves || []).forEach(m => { known[m.id] = true; });
+ const clean = (a) => (Array.isArray(a) ? a.filter(id => known[id]) : []);
+ return { order: clean(obj.order), folded: clean(obj.folded) };
+}
+
+// POST chat messages to our serverless proxy, which forwards to the user's
+// provider with their key. Returns the assistant text. Non-streaming.
+function llmChat(messages) {
+ const cfg = llmConfig;
+ return fetch('/api/llm', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+   baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, model: cfg.model,
+   messages: messages, temperature: 0
+  })
+ }).then(res => res.json()).then(data => {
+  if (data && data.error) throw new Error(data.error);
+  const txt = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if (!txt) throw new Error('empty response');
+  return txt;
+ });
+}
+
+// Async curator. `transport` is injectable for tests; defaults to llmChat.
+function curateMovesLLM(moves, context, transport) {
+ const send = transport || llmChat;
+ return Promise.resolve()
+  .then(() => send(buildCuratePrompt(moves, context)))
+  .then(text => {
+   const decision = parseCurateResponse(text, moves);
+   return decision || curateMovesRules(moves, context);
+  })
+  .catch(() => curateMovesRules(moves, context));
+}
+
 // Curator dispatcher. Demo + fallback use the deterministic rules curator;
 // personal mode with an LLM configured swaps in curateMovesLLM (Phase B).
 function curate(moves, context) {
  return curateMovesRules(moves, context);
+}
+
+function llmActive() { return appMode === 'live' && llmConfigured(); }
+function movesSignature(moves) { return (moves || []).map(m => m.id).join('|'); }
+
+// Async LLM curation is cached per move-set signature. Render stays synchronous:
+// show the rules decision immediately, then refresh once the LLM responds.
+let llmDecisionCache = { sig: '', decision: null };
+let llmInFlightSig = '';
+function requestLLMCuration(merged, context, sig) {
+ if (llmInFlightSig === sig) return; // already fetching this exact set
+ llmInFlightSig = sig;
+ curateMovesLLM(merged, context).then(decision => {
+  llmDecisionCache = { sig: sig, decision: decision };
+  llmInFlightSig = '';
+  // Only repaint if this set is still on screen (user hasn't changed anything).
+  if (movesSignature(currentMoves()) === sig) syncAllViews();
+ }).catch(() => { llmInFlightSig = ''; });
+}
+
+// Pick the decision to render now. LLM result if cached for this set, else rules
+// (and kick off a background LLM refresh). applyCuration guards either way.
+function curateForRender(merged, context) {
+ if (!llmActive()) return curateMovesRules(merged, context);
+ const sig = movesSignature(merged);
+ if (llmDecisionCache.sig === sig && llmDecisionCache.decision) return llmDecisionCache.decision;
+ requestLLMCuration(merged, context, sig);
+ return curateMovesRules(merged, context);
 }
 
 // The canonical move list the UI and actions share: detectors → dismiss filter →
@@ -5239,6 +5351,40 @@ function saveLearningState() {
 }
 
 loadLearningState();
+
+// ══════════ LLM config · bring-your-own-key (personal mode) ══════════
+// The key lives in localStorage only (per device) — it's the user's own key on
+// their own machine. It is never synced into the Supabase blob. DeepSeek is the
+// preset (OpenAI-compatible: POST {baseUrl}/chat/completions).
+const LLM_STORAGE_KEY = 'schedulingAgentLLM.v1';
+const LLM_DEFAULTS = { enabled: false, provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', apiKey: '' };
+let llmConfig = Object.assign({}, LLM_DEFAULTS);
+
+function normalizeLLMConfig(raw) {
+ const r = (raw && typeof raw === 'object') ? raw : {};
+ return {
+  enabled: !!r.enabled,
+  provider: typeof r.provider === 'string' && r.provider ? r.provider : LLM_DEFAULTS.provider,
+  baseUrl: typeof r.baseUrl === 'string' && r.baseUrl.trim() ? r.baseUrl.trim().replace(/\/+$/, '') : LLM_DEFAULTS.baseUrl,
+  model: typeof r.model === 'string' && r.model.trim() ? r.model.trim() : LLM_DEFAULTS.model,
+  apiKey: typeof r.apiKey === 'string' ? r.apiKey.trim() : ''
+ };
+}
+function getLLMConfig() { return llmConfig; }
+function llmConfigured(cfg) {
+ const c = cfg || llmConfig;
+ return !!(c.enabled && c.apiKey && c.baseUrl && c.model);
+}
+function loadLLMConfig() {
+ try { llmConfig = normalizeLLMConfig(JSON.parse(localStorage.getItem(LLM_STORAGE_KEY))); }
+ catch (e) { llmConfig = Object.assign({}, LLM_DEFAULTS); }
+}
+function saveLLMConfig(patch) {
+ llmConfig = normalizeLLMConfig(Object.assign({}, llmConfig, patch || {}));
+ try { localStorage.setItem(LLM_STORAGE_KEY, JSON.stringify(llmConfig)); } catch (e) {}
+ return llmConfig;
+}
+loadLLMConfig();
 
 // ══════════ APP DATA PERSISTENCE · demo seed vs your live data ══════════
 // Mode is LOCKED by hostname — never a user toggle:
@@ -5660,7 +5806,47 @@ function renderSettings() {
    acct.style.display = 'none';
   }
  }
+ renderLLMSettings();
 }
+
+// BYO-key AI settings: personal mode + signed in only.
+function renderLLMSettings() {
+ const group = document.getElementById('aiGroup');
+ if (!group) return;
+ const show = appMode === 'live' && cloudConfigured() && !!sbUser;
+ group.style.display = show ? 'block' : 'none';
+ if (!show) return;
+ const cfg = getLLMConfig();
+ const set = (id, prop, val) => {
+  const el = document.getElementById(id);
+  if (el && document.activeElement !== el) el[prop] = val;
+ };
+ set('llmEnabled', 'checked', cfg.enabled);
+ set('llmBaseUrl', 'value', cfg.baseUrl);
+ set('llmModel', 'value', cfg.model);
+ set('llmApiKey', 'value', cfg.apiKey);
+}
+
+function updateLLMConfig(patch) {
+ saveLLMConfig(patch);
+ const status = document.getElementById('llmStatus');
+ if (status) status.textContent = '';
+ if (typeof syncAllViews === 'function') syncAllViews();
+}
+
+function testLLMConnection() {
+ const status = document.getElementById('llmStatus');
+ const cfg = getLLMConfig();
+ if (!cfg.apiKey || !cfg.baseUrl || !cfg.model) {
+  if (status) status.textContent = 'Add base URL, model, and API key first.';
+  return;
+ }
+ if (status) status.textContent = 'Testing...';
+ llmChat([{ role: 'user', content: 'Reply with the single word: ok' }])
+  .then(() => { if (status) status.textContent = 'Connected. Smart ranking is ready.'; })
+  .catch(e => { if (status) status.textContent = 'Failed: ' + (e && e.message ? e.message : 'could not reach the model'); });
+}
+
 function openSettings() { renderSettings(); document.getElementById('settingsOverlay').classList.add('show'); }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
 
@@ -6240,7 +6426,7 @@ function renderTodayAssistPanel() {
  // Detectors → merge duplicates → curate (rank/fold). The curator only reorders
  // and folds; applyCuration enforces the safety guardrails (criticals always show).
  const merged = currentMoves();
- const decision = curate(merged, buildAgentContext());
+ const decision = curateForRender(merged, buildAgentContext());
  const curated = applyCuration(merged, decision);
  const moves = curated.visible;
  const foldedMoves = curated.folded;

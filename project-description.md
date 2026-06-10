@@ -275,7 +275,8 @@ friends(id pk, user_id, name, note, share_scope, ...)
 - ✅ **Cleanup Detector**：`detectCleanupNeeded()` 进入 `MOVE_DETECTORS`，把过去未标记完成状态的 work events 放进简报并复用 `markComplete`
 - ✅ **Prep Detector**：`detectPrepNeeded()` 进入 `MOVE_DETECTORS`，按事件 `type`（busy/online）+ participants/context 判定（非标签），为未来重要会议在会前可用空窗一键创建 30m prep block；与其它 move 一样可用 `×` 跳过
 - ✅ **Rebalance Detector**：`detectOverloadRebalance()` 进入 `MOVE_DETECTORS`，扫描 horizon 内 work 时长 >8h 的过载日，挑最短 deep focus block 一键挪到未过载的有空档日（不动带 participants 的会议）
-- ✅ **策展层 Layer 1（Phase A · 确定性）**：detectors → `mergeMoves`（合并同事件卡）→ `curate`（`curateMovesRules` 按 severity/dismiss 降权/紧迫度排序+折叠）→ `applyCuration`（安全护栏：critical 必显置顶、缺失补回、非法回退）。简报新增 “More” 折叠区；`currentMoves()` 统一动作链路。详见 `docs/agent-detectors.md §8` 与 plan `2026-06-10-agent-curation-layer.md`。下一步 Phase B：Settings 页 + BYO-key LLM（DeepSeek，serverless 代理）。
+- ✅ **策展层 Layer 1（Phase A · 确定性）**：detectors → `mergeMoves`（合并同事件卡）→ `curate`（`curateMovesRules` 按 severity/dismiss 降权/紧迫度排序+折叠）→ `applyCuration`（安全护栏：critical 必显置顶、缺失补回、非法回退）。简报新增 “More” 折叠区；`currentMoves()` 统一动作链路。详见 `docs/agent-detectors.md §8` 与 plan `2026-06-10-agent-curation-layer.md`。
+- ✅ **策展层 Layer 1（Phase B · BYO-key LLM）**：Settings 新增「AI assistant」分组（个人版+登录可见），填 base URL / model / API key（仅存本机 localStorage `schedulingAgentLLM.v1`，不入云）。`curateMovesLLM`（rank_only，只回 `{order,folded}` 的已知 id）经 `api/llm.js` serverless 代理转发到 DeepSeek（同源守卫，key 每次由客户端带、不存服务端）；渲染先用规则版即时显示，后台异步取 LLM 决策按 moves 签名缓存后重渲染；任何失败回退规则版。`applyCuration` 护栏对 LLM 同样生效。预设 DeepSeek（`deepseek-chat`）。
 
 **下一步（建议顺序）**
 1. 更多 detector：Energy Guard（背靠背 deep work）、Context Switch Cost（频繁切换）。

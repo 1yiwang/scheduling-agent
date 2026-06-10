@@ -2,6 +2,8 @@
 
 > **For agentic workers:** Implement task-by-task with TDD. Steps use checkbox (`- [ ]`) syntax for tracking. Tests are Node `vm`-based in `tests/*.test.js`. Run the full suite + lint after each task.
 
+**Status:** ✅ Phase A and Phase B implemented and tested (19 tests green). See `docs/agent-detectors.md §8`.
+
 **Goal:** Put a curation layer on top of the deterministic Agent Loop. It ranks, dedups, and suppresses candidate moves without ever touching their actions. Demo runs a deterministic curator (zero cost, zero latency). Personal mode can optionally route curation through a user-provided LLM (DeepSeek first), configured on a Settings page with the user's own API key.
 
 **Locked decisions (from discussion):**
