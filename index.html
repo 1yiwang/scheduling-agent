@@ -383,6 +383,42 @@
  }
  .gc-progress-label { font-size: 13px; color: var(--ej-text-2); flex-shrink: 0; }
 
+ /* Deadline-risk moves inside the Agent suggestions panel (shares .tp-candidate look) */
+ .tp-move-act {
+  flex-shrink: 0; font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 13px;
+  border: 1px solid var(--ej-info); background: var(--ej-info-bg); color: var(--ej-info);
+  cursor: pointer; white-space: nowrap; transition: filter .15s ease;
+ }
+ .tp-move-act:hover { filter: brightness(.96); }
+ .tp-move-dismiss {
+  flex-shrink: 0; width: 24px; height: 24px; padding: 0; line-height: 1; font-size: 15px;
+  border: none; border-radius: 50%; background: transparent; color: var(--ej-text-3);
+  cursor: pointer;
+ }
+ .tp-move-dismiss:hover { background: var(--ej-line); color: var(--ej-text-2); }
+ .tp-move-nofit { font-size: 11px; color: var(--ej-text-3); flex-shrink: 0; }
+ .tp-move { cursor: pointer; }
+ .tp-move .tp-item-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+ .tp-move-alts {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--ej-line);
+ }
+ .tp-move-act.alt { background: transparent; color: var(--ej-text-2); border-color: var(--ej-line); }
+ .tp-move-act.alt:hover { background: var(--ej-line); filter: none; }
+ .tp-move-add {
+  flex-shrink: 0; width: 26px; height: 26px; padding: 0; line-height: 1; font-size: 16px;
+  border: 1px dashed var(--ej-line); border-radius: 50%; background: transparent;
+  color: var(--ej-text-2); cursor: pointer;
+ }
+ .tp-move-add:hover { background: var(--ej-line); color: var(--ej-text); }
+ .tp-move-custom {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px;
+ }
+ .cs-input {
+  font-family: inherit; font-size: 12px; padding: 4px 7px; border-radius: 8px;
+  border: 1px solid var(--ej-line); background: var(--ej-bg); color: var(--ej-text);
+ }
+
  /* Timeline — binding spine metaphor */
  .timeline-block {
   position: relative; padding-left: 20px; margin-left: 8px;
@@ -1433,6 +1469,11 @@
  .reschedule-btn:active { background: var(--ej-hover); }
  .reschedule-slots { display: none; margin-top: 8px; }
  .reschedule-slots.show { display: block; }
+ .ss-day-label { font-size: 12px; font-weight: 600; color: var(--ej-text-2); flex-shrink: 0; min-width: 56px; }
+ .ss-warn { font-size: 11px; color: var(--ej-red); margin-top: 5px; line-height: 1.35; }
+ .ss-warn:empty { display: none; }
+ .ss-warn-again { color: var(--ej-text-2); font-style: italic; white-space: nowrap; }
+ .tp-move-custom .ss-warn { flex-basis: 100%; }
 
  /* Edit form */
  .edit-section { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--ej-line); }
@@ -3911,21 +3952,28 @@ function getInboxPlanWindows(candidate) {
 function renderInboxPlanChoices(it) {
  const uid = inboxUid(it.source, it.id);
  if (activeInboxPlanId !== uid || it.done) return '';
- const candidate = findInboxCandidate(it.source, it.id);
- const windows = getInboxPlanWindows(candidate);
- if (!windows.length) return '<div class="inbox-plan-panel"><div class="tp-empty">No window fits today.</div></div>';
+ // Propose free slots across days (today → deadline/horizon), not just today.
+ const slots = proposeSlotsForTask(it, 4);
+ if (!slots.length) return '<div class="inbox-plan-panel"><div class="tp-empty">No free slot before the due date.</div></div>';
  let html = '<div class="inbox-plan-panel">';
- windows.forEach(win => {
-  html += '<button class="inbox-slot" onclick="event.stopPropagation();confirmInboxPlanToWindow(\''+it.source+'\',\''+it.id+'\',\''+win.id+'\')">'+
+ slots.forEach(s => {
+  html += '<button class="inbox-slot" onclick="event.stopPropagation();planTaskToSlot(\''+it.source+'\',\''+it.id+'\','+s.year+','+s.month+','+s.day+','+s.startMin+','+s.mins+')">'+
    '<span class="inbox-slot-main">'+
-    '<svg width="14" height="14"><use href="#'+(win.icon || 'icon-field-time')+'"/></svg>'+
-    '<span class="inbox-slot-title">'+win.title+'</span>'+
+    '<svg width="14" height="14"><use href="#icon-calendar"/></svg>'+
+    '<span class="inbox-slot-title">'+s.dayLabel+' · '+minutesToTime(s.startMin).replace(':00','')+'</span>'+
    '</span>'+
-   '<span class="inbox-slot-fit">'+formatPlanMinutes(candidate.estMinutes)+'</span>'+
+   '<span class="inbox-slot-fit">'+formatPlanMinutes(s.mins)+'</span>'+
   '</button>';
  });
  html += '</div>';
  return html;
+}
+
+// Plan a backlog task into a chosen day/slot from the inbox or day-detail, staying
+// on the current page. Reuses the same scheduler as the Agent Loop.
+function planTaskToSlot(source, id, year, month, day, startMin, mins) {
+ activeInboxPlanId = null;
+ scheduleTaskToSlot(source, id, year, month, day, startMin, mins);
 }
 
 function inboxRowHtml(it) {
@@ -4037,7 +4085,7 @@ function toggleInboxPlan(source, id) {
  const uid = inboxUid(source, id);
  activeInboxPlanId = activeInboxPlanId === uid ? null : uid;
  inboxDeleteConfirmId = null;
- renderInbox();
+ syncAllViews(); // refresh inbox AND the calendar day-detail (both use inboxRowHtml)
 }
 
 function buildPlanItem(candidate) {
@@ -4094,12 +4142,12 @@ function toggleInboxDone(source, id) {
 
 function requestDeleteInbox(source, id) {
  inboxDeleteConfirmId = inboxUid(source, id);
- renderInbox();
+ syncAllViews();
 }
 
 function cancelDeleteInbox() {
  inboxDeleteConfirmId = null;
- renderInbox();
+ syncAllViews();
 }
 
 function confirmDeleteInbox(source, id) {
@@ -4281,6 +4329,371 @@ function renderGreetingCard(completedToday, totalToday, pendingSuggestions, free
  h += '<div class="gc-stat"><span class="gc-dot" style="background:var(--ej-info);"></span>'+freeHrs+'h free this afternoon</div>';
  h += '</div></div>';
  return h;
+}
+
+// ══════════ AGENT LOOP · proactive move detection (propose-only) ══════════
+// The agent runs this whenever the Today page renders. It scans state, detects
+// "moves" (things the user hasn't thought of), and surfaces them as actionable
+// cards. It NEVER writes anything itself — every action goes through a confirm fn.
+let dismissedMoveIds = [];
+// How many days ahead the agent looks for deadlines / free slots.
+// Set to 9 for now (≈ "due 9d"); can be raised toward ~10 later.
+const AGENT_HORIZON_DAYS = 9;
+
+function agentWorkday() { return { start: 8 * 60, end: 20 * 60 }; } // 08:00–20:00
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function minutesToHHMM(mins) { return pad2(Math.floor(mins / 60)) + ':' + pad2(mins % 60); }
+
+// Free windows on ANY date = workday minus that day's events (gaps ≥ minMin).
+// This is the date-generalized version of getDeskPlanningSlots (which is today-only).
+function getFreeWindowsForDate(year, month, day, minMin) {
+ minMin = minMin || 15;
+ const key = year + '-' + month;
+ const evts = ((eventsDB[key] || {})[day] || []).filter(e => e.startTime && e.endTime);
+ const wd = agentWorkday();
+ let ranges = [{ start: wd.start, end: wd.end }];
+ // On today, never propose a slot already in the past.
+ const tN = appNow();
+ const isToday = year === tN.getFullYear() && month === (tN.getMonth() + 1) && day === tN.getDate();
+ if (isToday) {
+  const nowMin = timeToMinutes(currentSimNow());
+  ranges = ranges.map(r => ({ start: Math.max(r.start, nowMin), end: r.end })).filter(r => r.end > r.start);
+ }
+ evts.forEach(ev => {
+  const evS = timeToMinutes(ev.startTime), evE = timeToMinutes(ev.endTime);
+  ranges = ranges.flatMap(r => {
+   if (evS >= r.end || evE <= r.start) return [r];
+   const out = [];
+   if (r.start < evS) out.push({ start: r.start, end: evS });
+   if (evE < r.end) out.push({ start: evE, end: r.end });
+   return out;
+  });
+ });
+ return ranges.filter(r => r.end - r.start >= minMin);
+}
+
+function getDayEvents(year, month, day) {
+ const key = year + '-' + month;
+ return ((eventsDB[key] || {})[day] || []).filter(e => e.startTime && e.endTime);
+}
+
+// Per-user learned adjustment to a transit mode's base workability. If the user has
+// repeatedly scheduled work during a mode the agent thought was unworkable (e.g. they
+// DO take calls on the bus), the agent raises that mode's effective score over time.
+function effectiveTransitScore(mode) {
+ const base = getWorkability(mode).score;
+ const pref = getPreference('transit_work', mode);
+ const boost = (pref.sampleCount >= 2 && betaConfidence(pref) > 0.66) ? 2 : 0;
+ return base + boost;
+}
+
+function conflictShortTitle(title) { return (title || '').split(/[:·]/)[0].trim(); }
+
+// Does [startMin,endMin) on a day clash with a committed block? Returns the first
+// conflict: a double-book, or a non-workable transit window (e.g. a walk). A workable
+// transit window (train/car-ride) is intentionally NOT a conflict — that's commute-fill.
+function detectSlotConflict(year, month, day, startMin, endMin, excludeId) {
+ const evts = getDayEvents(year, month, day);
+ for (const e of evts) {
+  if (excludeId && e.id === excludeId) continue;
+  const s = timeToMinutes(e.startTime), en = timeToMinutes(e.endTime);
+  if (startMin < en && endMin > s) {
+   if (e.type === 'transit') {
+    if (effectiveTransitScore(e.transitMode) >= 2) continue; // workable → fine
+    return { event: e, kind: 'transit_nonworkable', mode: e.transitMode };
+   }
+   return { event: e, kind: 'overlap' };
+  }
+ }
+ return null;
+}
+
+function conflictMessage(c) {
+ if (c.kind === 'transit_nonworkable') {
+  return '\u26a0 Clashes with \u201c' + conflictShortTitle(c.event.title) + '\u201d (' + (c.event.time || '') + ') \u00b7 ' + (getWorkability(c.mode).reason || 'not workable then');
+ }
+ return '\u26a0 Overlaps \u201c' + conflictShortTitle(c.event.title) + '\u201d (' + (c.event.time || '') + ')';
+}
+
+// When the user schedules over a conflict anyway, learn from it. Overriding a
+// non-workable transit teaches the agent the user works during that mode.
+function recordConflictOverride(c) {
+ if (!c) return;
+ if (c.kind === 'transit_nonworkable') recordSignal('transit_work', c.mode, true);
+ interactionLog.push({ type: 'conflict_override', kind: c.kind, mode: c.mode || null, at: new Date().toISOString() });
+ saveLearningState();
+}
+
+// Has a calendar block already been created for this backlog task?
+function eventScheduledForTask(source, id) {
+ const tag = source + ':' + id;
+ for (const mk of Object.keys(eventsDB)) {
+  for (const dk of Object.keys(eventsDB[mk])) {
+   if ((eventsDB[mk][dk] || []).some(e => e.sourceTaskId === tag)) return true;
+  }
+ }
+ return false;
+}
+
+// Whole-day difference between a deadline ISO date and today (negative = overdue).
+function daysFromToday(iso) {
+ const tN = appNow();
+ const t0 = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate());
+ const p = iso.split('-');
+ const d1 = new Date(+p[0], +p[1] - 1, +p[2]);
+ return Math.round((d1 - t0) / 86400000);
+}
+
+function agentDayLabel(dateObj) {
+ const tN = appNow();
+ if (dateObj.getFullYear() === tN.getFullYear() && dateObj.getMonth() === tN.getMonth() && dateObj.getDate() === tN.getDate()) return 'today';
+ return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function taskEstMinutes(it) {
+ return Math.max(15, parseEstMinutes(it.est || it.estTime) || 30);
+}
+
+// Shared slot finder used by BOTH the Agent Loop and the manual "Plan" button.
+// Scans today → deadline (or today → horizon if no/past deadline) and returns one
+// best free window per day, earliest first. Earliest = most recommended.
+function proposeSlotsForTask(it, maxN) {
+ maxN = maxN || 4;
+ const mins = taskEstMinutes(it);
+ const tN = appNow();
+ const startDate = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate());
+ let endDate;
+ const iso = it.deadline ? deadlineToISO(it.deadline) : '';
+ if (iso) {
+  const p = iso.split('-');
+  endDate = new Date(+p[0], +p[1] - 1, +p[2]);
+  if (endDate < startDate) endDate = new Date(startDate.getTime() + AGENT_HORIZON_DAYS * 86400000);
+ } else {
+  endDate = new Date(startDate.getTime() + AGENT_HORIZON_DAYS * 86400000);
+ }
+ const out = [];
+ for (let d = new Date(startDate); d <= endDate && out.length < maxN; d.setDate(d.getDate() + 1)) {
+  const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate();
+  const windows = getFreeWindowsForDate(y, m, day, mins);
+  if (windows.length) {
+   const w = windows[0];
+   out.push({
+    year: y, month: m, day: day, startMin: w.start, mins: mins,
+    label: agentDayLabel(new Date(y, m - 1, day)) + ' ' + minutesToTime(w.start).replace(':00', ''),
+    dayLabel: new Date(y, m - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+   });
+  }
+ }
+ return out;
+}
+
+// ── Detector: Deadline-risk ── open task with a due date but no scheduled block.
+function detectDeadlineRisk() {
+ const moves = [];
+ const tN = appNow();
+ getInboxItems().forEach(it => {
+  if (it.done || !it.deadline) return;
+  const iso = deadlineToISO(it.deadline);
+  if (!iso) return;
+  if (eventScheduledForTask(it.source, it.id)) return; // already protected
+  const daysUntil = daysFromToday(iso);
+  if (daysUntil > AGENT_HORIZON_DAYS) return; // too far out → no noise
+  let severity = 'normal';
+  if (daysUntil <= 1) severity = 'critical';
+  else if (daysUntil <= 2) severity = 'high';
+  // Earliest fitting slot per day = the proposed actions; first one is most recommended.
+  const actions = proposeSlotsForTask(it, 4).map(s => ({
+   label: s.label,
+   fn: 'scheduleTaskToSlot',
+   payload: { source: it.source, id: it.id, year: s.year, month: s.month, day: s.day, startMin: s.startMin, mins: s.mins }
+  }));
+  // Compact due tag: "due Nd" (today is implied by the group header).
+  const dueShort = daysUntil < 0 ? 'overdue' : daysUntil === 0 ? '' : 'due ' + daysUntil + 'd';
+  moves.push({
+   id: 'move-deadline-' + it.source + '-' + it.id,
+   type: 'deadline_risk',
+   severity: severity,
+   daysUntil: daysUntil,
+   title: it.title.split('·')[0].trim(),
+   dueShort: dueShort,
+   subject: { source: it.source, id: it.id },
+   mins: taskEstMinutes(it),     // for the manual date/time picker
+   dueISO: iso,                  // default date for the picker
+   proposedActions: actions
+  });
+ });
+ return moves;
+}
+
+// Registry — add a new proactive capability by pushing a detector here.
+const MOVE_DETECTORS = [detectDeadlineRisk];
+
+function runAgentLoop() {
+ let moves = [];
+ MOVE_DETECTORS.forEach(detect => { try { moves = moves.concat(detect() || []); } catch (e) {} });
+ moves = moves.filter(m => dismissedMoveIds.indexOf(m.id) < 0);
+ const rank = { critical: 0, high: 1, normal: 2 };
+ moves.sort((a, b) => (rank[a.severity] != null ? rank[a.severity] : 3) - (rank[b.severity] != null ? rank[b.severity] : 3));
+ return moves;
+}
+
+function severityPrioClass(sev) {
+ return sev === 'critical' ? 'prio-critical' : sev === 'high' ? 'prio-important' : 'prio-normal';
+}
+
+// Render deadline-risk moves inside the Agent suggestions panel, in the same row
+// style as the planning board, split into "today" vs "other days".
+// Collapsed = task name (max room) + single most-recommended time. Click to expand
+// the alternatives (secondary recommended slots).
+let expandedMoveId = null;
+let customSlotMoveId = null;
+function toggleMoveExpand(id) {
+ expandedMoveId = expandedMoveId === id ? null : id;
+ if (expandedMoveId !== id) customSlotMoveId = null;
+ syncAllViews();
+}
+function toggleMoveCustomSlot(id) {
+ customSlotMoveId = customSlotMoveId === id ? null : id;
+ syncAllViews();
+}
+
+function renderBriefingGroups(moves) {
+ if (!moves.length) return '';
+ const block = (label, list) => {
+  if (!list.length) return '';
+  let s = '<div class="tp-subhead">' + label + '</div>';
+  list.forEach(m => {
+   const expanded = expandedMoveId === m.id;
+   const hasActions = m.proposedActions.length > 0;
+   // The whole row toggles expand so the manual picker is always reachable,
+   // even when the agent found no automatic slot.
+   s += '<div class="tp-candidate ' + severityPrioClass(m.severity) + ' tp-move' + (expanded ? ' expanded' : '') + '" onclick="event.stopPropagation();toggleMoveExpand(\'' + m.id + '\')">' +
+    '<div class="tp-item-main">' +
+     '<span class="tp-item-title">' + escAttr(m.title) + '</span>' +
+     (m.dueShort ? '<span class="tp-item-mins">' + escAttr(m.dueShort) + '</span>' : '') +
+    '</div>';
+   if (hasActions) {
+    s += '<button class="tp-move-act" onclick="event.stopPropagation();runMoveAction(\'' + m.id + '\',0)">' + escAttr(m.proposedActions[0].label) + '</button>';
+   } else {
+    s += '<span class="tp-move-nofit">No slot</span>';
+   }
+   s += '<button class="tp-move-dismiss" title="Dismiss" aria-label="Dismiss" onclick="event.stopPropagation();dismissMove(\'' + m.id + '\')">\u00d7</button>';
+   if (expanded) {
+    s += '<div class="tp-move-alts">';
+    for (let i = 1; i < m.proposedActions.length; i++) {
+     s += '<button class="tp-move-act alt" onclick="event.stopPropagation();runMoveAction(\'' + m.id + '\',' + i + ')">' + escAttr(m.proposedActions[i].label) + '</button>';
+    }
+    // Manual pick: a "+" that opens a date + time chooser.
+    s += '<button class="tp-move-add" title="Pick a date & time" aria-label="Pick a date & time" onclick="event.stopPropagation();toggleMoveCustomSlot(\'' + m.id + '\')">+</button>';
+    if (customSlotMoveId === m.id) {
+     const defDate = m.dueISO || '';
+     const defTime = (hasActions && m.proposedActions[0].payload) ? minutesToHHMM(m.proposedActions[0].payload.startMin) : '09:00';
+     s += '<div class="tp-move-custom">' +
+      '<input type="date" class="cs-input" id="cs-date-' + m.id + '" value="' + defDate + '" onclick="event.stopPropagation()">' +
+      '<input type="time" class="cs-input" id="cs-time-' + m.id + '" value="' + defTime + '" onclick="event.stopPropagation()">' +
+      '<button class="tp-move-act" onclick="event.stopPropagation();confirmMoveCustomSlot(\'' + m.id + '\')">Schedule</button>' +
+      '<div class="ss-warn" id="cs-warn-' + m.id + '"></div>' +
+      '</div>';
+    }
+    s += '</div>';
+   }
+   s += '</div>';
+  });
+  return s;
+ };
+ let html = '';
+ html += block('Due today', moves.filter(m => m.daysUntil <= 0));
+ html += block('Coming up', moves.filter(m => m.daysUntil > 0));
+ return html;
+}
+
+// Schedule a move's task to a user-chosen date & time.
+let customSlotAck = {}; // moveId → slot signature already warned about
+function confirmMoveCustomSlot(moveId) {
+ const m = runAgentLoop().find(x => x.id === moveId);
+ if (!m) { customSlotMoveId = null; syncAllViews(); return; }
+ const dateEl = document.getElementById('cs-date-' + moveId);
+ const timeEl = document.getElementById('cs-time-' + moveId);
+ if (!dateEl || !dateEl.value) { showToast('Pick a date first'); return; }
+ const dp = dateEl.value.split('-');
+ const year = parseInt(dp[0], 10), month = parseInt(dp[1], 10), day = parseInt(dp[2], 10);
+ let startMin = 9 * 60;
+ if (timeEl && timeEl.value) { const tp = timeEl.value.split(':'); startMin = parseInt(tp[0], 10) * 60 + parseInt(tp[1], 10); }
+ const mins = m.mins || 60;
+ const conflict = detectSlotConflict(year, month, day, startMin, startMin + mins, null);
+ const sig = year + '-' + month + '-' + day + '@' + startMin;
+ if (conflict && customSlotAck[moveId] !== sig) {
+  customSlotAck[moveId] = sig;
+  const w = document.getElementById('cs-warn-' + moveId);
+  if (w) w.innerHTML = conflictMessage(conflict) + ' <span class="ss-warn-again">Tap Schedule again to override</span>';
+  return;
+ }
+ if (conflict) recordConflictOverride(conflict);
+ delete customSlotAck[moveId];
+ customSlotMoveId = null;
+ scheduleTaskToSlot(m.subject.source, m.subject.id, year, month, day, startMin, mins);
+}
+
+// Dispatch a proposed action. Recompute moves so payloads reflect current state.
+function runMoveAction(moveId, actionIdx) {
+ const m = runAgentLoop().find(x => x.id === moveId);
+ if (!m) { syncAllViews(); return; }
+ const a = m.proposedActions[actionIdx];
+ if (!a) return;
+ if (a.fn === 'scheduleTaskToSlot') {
+  const p = a.payload;
+  scheduleTaskToSlot(p.source, p.id, p.year, p.month, p.day, p.startMin, p.mins);
+ }
+}
+
+function dismissMove(id) {
+ if (dismissedMoveIds.indexOf(id) < 0) dismissedMoveIds.push(id);
+ syncAllViews();
+}
+
+// One-tap execution: turn a backlog task into a real calendar block on the chosen day.
+// Sets sourceTaskId so the agent knows the task is now protected, and removes it from
+// the backlog (consistent with the existing plan-to-window flow).
+function scheduleTaskToSlot(source, id, year, month, day, startMin, mins) {
+ const it = getInboxItems().find(x => x.source === source && x.id === id);
+ const title = it ? it.title.split('·')[0].trim() : 'Scheduled task';
+ const kind = it ? it.kind : 'solo';
+ const involves = it ? it.involves : null;
+ const key = year + '-' + month;
+ if (!eventsDB[key]) eventsDB[key] = {};
+ if (!eventsDB[key][day]) eventsDB[key][day] = [];
+ const start = startMin, end = startMin + mins;
+ const evId = 'plan-' + source + '-' + id + '-' + Date.now();
+ const isOnline = kind === 'call' || kind === 'video';
+ const ev = {
+  id: evId, sourceTaskId: source + ':' + id,
+  t: isOnline ? 'online' : 'deep',
+  type: isOnline ? 'online' : 'deep',
+  kind: kind,
+  title: title,
+  time: minutesToTime(start).replace(':00', '') + '–' + minutesToTime(end).replace(':00', ''),
+  startTime: minutesToHHMM(start), endTime: minutesToHHMM(end),
+  duration: formatPlanMinutes(mins),
+  loc: involves ? 'Scheduled draft · pending confirmation' : 'Focus block',
+  locationShort: involves ? 'Draft' : 'Focus',
+  participants: involves ? [involves] : [],
+  transitMode: null, transitDuration: null, transitWorkable: false,
+  bufferBefore: 0, bufferAfter: 0,
+  context: 'Agent-scheduled to protect the deadline.',
+  agentNote: involves ? 'Needs message confirmation before finalizing.' : 'Agent-scheduled to hit the deadline.',
+  dressCode: null, returnInfo: null,
+  followUpNeeded: !!involves, followUpBy: involves,
+  followUpStatus: involves ? 'pending' : null, followUpNote: involves ? 'Send confirmation message.' : ''
+ };
+ eventsDB[key][day].push(ev);
+ runtimeEvents[evId] = ev;
+ recordSignal('candidate_kind', kind, true);
+ recordSignal('candidate_source', source, true);
+ if (involves) recordSignal('person', involves, true);
+ removeTaskEverywhere(source, id);
+ syncAllViews();
+ showToast('Scheduled · ' + agentDayLabel(new Date(year, month - 1, day)) + ' ' + minutesToTime(start).replace(':00', ''));
 }
 
 // ── Commute scheduling: match a light task to a workable transit window ──
@@ -5081,7 +5494,9 @@ function toggleFocusToday() {
 }
 
 function renderTodayAssistPanel() {
- const assistCount = getPlanWindows().length;
+ const moves = runAgentLoop();
+ const windows = getPlanWindows();
+ const assistCount = moves.length + windows.length;
  if (assistCount === 0) return '';
  const panelClass = agentPanelExpanded ? 'today-assist-shell is-open' : 'today-assist-shell is-collapsed';
  let html = '<section class="'+panelClass+'">'+
@@ -5094,7 +5509,11 @@ function renderTodayAssistPanel() {
   '</button>';
  if (agentPanelExpanded) {
   html += '<div class="today-assist-body">';
-  html += renderTimePlanningBoard();
+  html += renderBriefingGroups(moves);
+  if (windows.length) {
+   if (moves.length) html += '<div class="tp-subhead">Plan today\u2019s free time</div>';
+   html += renderTimePlanningBoard();
+  }
   html += '</div>';
  }
  html += '</section>';
@@ -5591,7 +6010,7 @@ function renderTodayPage() {
  // Greeting card data — reflect live state so it updates as the user acts.
  const completedToday = sorted.filter(e => getCompletion(e) === true).length;
  const totalToday = sorted.length;
- const pendingSuggestions = getPlanWindows().length; // linked to the Agent suggestions panel below
+ const pendingSuggestions = getPlanWindows().length + runAgentLoop().length; // linked to the Agent suggestions panel below
  // Compute free afternoon hours from free slots in 12:00-17:00 range
  let freeMin = 0;
  todayFreeSlots.forEach(s => {
@@ -6011,56 +6430,123 @@ function moveBestSlot(inputEl) {
 }
 
 // ====== RESCHEDULE ======
+// "Find New Time" treats the event as a temporary task and asks the agent for real
+// free-slot suggestions (today → horizon), then actually moves the event on confirm.
+let rescheduleProposals = {};
+let rescheduleAck = {}; // `eventId:idx` → slot signature the user already saw a warning for
+
+function isoFromYMD(year, month, day) {
+ return year + '-' + pad2(month) + '-' + pad2(day);
+}
+
 function rescheduleEvent(eventId) {
  const slotsEl = document.getElementById('rs-slots-'+eventId);
  if (!slotsEl) return;
-
- // Toggle visibility
  if (slotsEl.classList.contains('show')) {
- slotsEl.classList.remove('show');
- return;
+  slotsEl.classList.remove('show');
+  slotsEl.innerHTML = '';
+  return;
  }
-
- // Generate mock slots based on event
- const slots = [
- { slot:'Sunday, Jun 7 · 9:00–11:00 AM', reason:'Best deep-work window. No transit. Home all morning.', best:true },
- { slot:'Monday, Jun 8 · 7:00–9:00 AM', reason:'Early start. Protected time before meetings kick in.', best:false },
- { slot:'Monday, Jun 8 · 4:00–5:30 PM', reason:'Post-meeting slot. Light cognitive load is fine.', best:false }
- ];
-
- slotsEl.innerHTML = slots.map((s, i) =>
- '<div class="suggest-slot'+(s.best?' best':'')+'" onclick="event.stopPropagation();moveBestSlot(this)">'+
- '<div class="ss-row">'+
- '<input class="ss-time-input" id="rs-input-'+eventId+'-'+i+'" value="'+(s.best?'Best · ':'')+s.slot+'" onfocus="this.select();moveBestSlot(this)">'+
- '<button class="ss-confirm-btn" onclick="event.stopPropagation();pickRescheduleSlot(\''+eventId+'\','+i+')" title="Confirm"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
- '</div>'+
- '<div class="ss-reason">'+s.reason+'</div></div>'
- ).join('');
-
+ const result = findEventById(eventId);
+ if (!result) return;
+ const ev = result.event;
+ let mins = 0;
+ if (ev.startTime && ev.endTime) mins = timeToMinutes(ev.endTime) - timeToMinutes(ev.startTime);
+ if (!(mins > 0)) mins = parseEstMinutes(ev.duration) || 60;
+ mins = Math.max(15, mins);
+ // Real proposals from free windows (the event's own current slot is excluded since
+ // it still occupies the calendar, so we only surface genuinely new times).
+ const slots = proposeSlotsForTask({ source:'event', id:eventId, est: formatPlanMinutes(mins), deadline:null }, 3);
+ rescheduleProposals[eventId] = { mins: mins, slots: slots };
+ // Always render exactly 3 rows. Row 1 = best recommendation (fixed day, editable
+ // time). Rows 2 & 3 = fully editable date + time so the user can choose their own.
+ const tN = appNow();
+ let rows = '';
+ for (let i = 0; i < 3; i++) {
+  const s = slots[i];
+  const best = i === 0 && slots.length > 0;
+  const editableDate = !best; // row 1 keeps the recommended day; rows 2/3 are editable
+  let dateVal, timeVal, dayLabel;
+  if (s) {
+   dateVal = isoFromYMD(s.year, s.month, s.day);
+   timeVal = minutesToHHMM(s.startMin);
+   dayLabel = s.dayLabel;
+  } else {
+   const d = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate() + i);
+   dateVal = isoFromYMD(d.getFullYear(), d.getMonth() + 1, d.getDate());
+   timeVal = '09:00';
+   dayLabel = '';
+  }
+  rows += '<div class="suggest-slot'+(best?' best':'')+'">'+
+   '<div class="ss-row">'+
+    (editableDate
+     ? '<input type="date" class="cs-input" id="rs-date-'+eventId+'-'+i+'" value="'+dateVal+'" onclick="event.stopPropagation()">'
+     : '<span class="ss-day-label">'+dayLabel+'</span>')+
+    '<input type="time" class="cs-input" id="rs-time-'+eventId+'-'+i+'" value="'+timeVal+'" onclick="event.stopPropagation()">'+
+    '<button class="ss-confirm-btn" onclick="event.stopPropagation();pickRescheduleSlot(\''+eventId+'\','+i+')" title="Confirm"><svg width="14" height="14" style="flex-shrink:0;"><use href="#icon-check-sm"/></svg></button>'+
+   '</div>'+
+   '<div class="ss-reason">'+(best?'Best · earliest free slot':'Pick your own date & time')+'</div>'+
+   '<div class="ss-warn" id="rs-warn-'+eventId+'-'+i+'"></div>'+
+  '</div>';
+ }
+ slotsEl.innerHTML = rows;
  slotsEl.classList.add('show');
 }
 
 function pickRescheduleSlot(eventId, idx) {
+ const store = rescheduleProposals[eventId] || {};
+ const slots = store.slots || [];
+ const s = slots[idx];
+ let year, month, day, startMin;
+ const dateEl = document.getElementById('rs-date-'+eventId+'-'+idx);
+ if (dateEl && dateEl.value) { const dp = dateEl.value.split('-'); year = +dp[0]; month = +dp[1]; day = +dp[2]; }
+ else if (s) { year = s.year; month = s.month; day = s.day; }
+ const timeEl = document.getElementById('rs-time-'+eventId+'-'+idx);
+ if (timeEl && timeEl.value) { const tp = timeEl.value.split(':'); startMin = (+tp[0]) * 60 + (+tp[1]); }
+ else if (s) { startMin = s.startMin; }
+ if (year == null || startMin == null) { showToast('Pick a date & time'); return; }
+ const mins = store.mins || (s && s.mins) || 60;
+ // Conflict guard: a manual time can land on a walk or double-book another event.
+ // Warn first; a second tap on the same slot overrides (and the agent learns).
+ const conflict = detectSlotConflict(year, month, day, startMin, startMin + mins, eventId);
+ const sig = year + '-' + month + '-' + day + '@' + startMin;
+ const ackKey = eventId + ':' + idx;
+ if (conflict && rescheduleAck[ackKey] !== sig) {
+  rescheduleAck[ackKey] = sig;
+  const warnEl = document.getElementById('rs-warn-'+eventId+'-'+idx);
+  if (warnEl) warnEl.innerHTML = conflictMessage(conflict) + ' <span class="ss-warn-again">Tap \u2713 again to schedule anyway</span>';
+  return;
+ }
+ if (conflict) recordConflictOverride(conflict);
+ delete rescheduleAck[ackKey];
+ delete rescheduleProposals[eventId];
+ // Collapse the editor so the moved event simply settles into the timeline.
+ if (expandedEventId === eventId) expandedEventId = null;
+ moveEventToSlot(eventId, year, month, day, startMin, mins);
+}
+
+// Actually move an event to a new day/time, across days if needed, then resync.
+function moveEventToSlot(eventId, year, month, day, startMin, mins) {
  const result = findEventById(eventId);
  if (!result) return;
-
- // Read edited time from input
- const input = document.getElementById('rs-input-'+eventId+'-'+idx);
- const slot = input ? input.value.replace(/^Best · /, '') : '';
-
- // Hide slots
- const slotsEl = document.getElementById('rs-slots-'+eventId);
- if (slotsEl) slotsEl.classList.remove('show');
-
- // Fade out the reschedule button area
- const section = slotsEl.closest('.reschedule-section');
- if (section) {
- section.style.opacity = '0.4';
- section.style.pointerEvents = 'none';
- section.style.transition = 'opacity 0.3s';
+ const ev = result.event;
+ const start = startMin, end = startMin + mins;
+ ev.startTime = minutesToHHMM(start);
+ ev.endTime = minutesToHHMM(end);
+ ev.time = minutesToTime(start).replace(':00','') + '–' + minutesToTime(end).replace(':00','');
+ ev.duration = formatPlanMinutes(mins);
+ if (result.monthKey != null && eventsDB[result.monthKey] && eventsDB[result.monthKey][result.dayKey]) {
+  const oldArr = eventsDB[result.monthKey][result.dayKey];
+  const oi = oldArr.findIndex(e => e.id === eventId);
+  if (oi >= 0) oldArr.splice(oi, 1);
  }
-
- showToast(' Rescheduled: ' + result.event.title + ' → ' + slot.split(' · ')[1]?.trim());
+ const newKey = year + '-' + month;
+ if (!eventsDB[newKey]) eventsDB[newKey] = {};
+ if (!eventsDB[newKey][day]) eventsDB[newKey][day] = [];
+ if (!eventsDB[newKey][day].some(e => e.id === eventId)) eventsDB[newKey][day].push(ev);
+ runtimeEvents[eventId] = ev;
+ syncAllViews();
+ showToast('Moved · ' + agentDayLabel(new Date(year, month - 1, day)) + ' ' + minutesToTime(start).replace(':00',''));
 }
 
 // ====== VOICE EDIT EVENT ======
