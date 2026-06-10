@@ -2166,6 +2166,9 @@
   <div class="settings-group" id="accountGroup" style="display:none;margin-top:20px;">
    <div class="settings-label">Account</div>
    <div class="settings-hint" id="accountEmail" style="margin-top:0;"></div>
+   <div class="settings-label" style="margin-top:14px;">Display name</div>
+   <div class="settings-hint" style="margin-top:0;margin-bottom:6px;">Shown in your morning greeting.</div>
+   <input id="displayNameInput" type="text" placeholder="Your name" onchange="setDisplayName(this.value)" style="width:100%;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
    <button class="settings-danger" id="signOutBtn" onclick="cloudSignOut()" style="display:none;margin-top:10px;">Sign out</button>
   </div>
  </div>
@@ -2176,6 +2179,7 @@
  <div class="settings-sheet">
   <div class="settings-head"><div class="settings-title">Sign in</div></div>
   <div class="settings-group">
+   <input id="loginName" type="text" autocomplete="name" placeholder="Your name (for your greeting)" style="width:100%;margin-bottom:14px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
    <button class="login-google" id="loginGoogleBtn" onclick="signInWithGoogle()">
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
     Continue with Google
@@ -4268,7 +4272,7 @@ function renderGreetingCard(completedToday, totalToday, pendingSuggestions, free
  const pct = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
  let h = '<div class="greeting-card anim-in">'+
   '<div class="gc-date">'+dateStr+'</div>'+
-  '<div class="gc-greeting"><svg width="22" height="22"><use href="#icon-sun"/></svg> Good morning, Yvonne</div>'+
+  '<div class="gc-greeting"><svg width="22" height="22"><use href="#icon-sun"/></svg> Good morning, '+escAttr(getDisplayName())+'</div>'+
   '<div class="gc-stats">';
  // 1 · Today's progress — completed vs. total events (fills as more get done)
  h += '<div class="gc-stat gc-progress-row">'+
@@ -4783,6 +4787,30 @@ function cloudConfigured() {
 }
 function cloudActive() { return appMode === 'live' && cloudConfigured(); }
 
+// ====== DISPLAY NAME (for the greeting) ======
+// Priority: user override (set at login or in Settings) → signed-in profile
+// (Google name / email local-part) → demo persona → generic.
+const DISPLAY_NAME_KEY = 'schedulingAgentDisplayName.v1';
+function getDisplayName() {
+ try { const n = localStorage.getItem(DISPLAY_NAME_KEY); if (n && n.trim()) return n.trim(); } catch (e) {}
+ if (typeof sbUser !== 'undefined' && sbUser) {
+  const m = sbUser.user_metadata || {};
+  const full = m.display_name || m.full_name || m.name || m.given_name || '';
+  if (full) return String(full).trim().split(/\s+/)[0];
+  if (sbUser.email) { const lp = sbUser.email.split('@')[0]; return lp.charAt(0).toUpperCase() + lp.slice(1); }
+ }
+ if (typeof appMode !== 'undefined' && appMode === 'demo') return 'Yvonne';
+ return 'there';
+}
+function setDisplayName(name) {
+ const v = (name || '').trim();
+ try { if (v) localStorage.setItem(DISPLAY_NAME_KEY, v); else localStorage.removeItem(DISPLAY_NAME_KEY); } catch (e) {}
+ // Best-effort cloud sync so the name follows you across devices.
+ try { if (typeof sb !== 'undefined' && sb && typeof sbUser !== 'undefined' && sbUser) sb.auth.updateUser({ data: { display_name: v } }); } catch (e) {}
+ if (document.getElementById('todayContent')) renderTodayPage();
+ if (typeof renderSettings === 'function') renderSettings();
+}
+
 function initCloud() {
  if (!cloudActive() || sb) return;
  try {
@@ -4797,11 +4825,13 @@ function initCloud() {
  sb.auth.onAuthStateChange(function (_evt, session) {
   sbUser = session ? session.user : null;
   if (typeof renderSettings === 'function') renderSettings();
+  if (document.getElementById('todayContent')) renderTodayPage();
   if (sbUser) { closeLogin(); cloudLoad(); } else { showLogin(); }
  });
  sb.auth.getSession().then(function (res) {
   sbUser = res && res.data && res.data.session ? res.data.session.user : null;
   if (typeof renderSettings === 'function') renderSettings();
+  if (document.getElementById('todayContent')) renderTodayPage();
   if (sbUser) cloudLoad(); else showLogin();
  }).catch(function () {});
 }
@@ -4844,6 +4874,8 @@ async function sendMagicLink() {
  const email = input && input.value && input.value.trim();
  const msg = document.getElementById('loginMsg');
  if (!email || !sb) { if (msg) msg.textContent = 'Enter your email first.'; return; }
+ const nameEl = document.getElementById('loginName');
+ if (nameEl && nameEl.value.trim()) setDisplayName(nameEl.value.trim());
  const btn = document.getElementById('loginSendBtn');
  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
  try {
@@ -4854,6 +4886,8 @@ async function sendMagicLink() {
 }
 async function signInWithGoogle() {
  if (!sb) return;
+ const nameEl = document.getElementById('loginName');
+ if (nameEl && nameEl.value.trim()) setDisplayName(nameEl.value.trim());
  const btn = document.getElementById('loginGoogleBtn');
  if (btn) { btn.disabled = true; }
  try {
@@ -4908,6 +4942,8 @@ function renderSettings() {
     ? ('Signed in as ' + sbUser.email + (admin ? ' · Admin' : ''))
     : 'Not signed in';
    if (signOutBtn) signOutBtn.style.display = sbUser ? 'block' : 'none';
+   const nameInput = document.getElementById('displayNameInput');
+   if (nameInput && document.activeElement !== nameInput) nameInput.value = getDisplayName();
   } else {
    acct.style.display = 'none';
   }
