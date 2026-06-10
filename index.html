@@ -7142,7 +7142,7 @@ function buildAgentInsights() {
  ['bus', 'tram', 'car-ride', 'walk', 'car-drive', 'flight', 'train'].forEach(m => {
   const pref = prefStore[prefKey('transit_work', m)];
   if (pref && pref.sampleCount >= 2 && effectiveTransitScore(m) > getWorkability(m).score) {
-   out.push('You usually get a bit of work done on the ' + m.replace('-', ' ') + ', so the agent will start putting light tasks there.');
+   out.push('You usually get a little work done on the ' + m.replace('-', ' ') + ', so light tasks fit well there.');
   }
  });
 
@@ -7152,7 +7152,7 @@ function buildAgentInsights() {
   if (!d || d.count < 2) return;
   const avg = Math.round(d.totalMin / d.count);
   const name = k.startsWith('person::') ? k.slice(8) : (k.startsWith('kind::') ? k.slice(6) : k);
-  out.push(cap(name) + ' meetings usually take about ' + avg + ' minutes, so the agent now sets aside that much time.');
+  out.push(cap(name) + ' meetings usually run about ' + avg + ' minutes, so that is how much time gets set aside now.');
  });
 
  // ── Patterns observed from your calendar (works even with no interaction yet) ──
@@ -7167,7 +7167,7 @@ function buildAgentInsights() {
 
  const deep = all.filter(e => e.type === 'deep');
  if (deep.length >= 3 && deep.filter(e => startHour(e) < 12).length / deep.length >= 0.7) {
-  out.push('Your focus time is almost always early, so the agent keeps your mornings clear for it.');
+  out.push('Your focus time is almost always early, so your mornings stay clear for it.');
  }
 
  const transit = all.filter(e => e.type === 'transit' && e.transitMode);
@@ -7185,7 +7185,7 @@ function renderAgentLearningCard() {
  html += '<div class="an-title">What the agent has noticed</div>';
  if (insights.length === 0) {
   html += '<div style="font-size:13px;color:var(--ej-text-2);line-height:1.6;padding:2px 0 4px;">'+
-   'Still getting to know you. The more you accept, skip, or move suggestions around, the more your habits will show up here.</div>';
+   'Still learning your habits. As you accept, skip, or move things around, patterns will show up here.</div>';
  } else {
   insights.forEach(t => {
    html += '<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:13px;line-height:1.5;">'+
@@ -7297,7 +7297,7 @@ function renderLearningTrendsCard(trends) {
  let html = '<div class="analytics-card anim-in">';
  html += '<div class="an-title">Learning Trends</div>';
  if (!trends || !trends.hasData) {
-  html += '<div style="font-size:13px;color:var(--ej-text-2);line-height:1.6;padding:2px 0 4px;">Keep accepting or moving suggestions — week-over-week trends will show up here once there is enough history.</div>';
+  html += '<div style="font-size:13px;color:var(--ej-text-2);line-height:1.6;padding:2px 0 4px;">Once you have a bit more history, your week to week trends will show up here.</div>';
   html += '</div>';
   return html;
  }
