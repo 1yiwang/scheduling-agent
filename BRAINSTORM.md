@@ -17,8 +17,55 @@
 - **学习地基**：Stage A 特征埋点 + 时长滑动平均（统计，非 ML）。
 
 **下一步**
-- 语音输入（Whisper 云 STT + serverless 代理 + LLM 解析 → 可编辑草稿 → 确认入库）。
-- 登录态跨设备记住的体验优化。
+- 见下「## 路径规划（2026-06-10 晚 · 当前生效）」——已取代旧的零散下一步。
+- （远期 backlog）语音输入（Whisper 云 STT + serverless 代理 + LLM 解析 → 可编辑草稿 → 确认入库）；登录态跨设备记住。
+
+---
+
+## 路径规划（2026-06-10 晚 · 当前生效）
+
+> 这一节基于**真实当前状态**重排，取代文末两轮 6/10 评审里「现在就做」的旧清单（那些大半已完成）。
+
+### 评审之后又做掉的（状态校准）
+- ✅ 学习数据债务 #2/#3/#4/#6/#7/#11 全部修复（接受路径写 normalized `interactionLog`、`sourceTaskId`、保留 kind/type、prefScore fallback 统一）。
+- ✅ Phase C 学习三表（`interaction_log`/`pref_store`/`duration_observations`）+ 历史回填（幂等）。
+- ✅ Detector 从 1 个 → **6 个**（conflict/follow-up/cleanup/prep/rebalance/deadline）。
+- ✅ **策展层 Layer 1**（Phase A 确定性 + Phase B BYO-key LLM rank_only，serverless 代理，安全护栏 `applyCuration`）。见 `docs/agent-detectors.md §8`。
+
+### 仍未做、且仍高价值的
+1. `getPlanWindows` 仍只看今天（债务 #9 / 瓶颈 1）。
+2. **Plan vs Actual 追踪**（§八，信息密度最高的学习信号，设计了没实现）。
+3. **Beta 学习增强**（债务 #5：偏好权重太弱被硬编码规则淹没；时间衰减/信号分层/冷启动先验全缺）。
+4. 更多 detector（Energy Guard / Context Switch / Travel / Pre-mortem / Week Ahead）。
+5. 单文件拆分（已近 8000 行）。
+6. **离线回测脚手架**（用 `interaction_log` 回放历史，度量 detector/排序好坏）。
+
+### 核心判断（已确认）
+**停止再加 detector，先把学习飞轮闭环 + 让它可度量。**
+
+理由：感知（detector）和表达（LLM 策展）这两阶段已足够；产品护城河是「数据飞轮越用越聪明」，但现在学到的东西几乎不改变行为（Beta 权重被 importance×18 淹没），且**无法验证任何改动是否真让 agent 更准**。刚加的 LLM 策展让这个问题更尖锐——凭什么说 LLM 排序比规则好？没有度量就是凭感觉。再加第 7、8 个 detector 只是多几只眼睛，不会更聪明。binding constraint = 学习闭环 + 度量。
+
+### 三条轨道（按依赖推进）
+
+**轨道 A · 闭环学习飞轮（护城河 · 最高优先）**
+1. **Plan vs Actual 追踪**：记录 agent 排了什么 vs 实际完成/改期/超时。最高信息密度，喂养下面所有学习。
+2. **Beta 增强**（先做两件）：提高偏好在排序里的权重 + 信号分层（无视≠拒绝），让「学到的」真正改变 Top 排序。
+3. **离线回测脚手架**：`interaction_log` 回放历史，度量「规则 vs LLM vs 增强后」的接受率——验证 1/2 有没有用，也回答 LLM 策展值不值。
+
+**轨道 B · 视野扩展（质变 · 中优先）**
+4. **泛化 `getPlanWindows(date)`**：今天助手 → 周管家。结构性质变，deadline-risk 已铺一半基础设施，独立低风险，可随时插入。
+
+**轨道 C · 工程健康（税 · 按需）**
+5. 拆分单文件——**等下次加一批 detector 时顺手做**，不单独立项；纯函数 detector 是最低风险拆分边界。
+
+### 现在明确不做
+- ❌ 再加新 detector（感知够了）
+- ❌ Phase C 剩余表（events/tasks/profile 拆表此刻无收益）
+- ❌ ML 预测层（数据量不够，评审自己也承认）
+- ❌ Travel Optimize / Pre-mortem（等阶段 2 接真实日历才有数据支撑）
+
+### 起步建议
+从轨道 A 的 **Plan vs Actual** 或 **回测脚手架** 起步，随后写分步 TDD 施工计划（参照 `docs/superpowers/plans/2026-06-10-agent-curation-layer.md` 体例）。
 
 ## 北极星（已确认）
 专用、嵌入、零描述、一键接受/拒绝的调度 agent —— **"日历界的 Cursor"**。
