@@ -4704,6 +4704,7 @@ const LEARNING_STORAGE_KEY = 'schedulingAgentLearning.v1';
 let interactionLog = [];
 let prefStore = {};
 let durationStore = {}; // `${kind}::${person}` → {totalMin, count} · learned actual durations
+let learningBackfilledAt = ''; // set once the old blob learning state is pushed into Phase C tables
 
 function loadLearningState() {
  try {
@@ -4885,6 +4886,9 @@ async function cloudLoad() {
     interactionLog = remote.learning.interactionLog || [];
     saveLearningState();
    }
+   learningBackfilledAt = remote.learningBackfilledAt || '';
+   // Push old blob-only learning state into the Phase C tables once.
+   backfillLearningToCloud();
    if (remote.friendNotes) {
     friendNotes = remote.friendNotes;
     try { localStorage.setItem(FRIEND_NOTES_KEY, JSON.stringify(friendNotes)); } catch (e) {}
@@ -4920,6 +4924,7 @@ function snapshotCloud() {
  return Object.assign({}, snapshotDBs(), {
   schemaVersion: 2,
   learning: { prefStore: prefStore, durationStore: durationStore, interactionLog: interactionLog },
+  learningBackfilledAt: learningBackfilledAt || null,
   friendNotes: friendNotes,
   displayNameOverride: nameOverride
  });
@@ -4988,6 +4993,80 @@ function cloudInsertDurationObservation(kind, person, minutes) {
    ts: new Date().toISOString()
   }));
  } catch (e) {}
+}
+
+// Build normalized rows from the old blob-only learning state so it can be
+// pushed into the Phase C tables once. Pure + deterministic so it can be tested
+// without a Supabase client. durationStore only keeps aggregates, so each entry
+// is expanded into `count` synthetic rows at the average to keep trends honest.
+function buildBackfillRows(interactionLog, prefStore, durationStore, userId) {
+ const out = { interactions: [], prefs: [], durations: [] };
+ (interactionLog || []).forEach(function (row) {
+  if (!row) return;
+  out.interactions.push({
+   user_id: userId,
+   ts: row.ts || new Date().toISOString(),
+   action: row.action || null,
+   context: row.context || null,
+   top3: row.top3 || [],
+   chosen_idx: (typeof row.chosenIdx === 'number') ? row.chosenIdx : null,
+   candidate_id: (row.candidateId == null) ? null : row.candidateId,
+   kind: row.kind || null,
+   source: row.source || null,
+   involves: (row.involves == null) ? null : row.involves,
+   features: row.features || null,
+   label: (typeof row.label === 'number') ? row.label : null
+  });
+ });
+ Object.keys(prefStore || {}).forEach(function (id) {
+  const pref = prefStore[id];
+  if (!pref || !pref.dimension) return;
+  out.prefs.push({
+   user_id: userId,
+   dimension: pref.dimension,
+   key: pref.key,
+   alpha: pref.alpha,
+   beta: pref.beta,
+   confidence: pref.confidence,
+   sample_count: pref.sampleCount,
+   last_updated: pref.lastUpdated || new Date().toISOString()
+  });
+ });
+ Object.keys(durationStore || {}).forEach(function (id) {
+  const agg = durationStore[id];
+  if (!agg || !agg.count) return;
+  const sep = id.indexOf('::');
+  const dim = sep >= 0 ? id.slice(0, sep) : '';
+  const val = sep >= 0 ? id.slice(sep + 2) : id;
+  const isPerson = dim === 'person';
+  const avg = Math.round(agg.totalMin / agg.count);
+  for (let i = 0; i < agg.count; i++) {
+   out.durations.push({
+    user_id: userId,
+    kind: isPerson ? null : (val || null),
+    person: isPerson ? (val || null) : null,
+    observed_minutes: avg,
+    ts: new Date().toISOString()
+   });
+  }
+ });
+ return out;
+}
+
+// One-time push of the old blob learning state into the Phase C tables.
+// Guarded by a flag inside the cloud blob so it only runs once per user
+// (pref_store upsert is idempotent, but the append-only tables are not).
+function backfillLearningToCloud() {
+ if (!cloudLearningActive()) return;
+ if (learningBackfilledAt) return;
+ const rows = buildBackfillRows(interactionLog, prefStore, durationStore, sbUser.id);
+ try {
+  if (rows.interactions.length) runCloudQuery(sb.from('interaction_log').insert(rows.interactions));
+  if (rows.prefs.length) runCloudQuery(sb.from('pref_store').upsert(rows.prefs));
+  if (rows.durations.length) runCloudQuery(sb.from('duration_observations').insert(rows.durations));
+ } catch (e) {}
+ learningBackfilledAt = new Date().toISOString();
+ cloudSave();
 }
 
 function showLogin() { const ov = document.getElementById('loginOverlay'); if (ov) ov.classList.add('show'); }

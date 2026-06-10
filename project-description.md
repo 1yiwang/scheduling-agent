@@ -79,7 +79,7 @@ duration_observations(id, user_id, kind, person, observed_minutes, ts)
   - `recordSignal(...)`：更新本地 `prefStore` + blob，同时 best-effort `upsert pref_store`。
   - `recordObservedDuration(...)`：更新本地 `durationStore` + blob，同时 best-effort `insert duration_observations`。
 - 失败策略：学习表写入失败不阻塞 UI，blob 仍是兼容快照；这样线上表还没建好时 app 不会崩。
-- 迁移策略：后续读旧 `app_state.data.learning` 回填三张表；当前先保证**新产生**的信号进入规范化表。
+- 迁移策略：登录拉取 blob 后，`backfillLearningToCloud()` 调用纯函数 `buildBackfillRows()` 把旧 `app_state.data.learning`（interactionLog / prefStore / durationStore）一次性写入三张规范化表。`pref_store` 用 upsert 天然幂等；append-only 的 `interaction_log` / `duration_observations` 靠 blob 内 `learningBackfilledAt` 标记只回填一次。`durationStore` 只存聚合（totalMin/count），按 `count` 展开成均值行以保证趋势聚合不失真。
 - 线上验证（2026-06-10）：用户在 `calendar.yiwang.dev` 触发新增/完成/规划后，Supabase 已能看到 `pendingTask`、`social` 等 `source/kind` 行，证明 Phase C 学习表双写链路已打通。
 
 ### Phase C 第二刀（未来）：拆核心业务实体
@@ -265,13 +265,13 @@ friends(id pk, user_id, name, note, share_scope, ...)
 - ✅ **持久化 Phase 1**：学习/好友/名字随云端 blob 同步（跨设备不丢）；分析页 Week 视图改用真实数据（见 §2.5）
 - ✅ **Phase C 第一刀**：学习数据双写到 `interaction_log` / `pref_store` / `duration_observations`，线上 Supabase 已验证有 `pendingTask/social` 等行（见 §2.5）
 - ✅ **Analytics 真实趋势**：Week 视图新增 Learning Trends 卡，从 normalized 学习表聚合本周 vs 上周接受率与时长（见 §2.5 分析页）
+- ✅ **旧 blob 学习数据回填**：登录后一次性把 `app_state.data.learning` 历史迁移进三张学习表，靠 `learningBackfilledAt` 标记保证幂等（见 §2.5）
 
 **下一步（建议顺序）**
-1. **旧 blob 学习数据回填**：把 `app_state.data.learning` 历史迁移进三张学习表，补全趋势历史。
-2. **Conflict 主动巡检**：`detectConflicts()` 进 `MOVE_DETECTORS`，扫描已存在的重叠并在简报主动暴露，用 `moveEventToSlot` 一键挪走其一。
-3. 更多 detector：Prep（会前准备）、Follow-up（会后跟进）、Cleanup（未标记完成）、Rebalance（今天过载）。
-4. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
-5. 语音输入（deferred）。
+1. **Conflict 主动巡检**：`detectConflicts()` 进 `MOVE_DETECTORS`，扫描已存在的重叠并在简报主动暴露，用 `moveEventToSlot` 一键挪走其一。
+2. 更多 detector：Prep（会前准备）、Follow-up（会后跟进）、Cleanup（未标记完成）、Rebalance（今天过载）。
+3. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
+4. 语音输入（deferred）。
 
 ---
 

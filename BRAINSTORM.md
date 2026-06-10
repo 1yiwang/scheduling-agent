@@ -1053,7 +1053,9 @@ Agent 分析：
 - ✅ 已先修正学习路径质量：Desk Plan / Agent Loop 接受路径写入 normalized `interactionLog`；`prefScore` source fallback 统一为 `pendingTask`；Desk-planned / agent-loop event 保留 `sourceTaskId`、`kind`、analytics `type`。
 - ✅ 已完成 Phase C 第一刀：`supabase-schema.sql` 创建 `interaction_log` / `pref_store` / `duration_observations` 三张学习表（RLS 开启），前端在保留 `app_state` blob 兼容快照的同时 best-effort 双写三张表。
 - ✅ 线上验证：用户在 `calendar.yiwang.dev` 操作后，Supabase 已看到 `pendingTask`、`social` 等 `source/kind` 行，说明新产生的学习信号已进入规范化表。
-- ⏭️ 下一步：从 `interaction_log` 做真实趋势分析（本周 vs 上周、接受率变化），并设计旧 `app_state.data.learning` 的历史回填脚本。
+- ✅ 已完成真实趋势分析：Analytics 用 `interaction_log` / `duration_observations` 算本周 vs 上周、接受率变化、top kind/source。
+- ✅ 已完成历史回填：登录拉取 blob 后，`buildBackfillRows` 把旧 `app_state.data.learning`（interactionLog / prefStore / durationStore）一次性写入三张规范化表。`pref_store` 用 upsert 天然幂等；append-only 表靠 blob 内 `learningBackfilledAt` 标记只回填一次。`durationStore` 只存聚合，按 `count` 展开成均值行以保证趋势不失真。
+- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Overdue Follow-up Detector。
 
 ### 🔴 CRITICAL
 
