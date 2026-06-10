@@ -702,7 +702,7 @@ runAgentLoop(horizon=7d)
 | **Deadline-risk** 截止日预警 | 快到期但没排块的任务 | ✅ 已实现（`detectDeadlineRisk` → 首页 Agent suggestions 简报，一键排/自定义日期时间）|
 | **Conflict** 冲突消解 | 双重预订 / 排进不可工作时段（如 walk）| ✅ 调度即校验（`detectSlotConflict`，warn+覆盖+学习）+ 主动巡检（`detectExistingConflicts` 进 `MOVE_DETECTORS`，简报一键挪走其中一个）|
 | **Prep** 会前准备 | 重要会前无准备块 | ❌ 无 |
-| **Follow-up** 会后跟进 | 会后欠的消息/笔记 | ❌ 无 |
+| **Follow-up** 会后跟进 | 会后欠的消息/笔记 | ✅ 已实现（`detectFollowUpsDue` 扫描 due today / overdue 的 pending follow-up，简报一键 Done） |
 | **Cleanup** 收尾 | 过去事件未标记完成 | ⚠️ 统计有但不主动催 |
 | **Rebalance** 重排 | 今天过载 → 建议挪 | ❌ 无 |
 | **Energy Guard** 精力守护 | 3 个 deep work 背靠背无缓冲 → 建议插入 break 或交换时段 | ❌ 无 |
@@ -1056,7 +1056,8 @@ Agent 分析：
 - ✅ 已完成真实趋势分析：Analytics 用 `interaction_log` / `duration_observations` 算本周 vs 上周、接受率变化、top kind/source。
 - ✅ 已完成历史回填：登录拉取 blob 后，`buildBackfillRows` 把旧 `app_state.data.learning`（interactionLog / prefStore / durationStore）一次性写入三张规范化表。`pref_store` 用 upsert 天然幂等；append-only 表靠 blob 内 `learningBackfilledAt` 标记只回填一次。`durationStore` 只存聚合，按 `count` 展开成均值行以保证趋势不失真。
 - ✅ 已完成 Conflict 主动巡检：Agent Loop 会扫描 horizon 内已存在的重叠事件，选择较短/后开始的事件作为可移动对象，并给出一键 `moveEventToSlot` 动作。
-- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Overdue Follow-up Detector。
+- ✅ 已完成 Overdue Follow-up Detector：`detectFollowUpsDue` 会把 due today / overdue 的 pending follow-up 放进 Agent Loop，并提供一键 Done。
+- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Prep / Cleanup / Rebalance detectors。
 
 ### 🔴 CRITICAL
 

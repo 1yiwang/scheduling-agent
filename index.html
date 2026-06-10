@@ -4547,8 +4547,49 @@ function detectExistingConflicts() {
  return moves;
 }
 
+function isoDaysFromToday(iso) {
+ if (!iso) return null;
+ const p = iso.split('-');
+ if (p.length !== 3) return null;
+ const tN = appNow();
+ const today = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate());
+ const d = new Date(+p[0], +p[1] - 1, +p[2]);
+ return Math.round((d - today) / 86400000);
+}
+
+function detectFollowUpsDue() {
+ const moves = [];
+ for (const mk of Object.keys(eventsDB)) {
+  for (const dk of Object.keys(eventsDB[mk])) {
+   (eventsDB[mk][dk] || []).forEach(ev => {
+    if (!ev.followUpNeeded || ev.followUpStatus !== 'pending' || !ev.followUpBy) return;
+    const daysUntil = isoDaysFromToday(ev.followUpBy);
+    if (daysUntil == null || daysUntil > 0) return;
+    const note = (ev.followUpNote || '').trim();
+    moves.push({
+     id: 'move-follow-up-' + ev.id,
+     type: 'follow_up_due',
+     severity: daysUntil < 0 ? 'high' : 'normal',
+     daysUntil: daysUntil,
+     title: note || ('Follow up: ' + conflictShortTitle(ev.title)),
+     dueShort: daysUntil < 0 ? Math.abs(daysUntil) + 'd overdue' : 'due today',
+     subject: { eventId: ev.id },
+     mins: 10,
+     dueISO: ev.followUpBy,
+     proposedActions: [{
+      label: 'Done',
+      fn: 'markFollowUpDone',
+      payload: { eventId: ev.id }
+     }]
+    });
+   });
+  }
+ }
+ return moves;
+}
+
 // Registry — add a new proactive capability by pushing a detector here.
-const MOVE_DETECTORS = [detectExistingConflicts, detectDeadlineRisk];
+const MOVE_DETECTORS = [detectExistingConflicts, detectFollowUpsDue, detectDeadlineRisk];
 
 function runAgentLoop() {
  let moves = [];
@@ -4672,12 +4713,23 @@ function runMoveAction(moveId, actionIdx) {
  } else if (a.fn === 'moveEventToSlot') {
   const p = a.payload;
   moveEventToSlot(p.eventId, p.year, p.month, p.day, p.startMin, p.mins);
+ } else if (a.fn === 'markFollowUpDone') {
+  markFollowUpDone(a.payload.eventId);
  }
 }
 
 function dismissMove(id) {
  if (dismissedMoveIds.indexOf(id) < 0) dismissedMoveIds.push(id);
  syncAllViews();
+}
+
+function markFollowUpDone(eventId) {
+ const result = findEventById(eventId);
+ if (!result) return;
+ result.event.followUpStatus = 'done';
+ saveAppData();
+ syncAllViews();
+ showToast('Follow-up done');
 }
 
 function eventTypeForTaskKind(kind) {
