@@ -700,7 +700,7 @@ runAgentLoop(horizon=7d)
 | **Gap-fill** 见缝插针 | 空块 + 适配任务 | ✅ 跨天（`proposeSlotsForTask`，今天→horizon 每天一个最佳空档）|
 | **Commute-fill** 通勤塞事 | 可用通勤 + 轻任务 | ⚠️ 只限今天（可工作通勤=不算冲突，见下）|
 | **Deadline-risk** 截止日预警 | 快到期但没排块的任务 | ✅ 已实现（`detectDeadlineRisk` → 首页 Agent suggestions 简报，一键排/自定义日期时间）|
-| **Conflict** 冲突消解 | 双重预订 / 排进不可工作时段（如 walk）| ⚠️ 调度即校验已实现（`detectSlotConflict`，warn+覆盖+学习）；**主动巡检尚无**（不会自己发现已存在的重叠）|
+| **Conflict** 冲突消解 | 双重预订 / 排进不可工作时段（如 walk）| ✅ 调度即校验（`detectSlotConflict`，warn+覆盖+学习）+ 主动巡检（`detectExistingConflicts` 进 `MOVE_DETECTORS`，简报一键挪走其中一个）|
 | **Prep** 会前准备 | 重要会前无准备块 | ❌ 无 |
 | **Follow-up** 会后跟进 | 会后欠的消息/笔记 | ❌ 无 |
 | **Cleanup** 收尾 | 过去事件未标记完成 | ⚠️ 统计有但不主动催 |
@@ -779,7 +779,7 @@ runAgentLoop(horizon=7d)
    - 若用户对某 mode 反复覆盖（`sampleCount≥2 且 置信度>0.66`）→ +2 → 该 mode 的有效可工作度提升 → 以后排进去不再报冲突。
    - 这是 **Tier-1 参数自调** 的真实样例：agent 从"你确实在 bus 上工作"这一行为，学会调整自己的 workability 判断，而不是写死规则。
 
-**下一步（未做）**：把 Conflict 升级为**主动巡检** move——加 `detectConflicts()` 进 `MOVE_DETECTORS`，扫描已存在的重叠（不只在排期那一刻），在 briefing 主动暴露，并用 `moveEventToSlot` 给出"挪走其中一个"的一键动作。
+**已完成**：Conflict 已升级为**主动巡检** move。`detectExistingConflicts()` 扫描 horizon 内已存在的重叠（不只在排期那一刻），在 briefing 主动暴露，并用 `moveEventToSlot` 给出"挪走其中一个"的一键动作。
 
 ### 六、触发时机（propose-only 下很简单）
 
@@ -1055,6 +1055,7 @@ Agent 分析：
 - ✅ 线上验证：用户在 `calendar.yiwang.dev` 操作后，Supabase 已看到 `pendingTask`、`social` 等 `source/kind` 行，说明新产生的学习信号已进入规范化表。
 - ✅ 已完成真实趋势分析：Analytics 用 `interaction_log` / `duration_observations` 算本周 vs 上周、接受率变化、top kind/source。
 - ✅ 已完成历史回填：登录拉取 blob 后，`buildBackfillRows` 把旧 `app_state.data.learning`（interactionLog / prefStore / durationStore）一次性写入三张规范化表。`pref_store` 用 upsert 天然幂等；append-only 表靠 blob 内 `learningBackfilledAt` 标记只回填一次。`durationStore` 只存聚合，按 `count` 展开成均值行以保证趋势不失真。
+- ✅ 已完成 Conflict 主动巡检：Agent Loop 会扫描 horizon 内已存在的重叠事件，选择较短/后开始的事件作为可移动对象，并给出一键 `moveEventToSlot` 动作。
 - ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Overdue Follow-up Detector。
 
 ### 🔴 CRITICAL

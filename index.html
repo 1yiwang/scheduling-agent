@@ -4308,10 +4308,10 @@ function minutesToHHMM(mins) { return pad2(Math.floor(mins / 60)) + ':' + pad2(m
 
 // Free windows on ANY date = workday minus that day's events (gaps ≥ minMin).
 // This is the date-generalized version of getDeskPlanningSlots (which is today-only).
-function getFreeWindowsForDate(year, month, day, minMin) {
+function getFreeWindowsForDate(year, month, day, minMin, excludeId) {
  minMin = minMin || 15;
  const key = year + '-' + month;
- const evts = ((eventsDB[key] || {})[day] || []).filter(e => e.startTime && e.endTime);
+ const evts = ((eventsDB[key] || {})[day] || []).filter(e => e.startTime && e.endTime && (!excludeId || e.id !== excludeId));
  const wd = agentWorkday();
  let ranges = [{ start: wd.start, end: wd.end }];
  // On today, never propose a slot already in the past.
@@ -4493,8 +4493,62 @@ function detectDeadlineRisk() {
  return moves;
 }
 
+function chooseMovableConflictEvent(a, b) {
+ const aStart = timeToMinutes(a.startTime), aEnd = timeToMinutes(a.endTime);
+ const bStart = timeToMinutes(b.startTime), bEnd = timeToMinutes(b.endTime);
+ const aDur = aEnd - aStart, bDur = bEnd - bStart;
+ if (aDur !== bDur) return aDur < bDur ? a : b;
+ return aStart >= bStart ? a : b;
+}
+
+function detectExistingConflicts() {
+ const moves = [];
+ const tN = appNow();
+ const startDate = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate());
+ const seen = {};
+ for (let d = new Date(startDate); d <= new Date(startDate.getTime() + AGENT_HORIZON_DAYS * 86400000); d.setDate(d.getDate() + 1)) {
+  const year = d.getFullYear(), month = d.getMonth() + 1, day = d.getDate();
+  const dayEvents = getDayEvents(year, month, day).slice().sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+  for (let i = 0; i < dayEvents.length; i++) {
+   for (let j = i + 1; j < dayEvents.length; j++) {
+    const a = dayEvents[i], b = dayEvents[j];
+    const aS = timeToMinutes(a.startTime), aE = timeToMinutes(a.endTime);
+    const bS = timeToMinutes(b.startTime), bE = timeToMinutes(b.endTime);
+    if (bS >= aE) break;
+    if (!(aS < bE && aE > bS)) continue;
+    const ids = [a.id, b.id].sort().join(':');
+    const key = year + '-' + month + '-' + day + ':' + ids;
+    if (seen[key]) continue;
+    seen[key] = true;
+    const movable = chooseMovableConflictEvent(a, b);
+    const fixed = movable.id === a.id ? b : a;
+    const mins = timeToMinutes(movable.endTime) - timeToMinutes(movable.startTime);
+    const actions = getFreeWindowsForDate(year, month, day, mins, movable.id).slice(0, 4).map(w => ({
+     label: agentDayLabel(d) + ' ' + minutesToTime(w.start).replace(':00', ''),
+     fn: 'moveEventToSlot',
+     payload: { eventId: movable.id, year: year, month: month, day: day, startMin: w.start, mins: mins }
+    }));
+    const daysUntil = Math.round((new Date(year, month - 1, day) - startDate) / 86400000);
+    moves.push({
+     id: 'move-conflict-' + year + '-' + month + '-' + day + '-' + movable.id + '-' + fixed.id,
+     type: 'existing_conflict',
+     severity: 'critical',
+     daysUntil: daysUntil,
+     title: 'Move ' + conflictShortTitle(movable.title),
+     dueShort: daysUntil === 0 ? 'conflict today' : 'conflict ' + daysUntil + 'd',
+     subject: { eventId: movable.id, conflictWithId: fixed.id },
+     mins: mins,
+     dueISO: year + '-' + pad2(month) + '-' + pad2(day),
+     proposedActions: actions
+    });
+   }
+  }
+ }
+ return moves;
+}
+
 // Registry — add a new proactive capability by pushing a detector here.
-const MOVE_DETECTORS = [detectDeadlineRisk];
+const MOVE_DETECTORS = [detectExistingConflicts, detectDeadlineRisk];
 
 function runAgentLoop() {
  let moves = [];
@@ -4615,6 +4669,9 @@ function runMoveAction(moveId, actionIdx) {
  if (a.fn === 'scheduleTaskToSlot') {
   const p = a.payload;
   scheduleTaskToSlot(p.source, p.id, p.year, p.month, p.day, p.startMin, p.mins);
+ } else if (a.fn === 'moveEventToSlot') {
+  const p = a.payload;
+  moveEventToSlot(p.eventId, p.year, p.month, p.day, p.startMin, p.mins);
  }
 }
 

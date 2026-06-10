@@ -266,10 +266,11 @@ friends(id pk, user_id, name, note, share_scope, ...)
 - ✅ **Phase C 第一刀**：学习数据双写到 `interaction_log` / `pref_store` / `duration_observations`，线上 Supabase 已验证有 `pendingTask/social` 等行（见 §2.5）
 - ✅ **Analytics 真实趋势**：Week 视图新增 Learning Trends 卡，从 normalized 学习表聚合本周 vs 上周接受率与时长（见 §2.5 分析页）
 - ✅ **旧 blob 学习数据回填**：登录后一次性把 `app_state.data.learning` 历史迁移进三张学习表，靠 `learningBackfilledAt` 标记保证幂等（见 §2.5）
+- ✅ **Conflict 主动巡检**：`detectExistingConflicts()` 进入 `MOVE_DETECTORS`，扫描已存在的重叠事件并在简报提供一键 `moveEventToSlot` 修复
 
 **下一步（建议顺序）**
-1. **Conflict 主动巡检**：`detectConflicts()` 进 `MOVE_DETECTORS`，扫描已存在的重叠并在简报主动暴露，用 `moveEventToSlot` 一键挪走其一。
-2. 更多 detector：Prep（会前准备）、Follow-up（会后跟进）、Cleanup（未标记完成）、Rebalance（今天过载）。
+1. 更多 detector：Prep（会前准备）、Follow-up（会后跟进）、Cleanup（未标记完成）、Rebalance（今天过载）。
+2. **Phase C 剩余表**：把 `events` / `tasks` / `profile` 从 blob 继续拆到规范化表。
 3. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
 4. 语音输入（deferred）。
 
