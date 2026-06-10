@@ -205,6 +205,7 @@
 .tas-chevron { color: var(--ej-text-3); transition: transform 0.18s; }
 .today-assist-shell.is-open .tas-chevron { transform: rotate(180deg); }
 .today-assist-body { padding: 0 12px 12px; }
+.today-assist-body .assist-seg { margin: 2px 0 12px; background: var(--ej-hover); }
 .today-assist-body .section-header:first-child { padding-top: 2px; }
 .today-focus-row {
  display: flex; justify-content: flex-end; margin: 0 0 10px;
@@ -2998,6 +2999,12 @@ function confirmCoord(idx, name) {
 
 function showMultiCoord() {
  const div = document.getElementById('multiCoordResult');
+ // Toggle: clicking again collapses the card
+ if (div.style.display === 'block') {
+ div.style.display = 'none';
+ div.innerHTML = '';
+ return;
+ }
  div.style.display = 'block';
  div.innerHTML = `
  <div class="coord-result" style="margin-top:10px;border:1.5px solid var(--ej-info);">
@@ -4506,53 +4513,57 @@ function toggleMoveCustomSlot(id) {
  syncAllViews();
 }
 
-function renderBriefingGroups(moves) {
- if (!moves.length) return '';
- const block = (label, list) => {
-  if (!list.length) return '';
-  let s = '<div class="tp-subhead">' + label + '</div>';
-  list.forEach(m => {
-   const expanded = expandedMoveId === m.id;
-   const hasActions = m.proposedActions.length > 0;
-   // The whole row toggles expand so the manual picker is always reachable,
-   // even when the agent found no automatic slot.
-   s += '<div class="tp-candidate ' + severityPrioClass(m.severity) + ' tp-move' + (expanded ? ' expanded' : '') + '" onclick="event.stopPropagation();toggleMoveExpand(\'' + m.id + '\')">' +
-    '<div class="tp-item-main">' +
-     '<span class="tp-item-title">' + escAttr(m.title) + '</span>' +
-     (m.dueShort ? '<span class="tp-item-mins">' + escAttr(m.dueShort) + '</span>' : '') +
-    '</div>';
-   if (hasActions) {
-    s += '<button class="tp-move-act" onclick="event.stopPropagation();runMoveAction(\'' + m.id + '\',0)">' + escAttr(m.proposedActions[0].label) + '</button>';
-   } else {
-    s += '<span class="tp-move-nofit">No slot</span>';
+// Render a flat list of move cards (no group header). Shared by the briefing
+// groups and the Plan-today / Coming-up tabbed views.
+function renderMoveItems(list) {
+ let s = '';
+ list.forEach(m => {
+  const expanded = expandedMoveId === m.id;
+  const hasActions = m.proposedActions.length > 0;
+  // The whole row toggles expand so the manual picker is always reachable,
+  // even when the agent found no automatic slot.
+  s += '<div class="tp-candidate ' + severityPrioClass(m.severity) + ' tp-move' + (expanded ? ' expanded' : '') + '" onclick="event.stopPropagation();toggleMoveExpand(\'' + m.id + '\')">' +
+   '<div class="tp-item-main">' +
+    '<span class="tp-item-title">' + escAttr(m.title) + '</span>' +
+    (m.dueShort ? '<span class="tp-item-mins">' + escAttr(m.dueShort) + '</span>' : '') +
+   '</div>';
+  if (hasActions) {
+   s += '<button class="tp-move-act" onclick="event.stopPropagation();runMoveAction(\'' + m.id + '\',0)">' + escAttr(m.proposedActions[0].label) + '</button>';
+  } else {
+   s += '<span class="tp-move-nofit">No slot</span>';
+  }
+  s += '<button class="tp-move-dismiss" title="Dismiss" aria-label="Dismiss" onclick="event.stopPropagation();dismissMove(\'' + m.id + '\')">\u00d7</button>';
+  if (expanded) {
+   s += '<div class="tp-move-alts">';
+   for (let i = 1; i < m.proposedActions.length; i++) {
+    s += '<button class="tp-move-act alt" onclick="event.stopPropagation();runMoveAction(\'' + m.id + '\',' + i + ')">' + escAttr(m.proposedActions[i].label) + '</button>';
    }
-   s += '<button class="tp-move-dismiss" title="Dismiss" aria-label="Dismiss" onclick="event.stopPropagation();dismissMove(\'' + m.id + '\')">\u00d7</button>';
-   if (expanded) {
-    s += '<div class="tp-move-alts">';
-    for (let i = 1; i < m.proposedActions.length; i++) {
-     s += '<button class="tp-move-act alt" onclick="event.stopPropagation();runMoveAction(\'' + m.id + '\',' + i + ')">' + escAttr(m.proposedActions[i].label) + '</button>';
-    }
-    // Manual pick: a "+" that opens a date + time chooser.
-    s += '<button class="tp-move-add" title="Pick a date & time" aria-label="Pick a date & time" onclick="event.stopPropagation();toggleMoveCustomSlot(\'' + m.id + '\')">+</button>';
-    if (customSlotMoveId === m.id) {
-     const defDate = m.dueISO || '';
-     const defTime = (hasActions && m.proposedActions[0].payload) ? minutesToHHMM(m.proposedActions[0].payload.startMin) : '09:00';
-     s += '<div class="tp-move-custom">' +
-      '<input type="date" class="cs-input" id="cs-date-' + m.id + '" value="' + defDate + '" onclick="event.stopPropagation()">' +
-      '<input type="time" class="cs-input" id="cs-time-' + m.id + '" value="' + defTime + '" onclick="event.stopPropagation()">' +
-      '<button class="tp-move-act" onclick="event.stopPropagation();confirmMoveCustomSlot(\'' + m.id + '\')">Schedule</button>' +
-      '<div class="ss-warn" id="cs-warn-' + m.id + '"></div>' +
-      '</div>';
-    }
-    s += '</div>';
+   // Manual pick: a "+" that opens a date + time chooser.
+   s += '<button class="tp-move-add" title="Pick a date & time" aria-label="Pick a date & time" onclick="event.stopPropagation();toggleMoveCustomSlot(\'' + m.id + '\')">+</button>';
+   if (customSlotMoveId === m.id) {
+    const defDate = m.dueISO || '';
+    const defTime = (hasActions && m.proposedActions[0].payload) ? minutesToHHMM(m.proposedActions[0].payload.startMin) : '09:00';
+    s += '<div class="tp-move-custom">' +
+     '<input type="date" class="cs-input" id="cs-date-' + m.id + '" value="' + defDate + '" onclick="event.stopPropagation()">' +
+     '<input type="time" class="cs-input" id="cs-time-' + m.id + '" value="' + defTime + '" onclick="event.stopPropagation()">' +
+     '<button class="tp-move-act" onclick="event.stopPropagation();confirmMoveCustomSlot(\'' + m.id + '\')">Schedule</button>' +
+     '<div class="ss-warn" id="cs-warn-' + m.id + '"></div>' +
+     '</div>';
    }
    s += '</div>';
-  });
-  return s;
- };
+  }
+  s += '</div>';
+ });
+ return s;
+}
+
+function renderBriefingGroups(moves) {
+ if (!moves.length) return '';
  let html = '';
- html += block('Due today', moves.filter(m => m.daysUntil <= 0));
- html += block('Coming up', moves.filter(m => m.daysUntil > 0));
+ const today = moves.filter(m => m.daysUntil <= 0);
+ const coming = moves.filter(m => m.daysUntil > 0);
+ if (today.length) html += '<div class="tp-subhead">Due today</div>' + renderMoveItems(today);
+ if (coming.length) html += '<div class="tp-subhead">Coming up</div>' + renderMoveItems(coming);
  return html;
 }
 
@@ -5441,11 +5452,26 @@ function toggleFocusToday() {
  showToast(focusTodayMode ? 'Focus today · agent suggestions hidden' : 'Agent suggestions restored');
 }
 
+let assistView = 'today'; // 'today' (Plan today) | 'coming' (future deadlines)
+function setAssistView(v) { assistView = v; renderTodayPage(); }
+
 function renderTodayAssistPanel() {
  const moves = runAgentLoop();
  const windows = getPlanWindows();
  const assistCount = moves.length + windows.length;
  if (assistCount === 0) return '';
+
+ // Two buckets: "Plan today" (due-today moves + today's free time) vs
+ // "Coming up" (deadline risks on future days). Splitting them keeps each
+ // view focused instead of stacking everything in one list.
+ const todayMoves = moves.filter(m => m.daysUntil <= 0);
+ const comingMoves = moves.filter(m => m.daysUntil > 0);
+ const todayCount = todayMoves.length + windows.length;
+ const comingCount = comingMoves.length;
+ let view = assistView;
+ if (view === 'today' && todayCount === 0 && comingCount > 0) view = 'coming';
+ if (view === 'coming' && comingCount === 0 && todayCount > 0) view = 'today';
+
  const panelClass = agentPanelExpanded ? 'today-assist-shell is-open' : 'today-assist-shell is-collapsed';
  let html = '<section class="'+panelClass+'">'+
   '<button class="today-assist-toggle" onclick="event.stopPropagation();toggleAgentPanel()">'+
@@ -5457,10 +5483,21 @@ function renderTodayAssistPanel() {
   '</button>';
  if (agentPanelExpanded) {
   html += '<div class="today-assist-body">';
-  html += renderBriefingGroups(moves);
-  if (windows.length) {
-   if (moves.length) html += '<div class="tp-subhead">Plan today\u2019s free time</div>';
-   html += renderTimePlanningBoard();
+  const showTabs = todayCount > 0 && comingCount > 0;
+  if (showTabs) {
+   html += '<div class="an-seg assist-seg">'+
+    '<button class="an-seg-btn '+(view==='today'?'active':'')+'" onclick="event.stopPropagation();setAssistView(\'today\')">Plan today · '+todayCount+'</button>'+
+    '<button class="an-seg-btn '+(view==='coming'?'active':'')+'" onclick="event.stopPropagation();setAssistView(\'coming\')">Coming up · '+comingCount+'</button>'+
+   '</div>';
+  }
+  if (view === 'coming') {
+   html += renderMoveItems(comingMoves);
+  } else {
+   if (todayMoves.length) html += renderMoveItems(todayMoves);
+   if (windows.length) {
+    if (todayMoves.length) html += '<div class="tp-subhead">Plan today\u2019s free time</div>';
+    html += renderTimePlanningBoard();
+   }
   }
   html += '</div>';
  }
