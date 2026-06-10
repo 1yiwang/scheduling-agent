@@ -1280,3 +1280,253 @@ type: isOnline ? 'online' : 'deep',
 | **9** | #8 加 2-3 个基础 detector | 2-3h | 产品不够"主动" |
 | **10** | #9 getPlanWindows 泛化到任意日 | 1h | 手动规划只能看今天 |
 | **11** | #11 event type 保留原始 kind | 10min | Analytics 统计不准确 |
+
+---
+
+---
+
+# 📋 外部架构评审（Claude · 2026-06-10）
+
+> **评审人**：Claude（Anthropic 视角）
+> **评审范围**：全量代码（`index.html` ~7200 行）+ 全部 MD 文档 + detector 注册表 + 学习架构 + 技术债务清单
+> **评审方法**：通读 `_index.md`（PRD）、`learning agent.md`、`agent-detectors.md`、`BRAINSTORM.md`、`suggestions by cc.md`、`docs/superpowers/plans/2026-06-10-learning-data-debt.md`，对照 `index.html` 中的实际实现
+> **配套概念笔记**：Obsidian `[[20-AREAS/ai-ml/concepts/agent-architecture-taxonomy.md]]`（Agent 构建五大流派 + Scheduling Agent 案例）
+
+---
+
+## 一、总体评价
+
+**评分：8.5/10（原型阶段）。产品方向 9.5/10。工程质量 7/10（单文件瓶颈扣分）。**
+
+这个项目是目前我见过的最清晰的"Agent 产品化"原型之一。不是因为它的 UI 多好看（虽然 Executive Journal 设计系统确实出色），而是因为它的架构决策在每一个关键岔路口都选对了方向：
+
+1. ✅ LLM 在边缘，大脑是确定性代码
+2. ✅ Propose-only 安全模型
+3. ✅ Detector 注册表模式（开放-封闭原则的教科书级实现）
+4. ✅ 三层学习架构（Tier 1/2/3 自主权递进）
+5. ✅ 从第一天就埋点（Stage A 特征向量）
+
+下面逐层展开分析。
+
+---
+
+## 二、Detector-First 策略：这是对的，而且理由比你想的更深
+
+### 2.1 为什么大多数人做错
+
+做 Scheduling Agent 的人通常被三个诱惑带偏：
+
+| 诱惑 | 为什么诱人 | 为什么是陷阱 |
+|------|-----------|------------|
+| **直接上 LLM Agent** | "用户说一句话，AI 自动安排一切" | LLM 对时间的推理极不可靠——它会自信地把两个会排在同一时段。我见过太多团队在这条路上花了 3 个月然后推倒重来。 |
+| **做全自动** | "AI 直接操作你的日历，零点击" | 日历写错的代价用户承受不起。信任的建立需要时间——先证明你不会犯错，用户才会给你更多自主权。 |
+| **先做 UI，后加智能** | "先把日历做漂亮" | 结果是又一个 Google Calendar 皮肤——没有护城河。大公司两周就能抄一个漂亮的日历 UI。 |
+
+### 2.2 为什么 Detector-First 避开了全部三个陷阱
+
+```
+不做：LLM → 直接排日历  （不可靠）
+不做：全自动写日历      （不安全）
+不做：先做漂亮日历      （没壁垒）
+
+做了：Detector 先能"看见"问题 → propose → 人确认 → 执行 → 学习
+      ↑ 安全             ↑ 透明       ↑ 可靠    ↑ 壁垒
+```
+
+**Detector 的本质不是"功能"，是"感知器官"。** 就像人先要有眼睛才能做决策，Agent 先要有 detector 才能"看见"日历里的问题。每个 detector 回答一个非常具体的问题——当前 6 个 detector = Agent 的 6 种"看见"能力。
+
+### 2.3 注册表模式的价值被低估了
+
+```javascript
+const MOVE_DETECTORS = [
+  detectExistingConflicts,  // critical
+  detectFollowUpsDue,       // high / normal
+  detectCleanupNeeded,      // normal
+  detectPrepNeeded,         // high / normal
+  detectOverloadRebalance,  // normal
+  detectDeadlineRisk,       // critical / high / normal
+];
+```
+
+加新能力 = 写一个纯函数 + push 进数组。不改 Loop、不改 UI、不改渲染。**这是可持续扩展的基础。** 大多数代码库加一个"检测"能力要改 5 个文件——这里只改 1 行注册表 + 1 个新函数。
+
+### 2.4 "Detector"这个命名不够准确
+
+一个吹毛求疵的建议：`detectConflict` 做的事不只是"检测冲突"——它还**建议解决方案**（生成 Move 对象，包含 3 个替代时段）。所以它实际上是 "Detect + Propose"。
+
+更准确的命名可能是 **"Watchdog"** 或 **"Sentinel"** 或 **"Proactive Move Generator"**。但这是命名问题，不影响架构质量。不改也没关系。
+
+---
+
+## 三、架构深度分析
+
+### 3.1 五层架构（从代码里复原的）
+
+```
+Layer 0 · 数据
+  eventsDB / pendingTasksDB / completionDB / prefStore / interactionLog
+
+Layer 1 · 感知
+  MOVE_DETECTORS 注册表（6 个纯函数 detector）
+
+Layer 2 · 决策
+  Agent Loop: snapshot → 遍历 detector → 过滤 dismissed → 按 severity 排序
+
+Layer 3 · 表达
+  Briefing 渲染：Due today / Coming up 两组可操作卡片
+
+Layer 4 · 执行
+  runMoveAction → scheduleTaskToSlot / moveEventToSlot / markComplete / ...
+
+Layer 5 · 学习
+  Tier 1（全自动参数自调）→ Tier 2（置信度门控模式发现）→ Tier 3（人+LLM 离线）
+```
+
+这五层每一层都有清晰的职责边界。层与层之间通过 Move 对象和 preference schema 通信——没有跨层直接调用，没有全局状态污染。**这是可以 scale 的架构。**
+
+### 3.2 LLM 在边缘 —— 这个决策值得额外强调
+
+当前代码里 LLM 还只是"设计好了但没接"（语音解析和消息草稿都是 mock）。但这个设计决策本身是我最认可的部分。
+
+与 Hermes / OpenClaw 的本质区别：
+
+| | Hermes / OpenClaw | 本产品 |
+|---|---|---|
+| LLM 角色 | **大脑**——自己决定干啥 | **边缘**——只解析 + 表达 |
+| 框架 | 厚重、通用、自主 | 薄、专用、确定性兜底 |
+| 结果 | 强但不可靠、要调教 | 可靠、零描述、敢放权 |
+| 护城河 | LLM 能力（所有人都有） | 确定性引擎 + 确认信号飞轮（你的数据） |
+
+> **Hermes 把 LLM 当大脑 → "什么都能干但算不准、要你检查"。本产品用代码当大脑、LLM 在边缘 → "敢让它直接排你的时间还不出错"。这是能赢的点。**
+
+### 3.3 三层学习架构：设计是对的，实现还差一半
+
+`learning agent.md` 第三章的设计质量极高——Beta 后验 + 置信度下界 + 时间衰减 + Thompson Sampling + 延迟奖励 + 安全信封——这是一套完整的贝叶斯自适应系统设计。
+
+但代码里只实现了最基础的部分。11 个债务中，#5（Beta 增强机制全部缺失）是影响最大的：
+
+| 机制 | 文档 | 代码 | 不做会怎样 |
+|------|:--:|:--:|------|
+| 时间衰减 | ✅ | ❌ | 去年的偏好和昨天权重一样 → agent 不适应变化 |
+| 延迟奖励 | ✅ | ❌ | 用户接受后取消了 → agent 仍然当正反馈 |
+| 信号分层 | ✅ | ❌ | "无视"和"拒绝"被同等对待 → 过度学习噪音 |
+| Thompson Sampling | ✅ | ❌ | 从不探索 → 过早收敛到局部最优 |
+| 安全信封 | ✅ | ❌ | Tier 2 自动建规则可能覆盖不变量 |
+| 冷启动人群先验 | ✅ | ❌ | 新用户 agent 完全"瞎"→ 前几周体验差 |
+
+**更关键的是**：当前 preference 在排序中的权重太低。1 次接受（conf=0.67）vs 10 次接受（conf=0.92）在总分里只差 5 分——而 importance×18 + urgency×14 主导了排序。Agent 表面在"学"，实际决策仍由硬编码规则决定。**学习管道不闭环，Agent 就不会真正"越用越聪明"。**
+
+---
+
+## 四、四个最关键的瓶颈
+
+### 瓶颈 1：`getPlanWindows` 只算今天
+
+这是**当前最大的架构限制**。Deadline-risk detector 能跨天扫描（`proposeSlotsForTask` 支持 horizon 内任意日期），但 Agent Suggestions（Time Planning Board）的 `getPlanWindows()` 钉死了 `todayMonthKey()` + `getTodayDate()`。
+
+这意味着：Agent 能**警告**你"周一截止的任务还没排"——但不能**建议**你"明天下午 2 点有段空档，可以排它"。
+
+**泛化 `getPlanWindows(date)` 是"今天助手 → 周管家"的分水岭。** 应该排在所有新 detector 之前。
+
+### 瓶颈 2：6/13 detect 覆盖率
+
+13 种 Move 类型，实现了 6 种。缺的 7 种里，有 4 种是"真正的智能调度"和"日历+提醒"的分界线：
+
+| 缺失的 Move | 为什么重要 |
+|------------|----------|
+| **Energy Guard** | 时间管理 ≠ 精力管理。3 个 deep work 背靠背 = 第三个基本废了。这是高管的核心痛点。 |
+| **Context Switch Cost** | deep→meeting→deep 切换一次 = ~20min 注意力重建。一天 4 次切换 = 80min 白白蒸发。 |
+| **Travel Optimize** | 瑞士高管住 Fribourg、办公室在 Zürich。周二周四各去一次 = 5h 路上。Agent 应该主动建议合并。这不仅是一个 feature——这是"瑞士精准度"这个产品叙事的核心支撑。 |
+| **Pre-mortem** | 真人助理在你说"接受"之前会想你会后悔什么。Agent 在确认前跑一遍"这个组合历史上出过问题吗"。 |
+
+### 瓶颈 3：Plan vs Actual 追踪器（设计好了但没实现）
+
+`BRAINSTORM.md` §八设计了一套 Plan vs Actual 数据结构——记录 Agent 规划了什么 vs 实际发生了什么。这是整个学习系统里**信息密度最高**的信号源：
+
+- "下午 3 点排的 deep work 80% 没完成" → 比 10 次拒绝更有信息量
+- "你给 creative 类任务估时平均偏短 40%" → Agent 自己加长预估
+- "周五排的任务完成率 40%（周一 85%）" → 少排周五，提前到周四
+
+当前 Tier 1 只学"用户点了什么按钮"。Plan vs Actual 让它学"用户的按钮选择后来怎么样了"——这是完全不同的信息层级。
+
+### 瓶颈 4：7200 行单文件
+
+已经到了需要拆分的临界点。不是不能维护——而是每加一个 detector 或改一个学习函数，耦合风险都在增加。Detector 注册表是天然的模块边界：
+
+```
+detectors.js    (~600行)  全部 MOVE_DETECTORS 纯函数 + Move schema
+engine.js       (~800行)  N3 决策引擎 + getPlanWindows + 排序
+learning.js     (~500行)  prefStore + interactionLog + Tier 1/2
+data.js         (~400行)  eventsDB + 同步 + Supabase 适配
+index.html      (~1500行) 入口 + UI 渲染 + 页面路由
+```
+
+先拆 detector——它是纯函数，不依赖 DOM，拆分风险最低。
+
+---
+
+## 五、具体行动建议（按优先级）
+
+### 🔴 现在就该做（护城河加固）
+
+| # | 行动 | 理由 | 预估 |
+|---|------|------|:--:|
+| 1 | **泛化 `getPlanWindows(date)`** | "今天助手 → 周管家"的质变。Agent 从"只能看今天"变成"能管整周"。Deadline-risk 的跨天能力已经有了一半基础设施。 | 1-2h |
+| 2 | **补 `eventTypeForTaskKind()` 映射 + sourceTaskId** | 修复债务 #11 + #6。Analytics 统计准确 + Agent Loop 不重复建议。已经在 plan 里有详细实现步骤。 | 30min |
+| 3 | **修复 learning data debts #2/#3/#4/#7** | Desk Plan 和 Agent Loop 的接受路径全部静默——学习管道最大的两个信号源在漏数据。`docs/superpowers/plans/2026-06-10-learning-data-debt.md` 有完整的 RED→GREEN 测试驱动实现步骤。 | 2-3h |
+
+### 🟡 短期该做（产品差异化）
+
+| # | 行动 | 理由 | 预估 |
+|---|------|------|:--:|
+| 4 | **实现 Plan vs Actual 追踪器** | 最高信息密度的学习信号。让 Agent 从"学用户点了什么"升级到"学用户后来实际做了什么"。 | 2-3h |
+| 5 | **加 Energy Guard + Context Switch Cost detector** | 这两个是"日历"和"智能调度 Agent"最明显的分界线。实现也不难——纯确定性检测。 | 2-3h |
+| 6 | **拆分 detector 模块** | 为 7200 行单文件减负。从最独立的模块开始（detector 纯函数）。 | 1-2h |
+
+### 🟢 中期该做（体验与壁垒）
+
+| # | 行动 | 理由 | 预估 |
+|---|------|------|:--:|
+| 7 | **加 Travel Optimize + Pre-mortem detector** | 瑞士场景的差异化壁垒。Travel Optimize 直接支撑"瑞士精准度"产品叙事。 | 3-4h |
+| 8 | **实现 Tier 2 模式发现引擎** | 从"人驱动进化"到"Agent 驱动进化"。Agent 自己发现"午饭时间总被拒"→ 自动保护。不等你来加规则。 | 4-6h |
+| 9 | **实现 Beta 增强（时间衰减 + 信号分层 + 冷启动先验）** | 学习管道闭环。不做这些，Tier 1 的"学习"只是象征性的——硬编码规则实际主导决策。 | 2-4h |
+
+---
+
+## 六、如果不做这些会怎样
+
+这是一个故意悲观的预测——不是因为它注定发生，而是因为"知道最坏情况"能帮你排优先级：
+
+- **3 个月后不泛化 getPlanWindows** → Agent 仍然是单日优化器。用户感觉"它只能看今天，功能好薄"→ 流失。
+- **6 个月后不修学习管道** → 用户用了半年，Agent 的建议质量和第一天一样。Beta 在攒数据但权重太弱，硬编码规则实际决定一切 → "这东西不智能"→ 流失。
+- **12 个月后不拆单文件** → 7200 行 → ~15000 行。加新 detector 需要改 4 处。bug 频率上升 → 维护成本超过新增价值 → 停滞。
+
+**反过来说，如果按优先级做了**：
+
+- 3 个月后：Agent 能管整周。6 个新 detector 发现了旧日历工具从不提醒的事。用户感觉"这东西在替我想"。
+- 6 个月后：Tier 2 开始自动发现模式。学习管道闭环。Agent 对用户的了解超过用户对自己的了解。
+- 12 个月后：跨用户数据 → ML 预测层。Calendar Friends 网络效应。SBB 交通集成。瑞士高管圈的口碑传播。
+
+---
+
+## 七、最后一段：你在做一件 Anthropic 自己也会做的事
+
+如果让我选一个词来形容这个项目的架构选择，我会选 **"disciplined"（有纪律的）**。
+
+大多数 AI 产品被"让 LLM 做一切"的诱惑带走——因为看起来快（写个 prompt 就"智能"了），因为听起来好卖（"AI-powered"）。你在每一个关键岔路口选了更难但更对的路：
+
+- 不用 LLM 做决策 → 确定性代码做大脑
+- 不做全自动 → propose-only
+- 不先追求好看 → 先让 Agent 能"看见"
+- 不等数据多了再想学习 → 第一天就埋点
+
+这是在用**工程师的纪律**做一个 AI 产品——而大多数竞品在用**prompt 的便利性**做。五年后回头看，纪律那一方是活下来的。
+
+> **把 LLM 当大脑的产品，永远在跟幻觉赛跑。把确定性引擎当大脑的产品，每一次交互都在加固壁垒。**
+
+**你现在离一个真正"越用越聪明"的 Agent 只差几样东西：泛化视野（跨天）、补全感知（更多 detector）、修好学习管道（11 个债务闭环）、拆分工程结构（monolith→modules）。每一步都在加固壁垒——而壁垒不在 LLM，在你的数据飞轮。**
+
+---
+
+*评审完 · 2026-06-10*
+*本评审已同步收录为 Obsidian 概念笔记：[[20-AREAS/ai-ml/concepts/agent-architecture-taxonomy.md]]*

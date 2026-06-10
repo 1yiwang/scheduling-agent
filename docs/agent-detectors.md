@@ -13,12 +13,14 @@
 
 ```
 触发（打开 app / 任何数据改动后）
-  → runAgentLoop()
-      → 遍历 MOVE_DETECTORS（每个 detector 是纯函数，返回 Move[]）
-      → 过滤已 dismiss 的（dismissedMoveIds，仅本次会话）
-      → 按 severity 排序（critical > high > normal）
-  → 简报渲染（Due today / Coming up 两组）
+  → runAgentLoop()                       // detectors → 过滤 dismiss → 按 severity 排序
+  → mergeMoves()                         // 合并“同一事件被多个 detector 报”的卡
+  → curate(merged, buildAgentContext())  // 策展：排序 + 折叠（rules / 未来 LLM）
+  → applyCuration()                      // 套用决策 + 强制安全护栏
+  → 简报渲染（Due today / Coming up；折叠项在 “More” 里）
 ```
+
+详见下文「§8 策展层（Layer 1）」。
 
 ### 设计原则
 
@@ -159,6 +161,27 @@ const MOVE_DETECTORS = [
 | **dueShort** | `<X>h booked`（当天总时长） |
 | **安静策略** | 无可移动 deep 块、或无更轻目标日则不产出 |
 | **测试** | `tests/rebalance-detector.test.js` |
+
+---
+
+## 8. 策展层（Layer 1）
+
+坐在 detector 之上的视图层，只做「挑选、排序、合并、折叠」，**永不改动作 payload**。
+
+| 函数 | 职责 |
+|---|---|
+| `mergeMoves(moves)` | 合并 `subject.eventId` 相同的多个 move：取最高 severity / 最紧迫 daysUntil，union 动作（去重），记 `mergedFrom`。无 eventId 的（如 deadline-risk）原样透传 |
+| `buildAgentContext()` | 紧凑画像卡（**统计量而非流水账**）：今天负载、近两天是否有带人会议、按类型的 dismiss 计数、`prefStore` 的 Beta 均值偏好 |
+| `curate(moves, ctx)` | 调度器：demo/回退用 `curateMovesRules`，个人版（Phase B）用 `curateMovesLLM` |
+| `curateMovesRules(moves, ctx)` | 确定性策展：按 severity → 习惯性 dismiss 降权 → 紧迫度排序；可见上限 `CURATION_VISIBLE_CAP=5`，其余折叠；critical 永不折叠。返回 `{ order, folded }` |
+| `applyCuration(moves, decision)` | **安全核心（纯函数）**：套用 `{order,folded}` → `{visible,folded}`，强制护栏：critical 必可见且置顶、未知 id 忽略、缺失 move 补回、critical 永不被折叠、非法决策回退默认序 |
+| `currentMoves()` | UI/动作共享的规范列表 = `mergeMoves(runAgentLoop())`。`runMoveAction`/`confirmMoveCustomSlot`/`dismissMove` 都走它，保证动作索引与合并 dismiss 一致 |
+
+**决策对象契约**（rules 与未来 LLM 输出同形）：`{ order: [moveId...], folded: [moveId...] }`，只含 id，不含任何动作 payload——这是 LLM 无法越权排程的结构性保证。
+
+测试：`tests/merge-moves.test.js` · `tests/apply-curation.test.js`（护栏，最关键）· `tests/agent-context.test.js` · `tests/curate-rules.test.js`。
+
+> 完整设计与 Phase B（Settings + BYO-key LLM）见 `docs/superpowers/plans/2026-06-10-agent-curation-layer.md`。
 
 ---
 

@@ -288,6 +288,12 @@
  font-size: 10px; font-weight: 700; color: var(--ej-text-3);
  text-transform: uppercase; letter-spacing: 0.5px; margin: 9px 0 6px;
 }
+.tp-more-toggle {
+ display: block; width: 100%; margin: 8px 0 2px; padding: 7px 0;
+ background: none; border: none; cursor: pointer;
+ font-size: 12px; font-weight: 600; color: var(--ej-text-3);
+}
+.tp-more-toggle:hover { color: var(--ej-text-2); }
 .tp-staged, .tp-candidates { display: flex; flex-direction: column; gap: 6px; }
 .tp-staged-item, .tp-candidate {
  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
@@ -4767,6 +4773,179 @@ function runAgentLoop() {
  return moves;
 }
 
+const SEVERITY_RANK = { critical: 0, high: 1, normal: 2 };
+function severityRank(sev) { return SEVERITY_RANK[sev] != null ? SEVERITY_RANK[sev] : 3; }
+
+// Collapse moves that target the same event into one card. Two detectors can flag
+// the same event (e.g. an overdue follow-up AND an unmarked past meeting); we keep
+// the most urgent framing and union the one-tap actions so the user loses nothing.
+// Moves without an eventId (e.g. deadline-risk on a task) pass through untouched.
+function mergeMoves(moves) {
+ const groups = {};
+ const order = [];
+ (moves || []).forEach(m => {
+  const evId = m && m.subject && m.subject.eventId;
+  const key = evId ? 'evt:' + evId : 'solo:' + m.id;
+  if (!groups[key]) { groups[key] = []; order.push(key); }
+  groups[key].push(m);
+ });
+ return order.map(key => {
+  const list = groups[key];
+  if (list.length === 1) return list[0];
+  // Primary = most severe, then most urgent (smallest daysUntil), then first seen.
+  const primary = list.slice().sort((a, b) => {
+   const s = severityRank(a.severity) - severityRank(b.severity);
+   if (s !== 0) return s;
+   const da = a.daysUntil != null ? a.daysUntil : 1e9;
+   const db = b.daysUntil != null ? b.daysUntil : 1e9;
+   return da - db;
+  })[0];
+  const seenAction = {};
+  const actions = [];
+  // Primary's actions lead, then the rest, de-duped by fn+label.
+  [primary].concat(list.filter(m => m !== primary)).forEach(m => {
+   (m.proposedActions || []).forEach(a => {
+    const sig = a.fn + '|' + a.label;
+    if (seenAction[sig]) return;
+    seenAction[sig] = true;
+    actions.push(a);
+   });
+  });
+  const merged = Object.assign({}, primary, {
+   proposedActions: actions,
+   daysUntil: list.reduce((min, m) => (m.daysUntil != null && m.daysUntil < min ? m.daysUntil : min), primary.daysUntil != null ? primary.daysUntil : 1e9),
+   mergedFrom: list.map(m => m.id)
+  });
+  return merged;
+ });
+}
+
+function defaultMoveOrder(a, b) {
+ const s = severityRank(a.severity) - severityRank(b.severity);
+ if (s !== 0) return s;
+ const da = a.daysUntil != null ? a.daysUntil : 1e9;
+ const db = b.daysUntil != null ? b.daysUntil : 1e9;
+ return da - db;
+}
+
+// Apply a curator's decision { order, folded } to the canonical move list and
+// return { visible, folded }. This is the safety core: a curator (rules OR LLM)
+// can only ever reorder/fold — never invent, hide a conflict, or touch a payload.
+// Guardrails enforced here, no matter how broken the decision is:
+//   - every `critical` is visible and ranked above all non-criticals;
+//   - unknown ids are ignored; missing moves are appended (nothing is lost);
+//   - `critical` can never stay folded.
+function applyCuration(moves, decision) {
+ const list = moves || [];
+ const byId = {};
+ list.forEach(m => { byId[m.id] = m; });
+ const d = (decision && typeof decision === 'object') ? decision : {};
+ const orderIds = Array.isArray(d.order) ? d.order : [];
+ const foldIds = Array.isArray(d.folded) ? d.folded : [];
+
+ const placed = {};
+ const visible = [];
+ orderIds.forEach(id => { if (byId[id] && !placed[id]) { placed[id] = true; visible.push(byId[id]); } });
+
+ const folded = [];
+ foldIds.forEach(id => {
+  const m = byId[id];
+  if (!m || placed[id]) return;
+  placed[id] = true;
+  if (m.severity === 'critical') visible.push(m); // never fold a conflict
+  else folded.push(m);
+ });
+
+ // Anything the curator forgot → append to visible in default order, never dropped.
+ const missing = list.filter(m => !placed[m.id]).sort(defaultMoveOrder);
+ missing.forEach(m => visible.push(m));
+
+ // Float criticals above everything, preserving relative order within each tier.
+ const crit = visible.filter(m => m.severity === 'critical');
+ const rest = visible.filter(m => m.severity !== 'critical');
+ return { visible: crit.concat(rest), folded: folded };
+}
+
+// A compact, pre-digested snapshot for the curator — NOT raw history. Statistics
+// over transcripts: today's load, near-term stakes, per-type dismiss tendency,
+// and Beta-mean preference scores. This is the "memory compression" the LLM reads.
+function buildAgentContext() {
+ const tN = appNow();
+ const y = tN.getFullYear(), m = tN.getMonth() + 1, d = tN.getDate();
+ const todayEvents = getDayEvents(y, m, d);
+
+ // Any meeting with people in the next 2 days raises the stakes for prep/conflict.
+ let highStakesSoon = false;
+ for (let i = 0; i <= 2 && !highStakesSoon; i++) {
+  const dt = new Date(y, m - 1, d + i);
+  highStakesSoon = getDayEvents(dt.getFullYear(), dt.getMonth() + 1, dt.getDate())
+   .some(e => ['busy', 'online'].includes(e.type) && e.participants && e.participants.length);
+ }
+
+ const dismissByType = {};
+ (interactionLog || []).forEach(e => {
+  if (e && e.action === 'dismiss' && e.type) dismissByType[e.type] = (dismissByType[e.type] || 0) + 1;
+ });
+
+ const prefs = {};
+ Object.keys(prefStore || {}).forEach(k => {
+  const p = prefStore[k];
+  if (p && p.sampleCount > 0) prefs[k] = betaConfidence(p);
+ });
+
+ return {
+  nowISO: y + '-' + pad2(m) + '-' + pad2(d),
+  today: {
+   workMinutes: dayWorkMinutes(y, m, d),
+   eventCount: todayEvents.length,
+   highStakesSoon: highStakesSoon
+  },
+  dismissByType: dismissByType,
+  prefs: prefs
+ };
+}
+
+const CURATION_VISIBLE_CAP = 5;
+
+// Deterministic curator (demo + fallback). Ranks by severity, then demotes move
+// types the user habitually dismisses, then by urgency. Caps the visible list and
+// folds the overflow. Criticals are always visible. Returns a decision object
+// with the SAME shape the LLM curator must produce: { order, folded }.
+function curateMovesRules(moves, context) {
+ const ctx = context || {};
+ const dismiss = ctx.dismissByType || {};
+ const ranked = (moves || []).slice().sort((a, b) => {
+  const s = severityRank(a.severity) - severityRank(b.severity);
+  if (s !== 0) return s;
+  const da = dismiss[a.type] || 0, db = dismiss[b.type] || 0;
+  if (da !== db) return da - db; // fewer past dismisses → ranked higher
+  const ua = a.daysUntil != null ? a.daysUntil : 1e9;
+  const ub = b.daysUntil != null ? b.daysUntil : 1e9;
+  return ua - ub;
+ });
+ const order = [];
+ const folded = [];
+ ranked.forEach(m => {
+  if (m.severity === 'critical') { order.push(m.id); return; }
+  if (order.length < CURATION_VISIBLE_CAP) order.push(m.id);
+  else folded.push(m.id);
+ });
+ return { order: order, folded: folded };
+}
+
+// Curator dispatcher. Demo + fallback use the deterministic rules curator;
+// personal mode with an LLM configured swaps in curateMovesLLM (Phase B).
+function curate(moves, context) {
+ return curateMovesRules(moves, context);
+}
+
+// The canonical move list the UI and actions share: detectors → dismiss filter →
+// merge same-event duplicates. Everything downstream (render, run, dismiss) must
+// use THIS list so action indexes and merged dismisses stay consistent.
+function currentMoves() {
+ return mergeMoves(runAgentLoop());
+}
+
 function severityPrioClass(sev) {
  return sev === 'critical' ? 'prio-critical' : sev === 'high' ? 'prio-important' : 'prio-normal';
 }
@@ -4777,6 +4956,8 @@ function severityPrioClass(sev) {
 // the alternatives (secondary recommended slots).
 let expandedMoveId = null;
 let customSlotMoveId = null;
+let agentMoreExpanded = false;
+function toggleAgentMore() { agentMoreExpanded = !agentMoreExpanded; syncAllViews(); }
 function toggleMoveExpand(id) {
  expandedMoveId = expandedMoveId === id ? null : id;
  if (expandedMoveId !== id) customSlotMoveId = null;
@@ -4844,7 +5025,7 @@ function renderBriefingGroups(moves) {
 // Schedule a move's task to a user-chosen date & time.
 let customSlotAck = {}; // moveId → slot signature already warned about
 function confirmMoveCustomSlot(moveId) {
- const m = runAgentLoop().find(x => x.id === moveId);
+ const m = currentMoves().find(x => x.id === moveId);
  if (!m) { customSlotMoveId = null; syncAllViews(); return; }
  const dateEl = document.getElementById('cs-date-' + moveId);
  const timeEl = document.getElementById('cs-time-' + moveId);
@@ -4870,7 +5051,7 @@ function confirmMoveCustomSlot(moveId) {
 
 // Dispatch a proposed action. Recompute moves so payloads reflect current state.
 function runMoveAction(moveId, actionIdx) {
- const m = runAgentLoop().find(x => x.id === moveId);
+ const m = currentMoves().find(x => x.id === moveId);
  if (!m) { syncAllViews(); return; }
  const a = m.proposedActions[actionIdx];
  if (!a) return;
@@ -4891,7 +5072,11 @@ function runMoveAction(moveId, actionIdx) {
 }
 
 function dismissMove(id) {
- if (dismissedMoveIds.indexOf(id) < 0) dismissedMoveIds.push(id);
+ // A merged card stands in for several detector moves; dismiss them all so the
+ // hidden duplicates don't resurface as separate cards.
+ const m = currentMoves().find(x => x.id === id);
+ const ids = (m && m.mergedFrom) ? m.mergedFrom : [id];
+ ids.forEach(x => { if (dismissedMoveIds.indexOf(x) < 0) dismissedMoveIds.push(x); });
  syncAllViews();
 }
 
@@ -6052,9 +6237,15 @@ let assistView = 'today'; // 'today' (Plan today) | 'coming' (future deadlines)
 function setAssistView(v) { assistView = v; renderTodayPage(); }
 
 function renderTodayAssistPanel() {
- const moves = runAgentLoop();
+ // Detectors → merge duplicates → curate (rank/fold). The curator only reorders
+ // and folds; applyCuration enforces the safety guardrails (criticals always show).
+ const merged = currentMoves();
+ const decision = curate(merged, buildAgentContext());
+ const curated = applyCuration(merged, decision);
+ const moves = curated.visible;
+ const foldedMoves = curated.folded;
  const windows = getPlanWindows();
- const assistCount = moves.length + windows.length;
+ const assistCount = moves.length + foldedMoves.length + windows.length;
  if (assistCount === 0) return '';
 
  // Two buckets: "Plan today" (due-today moves + today's free time) vs
@@ -6094,6 +6285,12 @@ function renderTodayAssistPanel() {
     if (todayMoves.length) html += '<div class="tp-subhead">Plan today\u2019s free time</div>';
     html += renderTimePlanningBoard();
    }
+  }
+  // Lower-priority moves the curator folded — kept one tap away, never dropped.
+  if (foldedMoves.length) {
+   html += '<button class="tp-more-toggle" onclick="event.stopPropagation();toggleAgentMore()">'+
+    (agentMoreExpanded ? 'Show less' : 'More \u00b7 ' + foldedMoves.length)+'</button>';
+   if (agentMoreExpanded) html += renderMoveItems(foldedMoves);
   }
   html += '</div>';
  }
