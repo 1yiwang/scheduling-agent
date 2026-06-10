@@ -378,7 +378,7 @@
   background: rgba(0,0,0,.08); min-width: 60px;
  }
  .gc-progress-fill {
-  height: 100%; border-radius: 3px; background: var(--ej-text-2);
+  display: block; height: 100%; border-radius: 3px; background: var(--ej-text-2);
   transition: width .3s ease;
  }
  .gc-progress-label { font-size: 13px; color: var(--ej-text-2); flex-shrink: 0; }
@@ -1095,6 +1095,11 @@
   padding: 3px 0; display: flex; align-items: center; gap: 6px;
  }
  .nego-step svg { color: var(--ej-complete); flex-shrink: 0; }
+ .nego-line {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 600; color: var(--ej-text); margin-bottom: 12px;
+ }
+ .nego-line svg { color: var(--ej-info); flex-shrink: 0; }
 
  /* Best match label + card */
  .coord-best-label {
@@ -1168,6 +1173,21 @@
  .contact-type-badge.friend { background: var(--ej-info-bg); color: var(--ej-info); }
  .contact-type-badge.temp { background: var(--ej-warning-bg); color: var(--ej-warning); }
  .contact-type-badge.expired { background: var(--ej-hover); color: var(--ej-text-3); }
+ .contact-row.clickable { cursor: pointer; transition: background .15s ease; }
+ .contact-row.clickable:hover { background: var(--ej-hover); }
+ .contact-row .cp-arrow { color: var(--ej-text-3); font-size: 18px; }
+ /* Simplest avatar: white background, navy initials (and the reverse for variety) */
+ .contact-row .c-avatar.simple { background: #fff; color: #1f3b63; border: 1px solid var(--ej-line); }
+ .contact-row .c-avatar.simple.invert { background: #1f3b63; color: #fff; border: 0; }
+ .contact-row .c-text { min-width: 0; }
+ .c-note-input {
+  width: 100%; border: 0; background: transparent; padding: 1px 0;
+  font-size: 12px; color: var(--ej-text-2); font-family: inherit;
+  border-bottom: 1px solid transparent; transition: border-color .15s ease;
+ }
+ .c-note-input::placeholder { color: var(--ej-text-3); }
+ .c-note-input:hover { border-bottom-color: var(--ej-line); }
+ .c-note-input:focus { outline: none; border-bottom-color: var(--ej-info); color: var(--ej-text); }
 
  /* Bottom bar: nav + record */
  .bottom-bar {
@@ -1956,48 +1976,38 @@
 
  <!-- PAGE: Coordinate -->
  <div class="page" id="page-coordinate">
- <div class="section-header">Schedule with someone</div>
- <div class="coord-prompt">
- <div class="cp-label">Your contacts with shared calendars</div>
- <div class="cp-row" onclick="showCoord('Lukas (NEUR.ON CTO)')" style="border-bottom:0.5px solid var(--ej-line);">
- <div><div class="cp-name">Lukas · NEUR.ON CTO</div><div style="font-size:12px;color:var(--ej-text-2);">Calendar Friend</div></div>
- <span class="cp-arrow">→</span>
- </div>
- <div class="cp-row" onclick="showCoord('Marie (SLTA President)')" style="border-bottom:0.5px solid var(--ej-line);">
- <div><div class="cp-name">Marie · SLTA President</div><div style="font-size:12px;color:var(--ej-text-2);">Calendar Friend</div></div>
- <span class="cp-arrow">→</span>
- </div>
- <div class="cp-row" onclick="showCoord('Thomas (Swiss AI Center)')">
- <div><div class="cp-name">Thomas · Swiss AI Center</div><div style="font-size:12px;color:var(--ej-text-2);">Calendar Friend</div></div>
- <span class="cp-arrow">→</span>
- </div>
- </div>
+ <div id="meetFriends"></div>
 
  <div id="coordResults" style="display:none;"></div>
 
  <div class="section-header" style="margin-top:18px;">Multi-person</div>
- <div class="coord-prompt">
- <div class="cp-row" onclick="showMultiCoord()">
- <div><div class="cp-name">+ Add a third person (demo)</div><div style="font-size:12px;color:var(--ej-text-2);">3-way agent negotiation</div></div>
- <span class="cp-arrow">→</span>
+ <div class="contact-row clickable" onclick="showMultiCoord()">
+ <div class="c-info">
+ <div class="c-avatar" style="background:var(--ej-hover);color:var(--ej-text-2);font-weight:400;">+</div>
+ <div><div class="c-name">Add a third person</div><div class="c-meta">3-way agent negotiation (demo)</div></div>
  </div>
+ <span class="cp-arrow">→</span>
  </div>
  <div id="multiCoordResult" style="display:none;"></div>
 
- <div class="section-header" style="margin-top:18px;">Temporary link</div>
- <div class="coord-prompt">
- <div class="cp-row" onclick="genTempLink()" style="justify-content:flex-start;gap:12px;">
- <span style="font-size:24px;"></span>
- <div>
- <div class="cp-name">Generate one-time scheduling link</div>
- <div style="font-size:12px;color:var(--ej-text-2);">Share via message. Expires in 7 days.</div>
+ <div class="section-header" style="margin-top:18px;">Temporary links</div>
+ <div class="contact-row clickable" onclick="showToast('Active link · expires in 5 days')">
+ <div class="c-info">
+ <div class="c-avatar simple">A</div>
+ <div><div class="c-name">Anna · SIX AI Event</div><div class="c-meta">One-time link · expires in 5 days</div></div>
  </div>
+ <span class="contact-type-badge temp">Temp</span>
  </div>
+ <div class="contact-row" style="opacity:0.5;">
+ <div class="c-info">
+ <div class="c-avatar simple">P</div>
+ <div><div class="c-name">Prof. Meier · Uni Genève</div><div class="c-meta">One-time link · expired</div></div>
  </div>
+ <span class="contact-type-badge">Expired</span>
  </div>
-
- <!-- PAGE: Contacts (data-driven — renderPeoplePage()) -->
- <div class="page" id="page-contacts"></div>
+ <button class="ios-btn outline" style="margin-top:12px;width:100%;height:42px;font-size:14px;" onclick="genTempLink()">
+ <svg width="16" height="16" style="margin-right:6px;"><use href="#icon-check-sm"/></svg> Generate one-time scheduling link</button>
+ </div>
 
  <!-- PAGE: Analytics -->
  <div class="page" id="page-analytics">
@@ -2027,9 +2037,6 @@
  </div>
  <div class="nav-tab" data-page="coordinate" onclick="switchPage('coordinate', this)">
  <svg class="nav-icon" width="24" height="24"><use href="#icon-coordinate"/></svg>Meet
- </div>
- <div class="nav-tab" data-page="contacts" onclick="switchPage('contacts', this)">
- <svg class="nav-icon" width="24" height="24"><use href="#icon-contacts"/></svg>People
  </div>
  <div class="nav-tab" data-page="analytics" onclick="switchPage('analytics', this)">
  <svg class="nav-icon" width="24" height="24"><use href="#icon-analytics"/></svg>Insights
@@ -2198,14 +2205,13 @@ function switchPage(page, el) {
  }
 
  // Update navbar title
- const titles = { today: 'Home', calendar: 'Timeline', coordinate: 'Meet', contacts: 'People', analytics: 'Insights' };
+ const titles = { today: 'Home', calendar: 'Timeline', coordinate: 'Meet', analytics: 'Insights' };
  document.querySelector('.navbar-title').textContent = titles[page] || page;
 
  const subs = {
  today: '',
  calendar: 'Browse any day · tap to expand',
- coordinate: 'Agent negotiates for you',
- contacts: 'Calendar friends & links',
+ coordinate: 'Calendar friends',
  analytics: 'Week of Jun 1–7, 2026'
  };
  document.getElementById('pageSubtitle').textContent = subs[page] || '';
@@ -2214,8 +2220,8 @@ function switchPage(page, el) {
  if (page === 'analytics') {
  renderAnalyticsPage();
  }
- if (page === 'contacts') {
- renderPeoplePage();
+ if (page === 'coordinate') {
+ renderMeetFriends();
  }
 
  document.querySelector('.main').scrollTop = 0;
@@ -2904,65 +2910,24 @@ function showCoord(name) {
  if (!data) return;
  const shortName = data.person || name.split('(')[0].trim();
 
- // ═══ Negotiation checklist (completed steps, not animated) ═══
- const steps = [
-  { label: 'Queried '+shortName+'\'s availability', done:true },
-  { label: 'Computed your transit + buffer', done:true },
-  { label: 'Found '+data.slots.length+' overlapping free slots', done:true },
-  { label: 'Ranked by quality (transit, timing, context)', done:true }
- ];
- let html = '<div class="nego-checklist">'+
-  '<div class="nego-title"><svg width="16" height="16"><use href="#icon-coordinate"/></svg> Agent negotiation complete</div>';
- steps.forEach(st => {
-  html += '<div class="nego-step"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> '+st.label+'</div>';
- });
- html += '</div>';
+ // ═══ One-line status — negotiation detail is handled behind the scenes ═══
+ let html = '<div class="nego-line"><svg width="16" height="16"><use href="#icon-coordinate"/></svg> Agent negotiation complete</div>';
 
- // ═══ Best match card — expanded ═══
+ // ═══ Best match — editable time, confirm to notify ═══
  const best = data.slots.find(s => s.best) || data.slots[0];
- const others = data.slots.filter(s => !s.best);
  const bestIdx = data.slots.indexOf(best);
 
- html += '<div class="coord-best-label">Best Match</div>'+
+ html += '<div class="coord-best-label">Best match</div>'+
   '<div class="coord-result coord-best" id="coordSlot'+bestIdx+'">'+
   '<div class="cr-time-row">'+
-   '<input class="cr-time-input" id="coordInput'+bestIdx+'" value="'+best.time.replace(/'/g,"\\'")+'" onfocus="this.select();moveBestSlot(this)">'+
+   '<input class="cr-time-input" id="coordInput'+bestIdx+'" value="'+best.time.replace(/'/g,"\\'")+'" onfocus="this.select()">'+
   '</div>'+
   '<div class="cr-location"><svg width="14" height="14"><use href="#icon-field-location"/></svg> '+best.location+'</div>'+
-  '<div class="cr-transit-dual">'+
-   '<div class="cr-transit-side"><span class="cr-transit-who">You</span><span>'+best.yourTransit+'</span></div>'+
-   '<div class="cr-transit-side"><span class="cr-transit-who">'+shortName+'</span><span>'+best.theirTransit+'</span></div>'+
-  '</div>'+
-  '<div class="cr-why"><svg width="14" height="14"><use href="#icon-chart"/></svg> '+best.why+'</div>'+
   '<div class="cr-confirm-row">'+
    '<button class="cr-confirm-btn" id="coordBtn'+bestIdx+'" onclick="confirmCoord('+bestIdx+',\''+name.replace(/'/g,"\\'")+'\')">Confirm · Notify '+shortName+'</button>'+
   '</div>'+
   '<div class="cr-status" id="coordStatus'+bestIdx+'"></div>'+
  '</div>';
-
- // ═══ Other options — collapsed rows ═══
- if (others.length > 0) {
-  html += '<div class="coord-others-label">Other options</div>';
-  others.forEach(s => {
-   const oi = data.slots.indexOf(s);
-   html += '<div class="coord-result coord-other" id="coordSlot'+oi+'" onclick="expandOtherSlot(this,'+oi+',\''+name.replace(/'/g,"\\'")+'\')">'+
-    '<div class="coord-other-summary">'+
-     '<input class="cr-time-input" id="coordInput'+oi+'" value="'+s.time.replace(/'/g,"\\'")+'" onfocus="event.stopPropagation();this.select();moveBestSlot(this)" onclick="event.stopPropagation()">'+
-     '<svg class="coord-other-chevron" width="16" height="16"><use href="#icon-dismiss-sm"/></svg>'+
-    '</div>'+
-    '<div class="coord-other-detail" style="display:none;">'+
-     '<div class="cr-location"><svg width="14" height="14"><use href="#icon-field-location"/></svg> '+s.location+'</div>'+
-     '<div class="cr-transit-dual">'+
-      '<div class="cr-transit-side"><span class="cr-transit-who">You</span><span>'+s.yourTransit+'</span></div>'+
-      '<div class="cr-transit-side"><span class="cr-transit-who">'+shortName+'</span><span>'+s.theirTransit+'</span></div>'+
-     '</div>'+
-     '<div class="cr-why"><svg width="14" height="14"><use href="#icon-chart"/></svg> '+s.why+'</div>'+
-     '<button class="cr-confirm-btn" style="margin-top:10px;" id="coordBtn'+oi+'" onclick="event.stopPropagation();confirmCoord('+oi+',\''+name.replace(/'/g,"\\'")+'\')">Confirm · Notify '+shortName+'</button>'+
-     '<div class="cr-status" id="coordStatus'+oi+'"></div>'+
-    '</div>'+
-   '</div>';
-  });
- }
 
  container.innerHTML = html;
  container.style.display = 'block';
@@ -3064,6 +3029,38 @@ function genTempLink() {
  navigator.clipboard?.writeText(link).then(() => {
  showToast('Link copied. Expires in 7 days.');
  }).catch(() => showToast('Link: '+link+' (7-day expiry)'));
+}
+
+// ====== MEET · Calendar Friends (editable notes, persisted) ======
+const meetFriends = [
+ { id:'lukas',  initial:'L', name:'Lukas',  role:'NEUR.ON CTO',     coordKey:'Lukas (NEUR.ON CTO)',    note:'Co-founder · auto-shares free/busy' },
+ { id:'marie',  initial:'M', name:'Marie',  role:'SLTA President',   coordKey:'Marie (SLTA President)',  note:'Shared availability · 3 common slots this week' },
+ { id:'thomas', initial:'T', name:'Thomas', role:'Swiss AI Center',  coordKey:'Thomas (Swiss AI Center)', note:'Board member · shares free/busy' }
+];
+const FRIEND_NOTES_KEY = 'schedulingAgentFriendNotes.v1';
+let friendNotes = {};
+(function loadFriendNotes(){ try { friendNotes = JSON.parse(localStorage.getItem(FRIEND_NOTES_KEY)) || {}; } catch(e){ friendNotes = {}; } })();
+function friendNoteFor(f){ return friendNotes.hasOwnProperty(f.id) ? friendNotes[f.id] : f.note; }
+function editFriendNote(id, value){
+ friendNotes[id] = value;
+ try { localStorage.setItem(FRIEND_NOTES_KEY, JSON.stringify(friendNotes)); } catch(e){}
+}
+function renderMeetFriends(){
+ const el = document.getElementById('meetFriends');
+ if (!el) return;
+ el.innerHTML = meetFriends.map(f =>
+  '<div class="contact-row clickable" onclick="showCoord(\''+f.coordKey+'\')">'+
+   '<div class="c-info">'+
+    '<div class="c-avatar simple">'+f.initial+'</div>'+
+    '<div class="c-text">'+
+     '<div class="c-name">'+f.name+' · '+f.role+'</div>'+
+     '<input class="c-note-input" value="'+escAttr(friendNoteFor(f))+'" placeholder="Add a note\u2026" '+
+       'onclick="event.stopPropagation()" onchange="editFriendNote(\''+f.id+'\', this.value)">'+
+    '</div>'+
+   '</div>'+
+   '<span class="cp-arrow">\u2192</span>'+
+  '</div>'
+ ).join('');
 }
 
 // ====== CALENDAR ======
@@ -4208,7 +4205,7 @@ function renderEmptyState(type, opts) {
   icon = 'icon-contacts'; iconClass = 'people';
   title = 'No Calendar Friends yet';
   desc = 'Add your first Calendar Friend to unlock cross-person scheduling.';
-  if (opts.showAdd) action = '<span class="empty-state-action" onclick="switchPage(\'contacts\')"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Go to People</span>';
+  if (opts.showAdd) action = '<span class="empty-state-action" onclick="switchPage(\'coordinate\', document.querySelector(\'.nav-tab[data-page=&quot;coordinate&quot;]\'))"><svg width="14" height="14"><use href="#icon-check-sm"/></svg> Go to Meet</span>';
   break;
  case 'no-slots':
   icon = 'icon-chart'; iconClass = 'sun';
@@ -4255,55 +4252,6 @@ function showErrorBanner(msg) {
  const main = document.querySelector('.main');
  if (main) main.insertBefore(banner, main.firstChild);
  setTimeout(() => { if (document.getElementById('errorBanner')) banner.remove(); }, 6000);
-}
-
-function renderPeoplePage() {
- const contacts = [
-  { name:'Lukas', role:'NEUR.ON CTO', meta:'Co-founder · auto-shares free/busy', type:'friend', color:'linear-gradient(135deg,#007AFF,#5856D6)', initial:'L' },
-  { name:'Marie', role:'SLTA President', meta:'Shared availability · 3 common slots this week', type:'friend', color:'linear-gradient(135deg,#FF6B35,#FF8C5A)', initial:'M' },
-  { name:'Thomas', role:'Swiss AI Center', meta:'Board member · shares free/busy', type:'friend', color:'linear-gradient(135deg,#32D74B,#5856D6)', initial:'T' },
- ];
- const tempLinks = [
-  { name:'Anna', role:'SIX AI Event', meta:'Expires in 5 days', type:'temp', color:'linear-gradient(135deg,#FF2D55,#FF6482)', initial:'A' },
-  { name:'Prof. Meier', role:'Uni Genève', meta:'Expired', type:'expired', color:'linear-gradient(135deg,#8E8E93,#C7C7CC)', initial:'P' },
- ];
- const content = document.getElementById('page-contacts');
- if (!content) return;
- let h = '';
- // Calendar Friends
- h += '<div class="section-header">Calendar Friends · Shared Availability</div>';
- if (contacts.length === 0) {
-  h += renderEmptyState('no-contacts');
- } else {
-  contacts.forEach(c => {
-   h += '<div class="contact-row">'+
-    '<div class="c-info">'+
-     '<div class="c-avatar" style="background:'+c.color+';">'+c.initial+'</div>'+
-     '<div><div class="c-name">'+c.name+' · '+c.role+'</div><div class="c-meta">'+c.meta+'</div></div>'+
-    '</div>'+
-    '<span class="contact-type-badge '+(c.type==='friend'?'friend':'temp')+'">'+c.type.charAt(0).toUpperCase()+c.type.slice(1)+'</span>'+
-   '</div>';
-  });
- }
- // Temp Links
- h += '<div class="section-header" style="margin-top:18px;">Temporary Links</div>';
- if (tempLinks.length === 0) {
-  h += '<div style="text-align:center;padding:16px;font-size:13px;color:var(--ej-text-2);">No active temporary links</div>';
- } else {
-  tempLinks.forEach(t => {
-   h += '<div class="contact-row'+(t.type==='expired'?' style="opacity:0.5"':'')+'">'+
-    '<div class="c-info">'+
-     '<div class="c-avatar" style="background:'+t.color+';">'+t.initial+'</div>'+
-     '<div><div class="c-name">'+t.name+' · '+t.role+'</div><div class="c-meta">'+t.meta+'</div></div>'+
-    '</div>'+
-    '<span class="contact-type-badge '+(t.type==='temp'?'temp':'')+'">'+(t.type==='expired'?'Expired':'Temp')+'</span>'+
-   '</div>';
-  });
- }
- // Generate button
- h += '<button class="ios-btn outline" style="margin-top:12px;width:100%;height:42px;font-size:14px;" onclick="showToast(\'Link copied · Share with your contact\')">'+
-  '<svg width="16" height="16" style="margin-right:6px;"><use href="#icon-check-sm"/></svg> Generate New Temporary Link</button>';
- content.innerHTML = h;
 }
 
 // ====== TODAY PAGE RENDERING ======
@@ -6910,6 +6858,82 @@ function renderAnalyticsToggle() {
  '</div>';
 }
 
+// Insights · "What the agent has noticed" — a few plain-language, personalized
+// observations distilled from the schedule + learning stores. Kept short on
+// purpose: show only confident insights, and few of them when data is thin.
+function buildAgentInsights() {
+ const cap = s => (s || '').charAt(0).toUpperCase() + (s || '').slice(1);
+ const out = [];
+
+ // Flatten every scheduled event once.
+ const all = [];
+ for (const mk of Object.keys(eventsDB)) {
+  for (const dk of Object.keys(eventsDB[mk])) (eventsDB[mk][dk] || []).forEach(e => all.push(e));
+ }
+ const startHour = e => parseInt((e.startTime || '0:0').split(':')[0], 10);
+
+ // ── Learned from real interaction (highest signal, shown first) ──
+
+ // Commutes you actually work through (from conflict overrides)
+ ['bus', 'tram', 'car-ride', 'walk', 'car-drive', 'flight', 'train'].forEach(m => {
+  const pref = prefStore[prefKey('transit_work', m)];
+  if (pref && pref.sampleCount >= 2 && effectiveTransitScore(m) > getWorkability(m).score) {
+   out.push('You usually get a bit of work done on the ' + m.replace('-', ' ') + ', so the agent will start putting light tasks there.');
+  }
+ });
+
+ // Real durations vs your estimates
+ Object.keys(durationStore).forEach(k => {
+  const d = durationStore[k];
+  if (!d || d.count < 2) return;
+  const avg = Math.round(d.totalMin / d.count);
+  const name = k.startsWith('person::') ? k.slice(8) : (k.startsWith('kind::') ? k.slice(6) : k);
+  out.push(cap(name) + ' meetings usually take about ' + avg + ' minutes, so the agent now sets aside that much time.');
+ });
+
+ // ── Patterns observed from your calendar (works even with no interaction yet) ──
+
+ const meetings = all.filter(e => e.type === 'busy' || e.type === 'online');
+ if (meetings.length >= 4) {
+  const morning = meetings.filter(e => startHour(e) < 12).length;
+  const share = morning / meetings.length;
+  if (share >= 0.6) out.push('You tend to put meetings in the morning. About ' + Math.round(share * 100) + '% of them start before noon.');
+  else if (share <= 0.35) out.push('You like to keep your mornings free and meet later in the day.');
+ }
+
+ const deep = all.filter(e => e.type === 'deep');
+ if (deep.length >= 3 && deep.filter(e => startHour(e) < 12).length / deep.length >= 0.7) {
+  out.push('Your focus time is almost always early, so the agent keeps your mornings clear for it.');
+ }
+
+ const transit = all.filter(e => e.type === 'transit' && e.transitMode);
+ const workable = transit.filter(e => e.transitWorkable);
+ if (transit.length >= 4 && workable.length >= 2) {
+  out.push('You treat train rides as time to work. ' + workable.length + ' of your ' + transit.length + ' trips are open for tasks.');
+ }
+
+ return out;
+}
+
+function renderAgentLearningCard() {
+ const insights = buildAgentInsights().slice(0, 3);
+ let html = '<div class="analytics-card anim-in">';
+ html += '<div class="an-title">What the agent has noticed</div>';
+ if (insights.length === 0) {
+  html += '<div style="font-size:13px;color:var(--ej-text-2);line-height:1.6;padding:2px 0 4px;">'+
+   'Still getting to know you. The more you accept, skip, or move suggestions around, the more your habits will show up here.</div>';
+ } else {
+  insights.forEach(t => {
+   html += '<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:13px;line-height:1.5;">'+
+    '<span style="color:var(--ej-text-3);flex-shrink:0;">\u2022</span>'+
+    '<span>' + t + '</span>'+
+   '</div>';
+  });
+ }
+ html += '</div>';
+ return html;
+}
+
 function renderAnalyticsPage() {
  const content = document.getElementById('analyticsContent');
  if (!content) return;
@@ -6955,25 +6979,8 @@ function renderAnalyticsPage() {
  html += '<div class="analytics-metric"><span class="am-label">Today (so far)</span><span class="am-val">2/2 <span class="am-sub">100%</span></span></div>';
  html += '</div>';
 
- // Follow-up Health
- let pendingCount = 0, overdueCount = 0;
- for (const mk of Object.keys(eventsDB)) {
- for (const dk of Object.keys(eventsDB[mk])) {
- eventsDB[mk][dk].forEach(e => {
- if (e.followUpNeeded && e.followUpStatus === 'pending') {
- pendingCount++;
- if (e.followUpBy && e.followUpBy < '2026-06-07') overdueCount++;
- }
- });
- }
- }
- html += '<div class="analytics-card anim-in">';
- html += '<div class="an-title">Follow-up Health</div>';
- html += '<div class="analytics-metric"><span class="am-label">Pending</span><span class="am-val">'+pendingCount+'</span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Overdue</span><span class="am-val" style="color:var(--ej-red);">'+overdueCount+' <span class="analytics-pill warn">Action needed</span></span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Avg response time</span><span class="am-val">2.3 days</span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Completed this week</span><span class="am-val">2</span></div>';
- html += '</div>';
+ // What the agent has learned — proves the feedback loop is running
+ html += renderAgentLearningCard();
 
  // Transit Efficiency
  html += '<div class="analytics-card anim-in">';
@@ -7000,6 +7007,7 @@ updateStatusTime(); setInterval(updateStatusTime, 30000);
 (function initCalToToday(){ const t = appNow(); calYear = t.getFullYear(); calMonth = t.getMonth()+1; })();
 renderCal();
 renderTodayPage();
+renderMeetFriends();
 initCloud();
 
 // Pending card click delegation · registered ONCE
