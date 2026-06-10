@@ -40,7 +40,8 @@
 | `runtimeEvents` | 运行时新建/接受的事件镜像（按 id）| `findEventById` 先查它 |
 | `pendingTasksDB` / `owedRepliesDB` / `pendingMeetingsDB` | 三类待办任务（backlog）| 经 `getInboxItems()` 归一 |
 | `completionDB` / `completedInboxIds` | 事件完成状态 / 已完成任务 uid | |
-| `prefStore` / `durationStore` / `interactionLog` | 学习状态 | 存 localStorage（key `schedulingAgentLearning.v1`），**暂未上后端**|
+| `prefStore` / `durationStore` / `interactionLog` | 学习状态 | localStorage（`schedulingAgentLearning.v1`）+ **Phase 1 起随云端 blob 同步**|
+| `friendNotes` / `displayNameOverride` | 好友备注 / 显示名 | localStorage + 随云端 blob 同步 |
 
 - `getInboxItems()`：把三类 backlog 归一成 `{id, source, title, est, kind, involves, deadline, importance, urgency, done}`，按 `inboxSortScore`（截止日近 × 重要度高）排序。
 - `TASK_DBS = { pendingTask, owedReply, pendingMeeting }`：source → 对应数组的取值器，编辑/删除任务统一走它。
@@ -49,6 +50,38 @@
 ### 事件对象关键字段
 `id, type/t, title, time, startTime('HH:MM'), endTime, duration, participants, transitMode, transitWorkable, context, agentNote, followUp*` …
 新增：**`sourceTaskId: 'source:id'`** —— 把日历事件回指到它来源的 backlog 任务（打通"任务↔日历"，供 deadline 检测判断"是否已排块"）。
+
+---
+
+## 2.5 ⭐ 持久化架构（后端数据存储规划）
+
+设计原则：调度+学习 agent 本质是**事件溯源（event-sourced）**——每个有意义的动作（建/完成/改期、接受/忽略建议、覆盖冲突）都是带时间戳的事件。当前状态可由事件流推导，但为性能保留快照。路线：**先 A（扩展 blob）后 C（规范化多表）**。
+
+### 现状（A · Phase 1，已实现）
+- 单条 Supabase 行 `app_state(user_id, data jsonb, updated_at)`，RLS 限定只读写本人行（故 anon key 可安全前端硬编码）。
+- `cloudSaveNow()` 写入 **`snapshotCloud()`** —— 在 `snapshotDBs()`（事件/任务/完成）基础上，**并入全部会丢的数据**：
+  - `learning: {prefStore, durationStore, interactionLog}`
+  - `friendNotes`、`displayNameOverride`
+  - `schemaVersion: 2`（供 Phase C 迁移识别）
+- 顶层仍保留 `eventsDB` 等键 → **向后兼容**旧行（`cloudLoad` 以 `remote.eventsDB` 为入口）。
+- 写时机：防抖 800ms（`cloudSave`）；`saveLearningState` / `editFriendNote` / `setDisplayName` 均触发 `cloudSave`，确保学习/好友/名字真正落后端、跨设备一致。
+- 已知限制：**后写覆盖先写**（多端/多标签页）；blob 整体重写，`interactionLog` 会随时间膨胀——这两点正是 Phase C 要解决的。
+
+### 目标（C · Phase 2，规范化多表 + 真实趋势）
+```sql
+profile      (user_id pk, display_name, prefs jsonb, updated_at)
+events       (id pk, user_id, date, start, end, type, title, who, location, note, source_task_id, status, ...)
+tasks        (id pk, user_id, title, kind, mins, due, who, status, created_at, ...)
+interactions (id pk, user_id, ts, type, payload jsonb)   -- append-only · 趋势/学习/ML 的底座
+friends      (id pk, user_id, name, note, ...)
+```
+- `interactions` **追加式、永不覆盖** → ① 任意时间窗算准分析（真实"本周 vs 上周"）；② 学习即对它的聚合（`prefStore` 是派生缓存）；③ 未来 ML 训练数据。
+- 迁移：读旧 `app_state.data`（`schemaVersion`）→ 拆分写入各表；`prefStore/durationStore` 作为 `profile.prefs` 的缓存，可随时由 `interactions` 重算。
+- 配套：`updated_at`/版本号防多端覆盖；`interactions` 保留策略（封顶/归档旧记录为聚合）。
+
+### 分析页数据来源（与上面对齐）
+- Week 视图（`renderAnalyticsPage` + `computeWeekStats`）**现已从真实 `eventsDB`/`completionDB` 计算**当周（Mon–Sun）的时间分布、完成率、通勤效率，不再 mock。
+- "↑ vs last week" 这类**历史趋势**需要 `interactions` 历史 → 留到 Phase C，届时从事件流聚合，不返工。
 
 ---
 
@@ -211,11 +244,12 @@
 - ✅ Find New Time 真实改期（3 个建议，2/3 可编辑日期时间，确认后融入时间线）
 - ✅ 冲突检测（双重预订 / 不可工作通勤）+ 覆盖 + Tier-1 学习
 - ✅ 三视图数据同步 + 持久化；`sourceTaskId` 打通任务↔日历
+- ✅ **持久化 Phase 1**：学习/好友/名字随云端 blob 同步（跨设备不丢）；分析页 Week 视图改用真实数据（见 §2.5）
 
 **下一步（建议顺序）**
-1. **Conflict 主动巡检**：`detectConflicts()` 进 `MOVE_DETECTORS`，扫描已存在的重叠并在简报主动暴露，用 `moveEventToSlot` 一键挪走其一。
-2. 更多 detector：Prep（会前准备）、Follow-up（会后跟进）、Cleanup（未标记完成）、Rebalance（今天过载）。
-3. 学习信号上 Supabase（跨设备）。
+1. **持久化 Phase C**：规范化多表（`events`/`tasks`/`interactions`/`friends`/`profile`），`interactions` 追加式日志驱动真实趋势与 ML（见 §2.5）。
+2. **Conflict 主动巡检**：`detectConflicts()` 进 `MOVE_DETECTORS`，扫描已存在的重叠并在简报主动暴露，用 `moveEventToSlot` 一键挪走其一。
+3. 更多 detector：Prep（会前准备）、Follow-up（会后跟进）、Cleanup（未标记完成）、Rebalance（今天过载）。
 4. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
 5. 语音输入（deferred）。
 

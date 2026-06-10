@@ -3055,6 +3055,7 @@ function friendNoteFor(f){ return friendNotes.hasOwnProperty(f.id) ? friendNotes
 function editFriendNote(id, value){
  friendNotes[id] = value;
  try { localStorage.setItem(FRIEND_NOTES_KEY, JSON.stringify(friendNotes)); } catch(e){}
+ if (typeof cloudSave === 'function') cloudSave();
 }
 function renderMeetFriends(){
  const el = document.getElementById('meetFriends');
@@ -4692,6 +4693,7 @@ function saveLearningState() {
  try {
   localStorage.setItem(LEARNING_STORAGE_KEY, JSON.stringify({ prefStore, interactionLog, durationStore }));
  } catch (e) {}
+ if (typeof cloudSave === 'function') cloudSave();
 }
 
 loadLearningState();
@@ -4807,6 +4809,7 @@ function setDisplayName(name) {
  try { if (v) localStorage.setItem(DISPLAY_NAME_KEY, v); else localStorage.removeItem(DISPLAY_NAME_KEY); } catch (e) {}
  // Best-effort cloud sync so the name follows you across devices.
  try { if (typeof sb !== 'undefined' && sb && typeof sbUser !== 'undefined' && sbUser) sb.auth.updateUser({ data: { display_name: v } }); } catch (e) {}
+ if (typeof cloudSave === 'function') cloudSave();
  if (document.getElementById('todayContent')) renderTodayPage();
  if (typeof renderSettings === 'function') renderSettings();
 }
@@ -4844,9 +4847,25 @@ async function cloudLoad() {
   const remote = res.data && res.data.data;
   if (remote && remote.eventsDB) {
    loadDBsFrom(remote);
+   // Restore learning + friend notes + name override (Phase 1 siblings).
+   if (remote.learning) {
+    prefStore = remote.learning.prefStore || {};
+    durationStore = remote.learning.durationStore || {};
+    interactionLog = remote.learning.interactionLog || [];
+    saveLearningState();
+   }
+   if (remote.friendNotes) {
+    friendNotes = remote.friendNotes;
+    try { localStorage.setItem(FRIEND_NOTES_KEY, JSON.stringify(friendNotes)); } catch (e) {}
+   }
+   if (remote.displayNameOverride) {
+    try { localStorage.setItem(DISPLAY_NAME_KEY, remote.displayNameOverride); } catch (e) {}
+   }
    try { localStorage.setItem(APP_DATA_KEY, JSON.stringify(snapshotDBs())); } catch (e) {}
    if (typeof closeDayDetail === 'function') closeDayDetail();
    syncAllViews();
+   if (typeof renderMeetFriends === 'function') renderMeetFriends();
+   if (document.getElementById('todayContent')) renderTodayPage();
    if (document.getElementById('calGrid')) renderCal();
   } else {
    // First sign-in on this account → seed the remote row with whatever is local (likely empty).
@@ -4860,10 +4879,24 @@ function cloudSave() {
  clearTimeout(cloudSaveTimer);
  cloudSaveTimer = setTimeout(cloudSaveNow, 800);
 }
+// Everything durable goes in the one app_state blob (Phase 1). Top-level working
+// set stays at the root (so older rows with `eventsDB` keep loading); learning,
+// friend notes and the name override ride alongside as siblings. schemaVersion
+// lets us migrate safely when we normalise into per-entity tables (Phase C).
+function snapshotCloud() {
+ let nameOverride = '';
+ try { nameOverride = localStorage.getItem(DISPLAY_NAME_KEY) || ''; } catch (e) {}
+ return Object.assign({}, snapshotDBs(), {
+  schemaVersion: 2,
+  learning: { prefStore: prefStore, durationStore: durationStore, interactionLog: interactionLog },
+  friendNotes: friendNotes,
+  displayNameOverride: nameOverride
+ });
+}
 async function cloudSaveNow() {
  if (!sb || !sbUser) return;
  try {
-  await sb.from('app_state').upsert({ user_id: sbUser.id, data: snapshotDBs(), updated_at: new Date().toISOString() });
+  await sb.from('app_state').upsert({ user_id: sbUser.id, data: snapshotCloud(), updated_at: new Date().toISOString() });
  } catch (e) {}
 }
 
@@ -6921,7 +6954,15 @@ function setAnalyticsView(view) {
  analyticsView = view;
  renderAnalyticsPage();
  const sub = document.getElementById('pageSubtitle');
- if (sub) sub.textContent = view === 'day' ? appNow().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : 'Week of Jun 1–7, 2026';
+ if (sub) sub.textContent = view === 'day' ? appNow().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : weekRangeLabel();
+}
+function weekRangeLabel() {
+ const now = appNow();
+ const dow = (now.getDay() + 6) % 7;
+ const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+ const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+ const m = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+ return 'Week of ' + m(mon) + '–' + (mon.getMonth() === sun.getMonth() ? sun.getDate() : m(sun)) + ', ' + sun.getFullYear();
 }
 
 function renderAnalyticsToggle() {
@@ -7016,55 +7057,111 @@ function renderAnalyticsPage() {
   return;
  }
 
- // Mock weekly data
- const weeklyStats = [
- {type:'Deep Work', hrs:18, pct:38, cls:'deep'},
- {type:'Meetings', hrs:13, pct:28, cls:'busy'},
- {type:'Transit', hrs:8.5, pct:18, cls:'transit'},
- {type:'Social', hrs:5.5, pct:12, cls:'social'},
- {type:'Buffer', hrs:2, pct:4, cls:'buffer'}
- ];
-
+ const stats = computeWeekStats();
  let html = renderAnalyticsToggle();
 
- // Time Distribution
+ // ── Time Distribution (real, from this week's events) ──
+ const typeMeta = [
+ {key:'deep', label:'Deep Work', cls:'deep'},
+ {key:'busy', label:'Meetings', cls:'busy'},
+ {key:'online', label:'Online', cls:'online'},
+ {key:'transit', label:'Transit', cls:'transit'},
+ {key:'social', label:'Social', cls:'social'}
+ ];
+ const totalHrs = Math.round(Object.values(stats.timeByType).reduce((a,b)=>a+b,0)*10)/10;
  html += '<div class="analytics-card anim-in">';
  html += '<div class="an-title">Time Distribution · This Week</div>';
- weeklyStats.forEach(s => {
- html += '<div class="analytics-bar-row">'+
- '<span class="an-label">'+s.type+'</span>'+
- '<div class="an-bar-wrap"><div class="an-bar '+s.cls+'" style="width:'+s.pct+'%"></div></div>'+
- '<span class="an-pct">'+s.pct+'% <span style="font-weight:400;color:var(--ej-text-2);">('+s.hrs+'h)</span></span>'+
- '</div>';
+ if (totalHrs <= 0) {
+ html += '<div style="font-size:13px;color:var(--ej-text-2);line-height:1.6;padding:2px 0 4px;">Nothing scheduled this week yet. Add events and your time mix will show up here.</div>';
+ } else {
+ typeMeta.forEach(m => {
+  const hrs = Math.round((stats.timeByType[m.key]||0)*10)/10;
+  if (hrs <= 0) return;
+  const pct = Math.round(hrs/totalHrs*100);
+  html += '<div class="analytics-bar-row">'+
+  '<span class="an-label">'+m.label+'</span>'+
+  '<div class="an-bar-wrap"><div class="an-bar '+m.cls+'" style="width:'+pct+'%"></div></div>'+
+  '<span class="an-pct">'+pct+'% <span style="font-weight:400;color:var(--ej-text-2);">('+hrs+'h)</span></span>'+
+  '</div>';
  });
- html += '<div style="font-size:11px;color:var(--ej-text-2);margin-top:6px;">Total: 47h tracked</div>';
+ html += '<div style="font-size:11px;color:var(--ej-text-2);margin-top:6px;">Total: '+totalHrs+'h tracked</div>';
+ }
  html += '</div>';
 
- // Completion Rate
+ // ── Completion Rate (real, only days with elapsed tasks) ──
+ const wkDays = stats.dayCompletion.filter(d => d.total > 0);
+ const wkDone = wkDays.reduce((a,d)=>a+d.done,0);
+ const wkTotal = wkDays.reduce((a,d)=>a+d.total,0);
  html += '<div class="analytics-card anim-in">';
  html += '<div class="an-title">Completion Rate</div>';
- html += '<div class="analytics-metric"><span class="am-label">This week</span><span class="am-val">78% <span class="analytics-pill up">↑ 13% vs last</span></span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Mon</span><span class="am-val">2/2 <span class="am-sub">100%</span></span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Tue</span><span class="am-val">2/2 <span class="am-sub">100%</span></span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Wed</span><span class="am-val">4/4 <span class="am-sub">100%</span></span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Thu</span><span class="am-val">3/4 <span class="am-sub">75%</span></span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Fri</span><span class="am-val">3/4 <span class="am-sub">75%</span></span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Today (so far)</span><span class="am-val">2/2 <span class="am-sub">100%</span></span></div>';
+ if (wkTotal === 0) {
+ html += '<div style="font-size:13px;color:var(--ej-text-2);line-height:1.6;padding:2px 0 4px;">No tasks have come due yet this week.</div>';
+ } else {
+ html += '<div class="analytics-metric"><span class="am-label">This week</span><span class="am-val">'+Math.round(wkDone/wkTotal*100)+'% <span class="am-sub">'+wkDone+'/'+wkTotal+'</span></span></div>';
+ stats.dayCompletion.forEach(d => {
+  if (d.total === 0) return;
+  const label = d.isToday ? 'Today (so far)' : d.label;
+  html += '<div class="analytics-metric"><span class="am-label">'+label+'</span><span class="am-val">'+d.done+'/'+d.total+' <span class="am-sub">'+Math.round(d.done/d.total*100)+'%</span></span></div>';
+ });
+ }
  html += '</div>';
 
  // What the agent has learned — proves the feedback loop is running
  html += renderAgentLearningCard();
 
- // Transit Efficiency
+ // ── Transit Efficiency (real) ──
+ const tTotal = Math.round(stats.transitTotal*10)/10;
+ const tWork = Math.round(stats.transitWork*10)/10;
  html += '<div class="analytics-card anim-in">';
  html += '<div class="an-title">Transit Efficiency</div>';
- html += '<div class="analytics-metric"><span class="am-label">Total transit time</span><span class="am-val">8.5h</span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Workable (train)</span><span class="am-val" style="color:var(--ej-complete);">5.5h <span class="am-sub">65%</span></span></div>';
- html += '<div class="analytics-metric"><span class="am-label">Unavailable (walk/car)</span><span class="am-val" style="color:var(--ej-red);">3h <span class="am-sub">35%</span></span></div>';
- html += '<div style="font-size:12px;color:var(--ej-text-2);margin-top:8px;">65% of your transit time is productive, above average. Consider shifting one walk leg to train for more.</div>';
+ if (tTotal <= 0) {
+ html += '<div style="font-size:13px;color:var(--ej-text-2);line-height:1.6;padding:2px 0 4px;">No transit logged this week.</div>';
+ } else {
+ const workPct = Math.round(tWork/tTotal*100);
+ const idle = Math.round((tTotal - tWork)*10)/10;
+ html += '<div class="analytics-metric"><span class="am-label">Total transit time</span><span class="am-val">'+tTotal+'h</span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Workable</span><span class="am-val" style="color:var(--ej-complete);">'+tWork+'h <span class="am-sub">'+workPct+'%</span></span></div>';
+ html += '<div class="analytics-metric"><span class="am-label">Unavailable (walk/car)</span><span class="am-val" style="color:var(--ej-red);">'+idle+'h <span class="am-sub">'+(100-workPct)+'%</span></span></div>';
+ html += '<div style="font-size:12px;color:var(--ej-text-2);margin-top:8px;">'+workPct+'% of your transit time is open for light tasks.</div>';
+ }
  html += '</div>';
 
  content.innerHTML = html;
+}
+
+// Aggregate the current Mon–Sun week from real events for the analytics page.
+function computeWeekStats() {
+ const now = appNow();
+ const dow = (now.getDay() + 6) % 7; // 0 = Monday
+ const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+ const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+ const simNow = currentSimNow();
+ const timeByType = {};
+ let transitTotal = 0, transitWork = 0;
+ const dayCompletion = [];
+ for (let i = 0; i < 7; i++) {
+  const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+  const key = d.getFullYear() + '-' + (d.getMonth() + 1);
+  const arr = (eventsDB[key] && eventsDB[key][d.getDate()]) || [];
+  const isToday = d.getTime() === todayStart.getTime();
+  let done = 0, total = 0;
+  arr.forEach(e => {
+   const t = e.type || 'busy';
+   const hrs = parseDurationHours(e.duration);
+   timeByType[t] = (timeByType[t] || 0) + hrs;
+   if (t === 'transit') {
+    transitTotal += hrs;
+    const workable = e.transitWorkable || (e.transitMode && effectiveTransitScore(e.transitMode) >= 2);
+    if (workable) transitWork += hrs;
+   }
+   if (['deep', 'busy', 'online'].includes(t)) {
+    const isPast = d < todayStart || (isToday && (e.startTime || '') < simNow);
+    if (isPast) { total++; if (getCompletion(e) === true) done++; }
+   }
+  });
+  dayCompletion.push({ label: d.toLocaleDateString('en-US', { weekday: 'short' }), done: done, total: total, isToday: isToday });
+ }
+ return { timeByType: timeByType, transitTotal: transitTotal, transitWork: transitWork, dayCompletion: dayCompletion, monday: monday };
 }
 
 // ====== THEME — always light (data-theme="light" is hardcoded on <html>) ======
