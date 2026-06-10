@@ -1787,6 +1787,7 @@
  border-radius: 10px; margin-left: 6px;
  }
  .analytics-pill.up { background: var(--ej-complete-bg); color: var(--ej-complete); }
+ .analytics-pill.down { background: var(--ej-red-bg, #fde8e8); color: var(--ej-red); }
  .analytics-pill.warn { background: var(--ej-warning-bg); color: var(--ej-warning); }
 
  /* Scrollbar hide */
@@ -7197,7 +7198,136 @@ function renderAgentLearningCard() {
  return html;
 }
 
-function renderAnalyticsPage() {
+function weekStartMonday(d) {
+ const dow = (d.getDay() + 6) % 7;
+ return new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow);
+}
+
+function tsInWeekRange(ts, weekStart, weekEndExclusive) {
+ if (!ts) return false;
+ const t = new Date(ts).getTime();
+ return t >= weekStart.getTime() && t < weekEndExclusive.getTime();
+}
+
+function aggregateLearningTrends(interactions, durations, now) {
+ now = now || appNow();
+ const thisMon = weekStartMonday(now);
+ const nextMon = new Date(thisMon.getFullYear(), thisMon.getMonth(), thisMon.getDate() + 7);
+ const lastMon = new Date(thisMon.getFullYear(), thisMon.getMonth(), thisMon.getDate() - 7);
+
+ function weekStats(rows, start, end) {
+  const weekRows = (rows || []).filter(r => tsInWeekRange(r.ts, start, end));
+  let accepted = 0, decided = 0;
+  const kindCounts = {}, sourceCounts = {};
+  weekRows.forEach(r => {
+   if (r.kind) kindCounts[r.kind] = (kindCounts[r.kind] || 0) + 1;
+   if (r.source) sourceCounts[r.source] = (sourceCounts[r.source] || 0) + 1;
+   const accept = r.label === 1 || r.action === 'accepted' || r.action === 'sent';
+   const reject = r.label === 0 || r.action === 'dismissed';
+   if (accept) { accepted++; decided++; }
+   else if (reject) { decided++; }
+  });
+  const topKind = Object.keys(kindCounts).sort((a, b) => kindCounts[b] - kindCounts[a])[0] || null;
+  const topSource = Object.keys(sourceCounts).sort((a, b) => sourceCounts[b] - sourceCounts[a])[0] || null;
+  return {
+   interactions: weekRows.length,
+   acceptRate: decided ? Math.round(accepted / decided * 100) : null,
+   accepted: accepted,
+   decided: decided,
+   topKind: topKind,
+   topSource: topSource
+  };
+ }
+
+ const thisWeek = weekStats(interactions, thisMon, nextMon);
+ const lastWeek = weekStats(interactions, lastMon, thisMon);
+ const durThis = (durations || []).filter(d => tsInWeekRange(d.ts, thisMon, nextMon));
+ const durLast = (durations || []).filter(d => tsInWeekRange(d.ts, lastMon, thisMon));
+ const avgDur = arr => arr.length ? Math.round(arr.reduce((s, d) => s + (d.observed_minutes || 0), 0) / arr.length) : null;
+ let acceptRateDelta = null;
+ if (thisWeek.acceptRate != null && lastWeek.acceptRate != null) acceptRateDelta = thisWeek.acceptRate - lastWeek.acceptRate;
+
+ return {
+  thisWeek: thisWeek,
+  lastWeek: lastWeek,
+  durationThisWeek: durThis.length,
+  durationLastWeek: durLast.length,
+  avgDurationThisWeek: avgDur(durThis),
+  avgDurationLastWeek: avgDur(durLast),
+  acceptRateDelta: acceptRateDelta,
+  hasData: thisWeek.interactions > 0 || lastWeek.interactions > 0 || durThis.length > 0 || durLast.length > 0
+ };
+}
+
+function mapLocalInteractionsForTrends() {
+ return interactionLog.map(r => ({
+  ts: r.ts,
+  action: r.action || r.type,
+  kind: r.kind,
+  source: r.source,
+  label: r.label
+ }));
+}
+
+async function loadLearningAnalytics() {
+ const now = appNow();
+ if (!cloudLearningActive()) {
+  return aggregateLearningTrends(mapLocalInteractionsForTrends(), [], now);
+ }
+ try {
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 14);
+  const iso = cutoff.toISOString();
+  const [iRes, dRes] = await Promise.all([
+   sb.from('interaction_log').select('ts,action,kind,source,label').gte('ts', iso).order('ts', { ascending: false }),
+   sb.from('duration_observations').select('ts,kind,person,observed_minutes').gte('ts', iso).order('ts', { ascending: false })
+  ]);
+  const interactions = (iRes && iRes.data) || [];
+  const durations = (dRes && dRes.data) || [];
+  if (!interactions.length && !durations.length) {
+   return aggregateLearningTrends(mapLocalInteractionsForTrends(), [], now);
+  }
+  return aggregateLearningTrends(interactions, durations, now);
+ } catch (e) {
+  return aggregateLearningTrends(mapLocalInteractionsForTrends(), [], now);
+ }
+}
+
+function renderLearningTrendsCard(trends) {
+ let html = '<div class="analytics-card anim-in">';
+ html += '<div class="an-title">Learning Trends</div>';
+ if (!trends || !trends.hasData) {
+  html += '<div style="font-size:13px;color:var(--ej-text-2);line-height:1.6;padding:2px 0 4px;">Keep accepting or moving suggestions — week-over-week trends will show up here once there is enough history.</div>';
+  html += '</div>';
+  return html;
+ }
+ if (trends.thisWeek.acceptRate != null) {
+  let deltaHtml = '';
+  if (trends.acceptRateDelta != null) {
+   const cls = trends.acceptRateDelta >= 0 ? 'up' : 'down';
+   const arrow = trends.acceptRateDelta > 0 ? '\u2191 ' : trends.acceptRateDelta < 0 ? '\u2193 ' : '';
+   deltaHtml = ' <span class="analytics-pill '+cls+'">'+arrow+Math.abs(trends.acceptRateDelta)+'% vs last week</span>';
+  }
+  html += '<div class="analytics-metric"><span class="am-label">Suggestion acceptance</span><span class="am-val">'+trends.thisWeek.acceptRate+'%'+deltaHtml+'</span></div>';
+  html += '<div class="analytics-metric"><span class="am-label">This week</span><span class="am-val">'+trends.thisWeek.accepted+'/'+trends.thisWeek.decided+' <span class="am-sub">'+trends.thisWeek.interactions+' signals</span></span></div>';
+  if (trends.lastWeek.decided > 0) {
+   html += '<div class="analytics-metric"><span class="am-label">Last week</span><span class="am-val">'+trends.lastWeek.acceptRate+'% <span class="am-sub">'+trends.lastWeek.accepted+'/'+trends.lastWeek.decided+'</span></span></div>';
+  }
+ }
+ if (trends.thisWeek.topKind) {
+  html += '<div class="analytics-metric"><span class="am-label">Most scheduled kind</span><span class="am-val">'+trends.thisWeek.topKind+'</span></div>';
+ }
+ if (trends.thisWeek.topSource) {
+  html += '<div class="analytics-metric"><span class="am-label">Most scheduled source</span><span class="am-val">'+trends.thisWeek.topSource+'</span></div>';
+ }
+ if (trends.avgDurationThisWeek != null) {
+  html += '<div class="analytics-metric"><span class="am-label">Avg observed duration</span><span class="am-val">'+trends.avgDurationThisWeek+' min <span class="am-sub">'+trends.durationThisWeek+' events</span></span></div>';
+ }
+ html += '</div>';
+ return html;
+}
+
+async function renderAnalyticsPage() {
  const content = document.getElementById('analyticsContent');
  if (!content) return;
 
@@ -7207,6 +7337,7 @@ function renderAnalyticsPage() {
  }
 
  const stats = computeWeekStats();
+ const trends = await loadLearningAnalytics();
  let html = renderAnalyticsToggle();
 
  // ── Time Distribution (real, from this week's events) ──
@@ -7254,6 +7385,9 @@ function renderAnalyticsPage() {
  });
  }
  html += '</div>';
+
+ // Learning trends from normalized interaction_log / duration_observations (Phase C)
+ html += renderLearningTrendsCard(trends);
 
  // What the agent has learned — proves the feedback loop is running
  html += renderAgentLearningCard();

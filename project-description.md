@@ -96,8 +96,8 @@ friends(id pk, user_id, name, note, share_scope, ...)
 - 当前策略：学习数据已先拆表；核心业务实体等产品自用稳定后再拆，避免过早迁移 events/tasks。
 
 ### 分析页数据来源（与上面对齐）
-- Week 视图（`renderAnalyticsPage` + `computeWeekStats`）**现已从真实 `eventsDB`/`completionDB` 计算**当周（Mon–Sun）的时间分布、完成率、通勤效率，不再 mock。
-- "↑ vs last week" 这类**历史趋势**需要 `interactions` 历史 → 留到 Phase C，届时从事件流聚合，不返工。
+- Week 视图（`renderAnalyticsPage` + `computeWeekStats`）**从真实 `eventsDB`/`completionDB` 计算**当周（Mon–Sun）的时间分布、完成率、通勤效率。
+- **Learning Trends 卡**（`loadLearningAnalytics` + `aggregateLearningTrends` + `renderLearningTrendsCard`）：live 模式从 Supabase `interaction_log` / `duration_observations` 拉最近 14 天，聚合本周 vs 上周建议接受率、最常见 `kind/source`、平均观测时长；无云数据时回退本地 `interactionLog`。
 
 ---
 
@@ -264,14 +264,14 @@ friends(id pk, user_id, name, note, share_scope, ...)
 - ✅ 三视图数据同步 + 持久化；`sourceTaskId` 打通任务↔日历
 - ✅ **持久化 Phase 1**：学习/好友/名字随云端 blob 同步（跨设备不丢）；分析页 Week 视图改用真实数据（见 §2.5）
 - ✅ **Phase C 第一刀**：学习数据双写到 `interaction_log` / `pref_store` / `duration_observations`，线上 Supabase 已验证有 `pendingTask/social` 等行（见 §2.5）
+- ✅ **Analytics 真实趋势**：Week 视图新增 Learning Trends 卡，从 normalized 学习表聚合本周 vs 上周接受率与时长（见 §2.5 分析页）
 
 **下一步（建议顺序）**
-1. **Analytics 真实趋势**：从 `interaction_log` / `duration_observations` 聚合本周 vs 上周、学习曲线、接受率变化，而不是只看当前 blob 快照。
-2. **旧 blob 学习数据回填**：把 `app_state.data.learning` 里的历史 `interactionLog/prefStore/durationStore` 迁移进三张学习表。
-3. **Conflict 主动巡检**：`detectConflicts()` 进 `MOVE_DETECTORS`，扫描已存在的重叠并在简报主动暴露，用 `moveEventToSlot` 一键挪走其一。
-4. 更多 detector：Prep（会前准备）、Follow-up（会后跟进）、Cleanup（未标记完成）、Rebalance（今天过载）。
-5. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
-6. 语音输入（deferred）。
+1. **旧 blob 学习数据回填**：把 `app_state.data.learning` 历史迁移进三张学习表，补全趋势历史。
+2. **Conflict 主动巡检**：`detectConflicts()` 进 `MOVE_DETECTORS`，扫描已存在的重叠并在简报主动暴露，用 `moveEventToSlot` 一键挪走其一。
+3. 更多 detector：Prep（会前准备）、Follow-up（会后跟进）、Cleanup（未标记完成）、Rebalance（今天过载）。
+4. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
+5. 语音输入（deferred）。
 
 ---
 
