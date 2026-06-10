@@ -69,15 +69,22 @@
 
 ### 目标（C · Phase 2，规范化多表 + 真实趋势）
 ```sql
-profile      (user_id pk, display_name, prefs jsonb, updated_at)
-events       (id pk, user_id, date, start, end, type, title, who, location, note, source_task_id, status, ...)
-tasks        (id pk, user_id, title, kind, mins, due, who, status, created_at, ...)
-interactions (id pk, user_id, ts, type, payload jsonb)   -- append-only · 趋势/学习/ML 的底座
-friends      (id pk, user_id, name, note, ...)
+-- Phase C 第一刀：先拆学习数据（当前本次修复已先保证信号干净）
+pref_store(user_id, dimension, key, alpha, beta, confidence, sample_count, last_updated)
+interaction_log(id, user_id, ts, action, context, top3, chosen_idx, candidate_id, kind, source, involves, features, label)
+duration_observations(id, user_id, kind, person, observed_minutes, ts)
+
+-- Phase C 第二刀：再拆核心业务实体
+profile(user_id pk, display_name, prefs jsonb, updated_at)
+events(id pk, user_id, date, start, end, type, kind, title, who, location, note, source_task_id, status, ...)
+tasks(id pk, user_id, title, kind, mins, due, who, status, created_at, ...)
+friends(id pk, user_id, name, note, share_scope, ...)
 ```
-- `interactions` **追加式、永不覆盖** → ① 任意时间窗算准分析（真实"本周 vs 上周"）；② 学习即对它的聚合（`prefStore` 是派生缓存）；③ 未来 ML 训练数据。
-- 迁移：读旧 `app_state.data`（`schemaVersion`）→ 拆分写入各表；`prefStore/durationStore` 作为 `profile.prefs` 的缓存，可随时由 `interactions` 重算。
+- `interaction_log` **追加式、永不覆盖** → ① 任意时间窗算准分析（真实"本周 vs 上周"）；② 学习即对它的聚合（`prefStore` 是派生缓存）；③ 未来 ML 训练数据。
+- `pref_store` 是当前 Beta 偏好的可查询聚合表；`duration_observations` 保存原始时长观测，避免只存 running average 后丢失训练样本。
+- 迁移：读旧 `app_state.data`（`schemaVersion`）→ 拆出 `learning.interactionLog` / `prefStore` / `durationStore` → 写入学习表；`prefStore/durationStore` 后续可由日志和观测重算。
 - 配套：`updated_at`/版本号防多端覆盖；`interactions` 保留策略（封顶/归档旧记录为聚合）。
+- 当前策略：**先修正学习路径，再拆表**。否则新表只会保存不完整或不一致的信号。
 
 ### 分析页数据来源（与上面对齐）
 - Week 视图（`renderAnalyticsPage` + `computeWeekStats`）**现已从真实 `eventsDB`/`completionDB` 计算**当周（Mon–Sun）的时间分布、完成率、通勤效率，不再 mock。
@@ -169,7 +176,7 @@ friends      (id pk, user_id, name, note, ...)
 | `getFreeWindowsForDate(y,m,d,minMin)` | **任意一天**的空档 = 工作日(08:00–20:00) − 当天事件；今天还会跳过已过去时段。`getPlanWindows()`（仅今天）的泛化版 |
 | `proposeSlotsForTask(it, maxN)` | 今天→截止日（无截止则→horizon）逐天取一个最佳空档，最早优先，返回 `{year,month,day,startMin,mins,label,dayLabel}[]` |
 | `taskEstMinutes(it)` | 任务所需分钟（解析 `~2h` 等，下限 15）|
-| `scheduleTaskToSlot(source,id,y,m,d,startMin,mins)` | **底层写入器**：把 backlog 任务变成日历事件，写 `sourceTaskId`，从 backlog 移除，`recordSignal` 学习，`syncAllViews` |
+| `scheduleTaskToSlot(source,id,y,m,d,startMin,mins)` | **底层写入器**：把 backlog 任务变成日历事件，写 `sourceTaskId`，从 backlog 移除，写 normalized `interactionLog` + `recordSignal` 学习，`syncAllViews` |
 | `agentDayLabel(date)` | 标签：今天→`today`，否则→`Jun 11`（月日）|
 
 ---
@@ -218,8 +225,10 @@ friends      (id pk, user_id, name, note, ...)
 ### 7.2 记录（什么数据进哪里）
 
 - 事件本身 → `saveAppData()` → Supabase/localStorage。
-- 覆盖冲突时 → `recordSignal('transit_work', mode, true)`（Beta 分布存 `prefStore`）+ `interactionLog` 留痕 → `saveLearningState()`（localStorage）。
-- ⚠️ 缺口：学习信号暂只在 localStorage，阶段 2 应一并上后端。
+- 所有高价值用户选择 → `recordInteraction(...)` 写入 normalized `interactionLog`（字段稳定：`ts/action/type/context/top3/chosenIdx/candidateId/kind/source/involves/features/label`）。
+- 覆盖冲突时 → `recordSignal('transit_work', mode, true)`（Beta 分布存 `prefStore`）+ `recordInteraction({ action:'conflict_override', ... })`。
+- Desk Plan / Agent Loop 接受排期 → `recordPlanAcceptance(...)`，保留 `sourceTaskId`、`kind` 和 analytics `type`，避免 deadline-risk 重复建议，也为 Phase C 的 `interaction_log` 提供干净样本。
+- Phase 1：学习信号已随 `snapshotCloud()` 上 Supabase blob；Phase C：拆到 `interaction_log` / `pref_store` / `duration_observations`。
 
 ### 7.3 学习如何在 Loop 里生效
 
@@ -229,7 +238,7 @@ friends      (id pk, user_id, name, note, ...)
 
 ### 7.4 其他已有学习信号
 
-- `recordSignal('candidate_kind' | 'candidate_source' | 'person', …)`：接受某类/某来源/某人相关任务时累积偏好（`prefScore` 影响候选排序）。
+- `recordSignal('candidate_kind' | 'candidate_source' | 'person', …)`：接受某类/某来源/某人相关任务时累积偏好（`prefScore` 影响候选排序；source fallback 已统一为 `pendingTask`）。
 - `durationStore`：按 `kind::person` 学真实时长，逐步替代用户的固定估计（`predictDurationMinutes`）。
 
 > 三层自进化方法论（Tier-1 参数自调 / Tier-2 模式发现 / Tier-3 结构学习）详见 `learning agent.md`。

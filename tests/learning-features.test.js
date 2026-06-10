@@ -31,6 +31,12 @@ globalThis.__app = {
   recordObservedDuration: typeof recordObservedDuration === 'function' ? recordObservedDuration : undefined,
   predictDurationMinutes: typeof predictDurationMinutes === 'function' ? predictDurationMinutes : undefined,
   buildFeatureVector: typeof buildFeatureVector === 'function' ? buildFeatureVector : undefined,
+  recordSignal: typeof recordSignal === 'function' ? recordSignal : undefined,
+  prefScore: typeof prefScore === 'function' ? prefScore : undefined,
+  normalizeInteractionAction: typeof normalizeInteractionAction === 'function' ? normalizeInteractionAction : undefined,
+  recordInteraction: typeof recordInteraction === 'function' ? recordInteraction : undefined,
+  interactionLog,
+  prefStore,
   parseEstMinutes,
 };`, context);
 
@@ -39,6 +45,10 @@ const app = context.__app;
 assert.strictEqual(typeof app.recordObservedDuration, 'function', 'recordObservedDuration should exist');
 assert.strictEqual(typeof app.predictDurationMinutes, 'function', 'predictDurationMinutes should exist');
 assert.strictEqual(typeof app.buildFeatureVector, 'function', 'buildFeatureVector should exist');
+assert.strictEqual(typeof app.recordSignal, 'function', 'recordSignal should exist');
+assert.strictEqual(typeof app.prefScore, 'function', 'prefScore should exist');
+assert.strictEqual(typeof app.normalizeInteractionAction, 'function', 'normalizeInteractionAction should exist');
+assert.strictEqual(typeof app.recordInteraction, 'function', 'recordInteraction should exist');
 
 // Falls back to the parsed estimate before anything is observed.
 const cand = { kind: 'call', involves: 'Lukas', estTime: '~30m' };
@@ -60,5 +70,37 @@ assert.strictEqual(fv.est_minutes, 20, 'feature: est_minutes uses the duration p
 assert.strictEqual(fv.is_evening, 1, 'feature: is_evening for 17:00');
 assert.strictEqual(fv.route_mode, 'train', 'feature: route_mode');
 assert.ok(typeof fv.kind_accept_rate === 'number', 'feature: kind_accept_rate is numeric');
+
+// Source preferences must read the same fallback key they write.
+const beforeSourceScore = app.prefScore({ kind: 'solo', source: undefined, involves: null });
+app.recordSignal('candidate_source', 'pendingTask', true);
+const afterSourceScore = app.prefScore({ kind: 'solo', source: undefined, involves: null });
+assert(
+  afterSourceScore > beforeSourceScore,
+  'prefScore should read the same pendingTask fallback key that recordSignal writes'
+);
+
+// Normalized interaction rows should have one consistent shape across surfaces.
+assert.strictEqual(app.normalizeInteractionAction('conflict_override'), 'conflict_override');
+assert.strictEqual(app.normalizeInteractionAction('accepted'), 'accepted');
+
+app.recordInteraction({
+  action: 'accepted',
+  context: { surface: 'test' },
+  candidate: { id: 'x1', kind: 'call', source: 'pendingTask', involves: 'Lukas', estTime: '~30m' },
+  label: 1,
+});
+
+const row = app.interactionLog[app.interactionLog.length - 1];
+assert.ok(row.ts, 'normalized interaction has timestamp');
+assert.strictEqual(row.action, 'accepted', 'normalized interaction has action');
+assert.strictEqual(row.type, 'accepted', 'normalized interaction keeps type alias for older readers');
+assert.deepStrictEqual(row.context, { surface: 'test' }, 'normalized interaction keeps context');
+assert.strictEqual(row.candidateId, 'x1', 'normalized interaction has candidateId');
+assert.strictEqual(row.kind, 'call', 'normalized interaction has kind');
+assert.strictEqual(row.source, 'pendingTask', 'normalized interaction has source');
+assert.strictEqual(row.involves, 'Lukas', 'normalized interaction has involves');
+assert.strictEqual(row.label, 1, 'normalized interaction has label');
+assert.ok(row.features && typeof row.features === 'object', 'normalized interaction has feature vector');
 
 console.log('learning-features.test.js passed');

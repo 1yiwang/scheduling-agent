@@ -4381,8 +4381,14 @@ function conflictMessage(c) {
 function recordConflictOverride(c) {
  if (!c) return;
  if (c.kind === 'transit_nonworkable') recordSignal('transit_work', c.mode, true);
- interactionLog.push({ type: 'conflict_override', kind: c.kind, mode: c.mode || null, at: new Date().toISOString() });
- saveLearningState();
+ recordInteraction({
+  action: 'conflict_override',
+  context: { surface: 'conflict', conflictKind: c.kind, mode: c.mode || null },
+  kind: c.kind,
+  source: 'conflict',
+  involves: null,
+  label: 1
+ });
 }
 
 // Has a calendar block already been created for this backlog task?
@@ -4616,6 +4622,14 @@ function dismissMove(id) {
  syncAllViews();
 }
 
+function eventTypeForTaskKind(kind) {
+ if (kind === 'call' || kind === 'video') return 'online';
+ if (kind === 'social') return 'social';
+ if (kind === 'meeting') return 'busy';
+ if (kind === 'transit') return 'transit';
+ return 'deep';
+}
+
 // One-tap execution: turn a backlog task into a real calendar block on the chosen day.
 // Sets sourceTaskId so the agent knows the task is now protected, and removes it from
 // the backlog (consistent with the existing plan-to-window flow).
@@ -4629,11 +4643,12 @@ function scheduleTaskToSlot(source, id, year, month, day, startMin, mins) {
  if (!eventsDB[key][day]) eventsDB[key][day] = [];
  const start = startMin, end = startMin + mins;
  const evId = 'plan-' + source + '-' + id + '-' + Date.now();
- const isOnline = kind === 'call' || kind === 'video';
+ const eventType = eventTypeForTaskKind(kind);
+ const isOnline = eventType === 'online';
  const ev = {
   id: evId, sourceTaskId: source + ':' + id,
-  t: isOnline ? 'online' : 'deep',
-  type: isOnline ? 'online' : 'deep',
+  t: eventType,
+  type: eventType,
   kind: kind,
   title: title,
   time: minutesToTime(start).replace(':00', '') + '–' + minutesToTime(end).replace(':00', ''),
@@ -4652,6 +4667,21 @@ function scheduleTaskToSlot(source, id, year, month, day, startMin, mins) {
  };
  eventsDB[key][day].push(ev);
  runtimeEvents[evId] = ev;
+ recordPlanAcceptance({
+  id: 'agent-loop-' + source + '-' + id,
+  startTime: minutesToHHMM(start),
+  loc: 'Agent Loop',
+  transitMode: null
+ }, {
+  id: id,
+  title: title,
+  estTime: formatPlanMinutes(mins),
+  estMinutes: mins,
+  kind: kind,
+  source: source,
+  involves: involves,
+  reason: it ? it.reason : ''
+ }, 'agent_loop');
  recordSignal('candidate_kind', kind, true);
  recordSignal('candidate_source', source, true);
  if (involves) recordSignal('person', involves, true);
@@ -5024,7 +5054,7 @@ function recordSignal(dimension, key, accepted) {
 function prefScore(candidate) {
  const kindPref = betaConfidence(getPreference('candidate_kind', candidate.kind));
  const personPref = candidate.involves ? betaConfidence(getPreference('person', candidate.involves)) : 0.5;
- const sourcePref = betaConfidence(getPreference('candidate_source', candidate.source || 'task'));
+ const sourcePref = betaConfidence(getPreference('candidate_source', candidate.source || 'pendingTask'));
  return (kindPref - 0.5) * 20 + (personPref - 0.5) * 12 + (sourcePref - 0.5) * 8;
 }
 
@@ -5107,6 +5137,40 @@ function buildFeatureVector(candidate, ctx) {
   recent_7d_rejects: recent.rejects,
   today_event_count: todayEventCount()
  };
+}
+
+function normalizeInteractionAction(action) {
+ return action || 'unknown';
+}
+
+function recordInteraction(opts) {
+ opts = opts || {};
+ const candidate = opts.candidate || {};
+ const context = opts.context || {};
+ const featureWindow = opts.featureWindow || {
+  route: context.route || null,
+  mode: context.mode || null,
+  windowMinutes: context.minutes || context.windowMinutes || null,
+  startHour: context.startHour || null
+ };
+ const action = normalizeInteractionAction(opts.action);
+ interactionLog.push({
+  ts: opts.ts || new Date().toISOString(),
+  action: action,
+  type: action,
+  context: context,
+  top3: opts.top3 || [],
+  chosenIdx: Number.isInteger(opts.chosenIdx) ? opts.chosenIdx : null,
+  candidateId: candidate.id || opts.candidateId || null,
+  kind: candidate.kind || opts.kind || null,
+  source: candidate.source || opts.source || 'pendingTask',
+  involves: candidate.involves || opts.involves || null,
+  draftGenerated: !!opts.draftGenerated,
+  draftSent: !!opts.draftSent,
+  features: opts.features || (candidate.kind ? buildFeatureVector(candidate, featureWindow) : null),
+  label: Object.prototype.hasOwnProperty.call(opts, 'label') ? opts.label : null
+ });
+ saveLearningState();
 }
 
 function importanceScore(value) {
@@ -5433,10 +5497,10 @@ function removeCandidateFromSource(candidate) {
 
 function recordCommuteInteraction(cs, candidate, action) {
  if (!candidate) return;
- interactionLog.push({
-  ts: new Date().toISOString(),
-  action,
+ recordInteraction({
+  action: action,
   context: {
+   surface: 'commute',
    windowId: cs.window.id,
    route: cs.window.loc,
    mode: cs.window.transitMode,
@@ -5444,19 +5508,15 @@ function recordCommuteInteraction(cs, candidate, action) {
   },
   top3: (cs.options || []).map(o => ({ id:o.id, kind:o.kind, source:o.source, involves:o.involves || null })),
   chosenIdx: selectedCommuteOptionIdx,
-  candidateId: candidate.id,
-  kind: candidate.kind,
-  source: candidate.source,
-  involves: candidate.involves || null,
+  candidate: candidate,
   draftGenerated: action === 'drafted',
   draftSent: action === 'sent',
-  // Stage A · full feature vector + label for future model training (logged, not yet used for inference)
-  features: buildFeatureVector(candidate, {
+  featureWindow: {
    route: cs.window.loc,
    mode: cs.window.transitMode,
    windowMinutes: windowMinutes(cs.window),
    startHour: cs.window.startTime ? parseInt(cs.window.startTime.split(':')[0]) : null
-  }),
+  },
   label: (action === 'accepted' || action === 'sent') ? 1 : (action === 'dismissed' ? 0 : null)
  });
  if (action === 'accepted' || action === 'sent') {
@@ -5468,7 +5528,6 @@ function recordCommuteInteraction(cs, candidate, action) {
   recordSignal('candidate_source', candidate.source || 'pendingTask', false);
   if (candidate.involves) recordSignal('person', candidate.involves, false);
  }
- saveLearningState();
 }
 
 function syncCommuteDraftFromInput() {
@@ -5950,6 +6009,29 @@ function confirmCommutePlanWindow(win, items) {
  ev.agentNote = (ev.agentNote ? ev.agentNote+' ' : '') + 'Agent filled this mobile-office window from the time plan.';
 }
 
+function recordPlanAcceptance(win, item, surface) {
+ if (!item) return;
+ recordInteraction({
+  action: 'accepted',
+  context: {
+   surface: surface || 'desk_plan',
+   windowId: win && win.id ? win.id : null,
+   route: win && win.loc ? win.loc : null,
+   mode: win && win.transitMode ? win.transitMode : null,
+   minutes: item.estMinutes || null,
+   startHour: win && win.startTime ? parseInt(win.startTime.split(':')[0], 10) : null
+  },
+  candidate: item,
+  featureWindow: {
+   route: win && win.loc ? win.loc : null,
+   mode: win && win.transitMode ? win.transitMode : null,
+   windowMinutes: item.estMinutes || null,
+   startHour: win && win.startTime ? parseInt(win.startTime.split(':')[0], 10) : null
+  },
+  label: 1
+ });
+}
+
 function confirmDeskPlanWindow(win, items) {
  const key = todayMonthKey(), today = getTodayDate();
  if (!eventsDB[key]) eventsDB[key] = {};
@@ -5959,10 +6041,13 @@ function confirmDeskPlanWindow(win, items) {
   const start = cursor;
   const end = cursor + item.estMinutes;
   const evIdNew = 'plan-' + win.sourceId + '-' + idx + '-' + Date.now();
+  const eventType = eventTypeForTaskKind(item.kind);
   const event = {
    id: evIdNew,
-   t: item.kind === 'call' || item.kind === 'video' ? 'online' : 'deep',
-   type: item.kind === 'call' || item.kind === 'video' ? 'online' : 'deep',
+   sourceTaskId: item.source && item.id ? item.source + ':' + item.id : null,
+   t: eventType,
+   type: eventType,
+   kind: item.kind,
    title: item.title.split('·')[0].trim(),
    time: minutesToTime(start).replace(':00','') + '–' + minutesToTime(end).replace(':00',''),
    startTime: String(Math.floor(start/60)).padStart(2,'0') + ':' + String(start%60).padStart(2,'0'),
@@ -5987,6 +6072,7 @@ function confirmDeskPlanWindow(win, items) {
   };
   eventsDB[key][today].push(event);
   runtimeEvents[evIdNew] = event;
+  recordPlanAcceptance(win, item, 'desk_plan');
   cursor = end;
  });
  const winStart = timeToMinutes(win.startTime);

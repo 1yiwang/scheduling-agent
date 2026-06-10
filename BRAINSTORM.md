@@ -1041,3 +1041,228 @@ Agent 分析：
 #### MVP 落地建议
 
 先做路径 1（邀请链接）的**前端骨架 + 本地 friends 持久化**：让"Add friend"按钮、好友列表的增删、备注、shareScope 选择都可用（mock 连接状态）。真正的 agent-to-agent 通道等阶段 2 接了后端再补。这样 Meet 页从"写死三个人"先进化到"可管理的好友列表"，体验闭环，后端随后接入。
+
+---
+
+## 代码审查：学习数据架构的 11 个债务（2026-06-10）
+
+> Claude Code 审查 `index.html`（~7236 行）的 learning infrastructure，对照 BRAINSTORM.md 和 learning agent.md 的设计。以下按严重程度排列。
+
+### 🔴 CRITICAL
+
+#### 债务 1：Supabase 单 JSON Blob 是学习数据的错误存储模型
+
+**位置**：`supabase-schema.sql` + `snapshotCloud()` (line 4886) + `cloudLoad()` (line 4842)
+
+**现状**：`app_state` 表只有 `(user_id uuid, data jsonb)`。所有数据——eventsDB、pendingTasksDB、completionDB、prefStore、durationStore、interactionLog——打包成**一个 JSON blob**。
+
+**为什么这是问题**：
+
+| 数据 | 写入频率 | 增长趋势 |
+|------|:--:|------|
+| `interactionLog` | 每次 agent 交互 | 持续 append-only，无限增长 |
+| `prefStore` | 每次接受/拒绝 | 频繁增量更新 |
+| `eventsDB` | 每次新建/编辑/删除事件 | 线性增长 |
+| `durationStore` | 每次事件完成/编辑时长 | 缓慢增长 |
+
+- 一次偏好微调（`alpha += 1`）→ 整个 JSON（含全部历史 interactionLog）重新 upsert
+- 1000 条交互后，每次 `cloudSave()` 写 500KB+ 的无意义开销
+- **无法跨用户查询**：Stage A 的特征向量全锁在每用户一个 JSON 里 → 做不了"跨用户池化训练" → 文档里写的 ML 护城河无法兑现
+
+**代码已自知**（line 4885 注释）：`schemaVersion: 2 // lets us migrate safely when we normalise into per-entity tables (Phase C)`
+
+**结论**：**Phase C 不该被推迟。** 现在数据少，拆表成本最低。等 interactionLog 攒了几个月再迁移，成本翻倍，而且可能因为怕风险而永远不敢动。
+
+**建议的 Phase C 表结构**：
+
+```sql
+-- 学习偏好（频繁读写，小而独立）
+create table pref_store (
+  user_id uuid references auth.users(id) on delete cascade,
+  dimension text not null,
+  key text not null,
+  alpha int default 1, beta int default 1,
+  confidence real default 0.5,
+  sample_count int default 0,
+  last_updated timestamptz,
+  primary key (user_id, dimension, key)
+);
+
+-- 交互日志（append-only，海量）
+create table interaction_log (
+  id bigint generated always as identity primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  ts timestamptz not null default now(),
+  action text not null,          -- 'accepted' | 'dismissed' | 'sent' | 'drafted' | 'conflict_override'
+  context jsonb,                 -- {windowId, route, mode, minutes, ...}
+  top3 jsonb,                    -- [{id, kind, source, involves}]
+  chosen_idx int,
+  candidate_id text,
+  kind text, source text, involves text,
+  features jsonb,                -- buildFeatureVector() 的完整输出
+  label int                      -- 1=accepted, 0=dismissed, null=undetermined
+);
+create index idx_il_user_ts on interaction_log(user_id, ts desc);
+
+-- 时长观测（running average 的原始数据）
+create table duration_observations (
+  id bigint generated always as identity primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  kind text, person text,
+  observed_minutes int not null,
+  ts timestamptz not null default now()
+);
+```
+
+**迁移策略**：`cloudLoad` 检测 `schemaVersion < 3` → 从 JSON blob 拆出 `interactionLog` 的每条记录 → insert 到新表 → 更新 `schemaVersion` → 后续只写新表。旧 `data.jsonb` 保留 `eventsDB` 等仍为 JSON（那些是文档型数据，JSON 合适）。
+
+---
+
+#### 债务 2：Desk Plan 确认路径完全不记录学习信号
+
+**位置**：`confirmDeskPlanWindow()` (line 5953) + `quickPlanToWindow()` (line 4120)
+
+**现状**：用户在 Time Planning Board 点击 Confirm 安排任务 → `confirmDeskPlanWindow()` 创建事件、更新 `todayFreeSlots`——**但整个函数里没有一行 `interactionLog.push()`，没有调用 `buildFeatureVector()`。**
+
+**对比**：`recordCommuteInteraction()` (line 5434) 有完整的 `features` + `label` + `top3`。
+
+**影响**：Desk plan 是用户接受 agent 建议的**主路径之一**。这条路径完全哑火 → agent 学不到用户接受了什么、拒绝了什么 → Stage A 训练数据缺失了最大的一块。
+
+---
+
+#### 债务 3：Agent Loop 的 `scheduleTaskToSlot` 同样静默
+
+**位置**：`scheduleTaskToSlot()` (line 4622)
+
+**现状**：Agent Loop 发现 deadline-risk → 用户点 action → `runMoveAction()` → `scheduleTaskToSlot()`。函数内只调了 `recordSignal`，**没有 `interactionLog.push()`，没有 `buildFeatureVector()`。**
+
+**影响**：Deadline-risk 移动的接受/拒绝信号完全丢失。Agent Loop 是产品的"主动智能"核心——但它产出的用户决策全都没被记录。
+
+---
+
+#### 债务 4：`prefScore` 有 key mismatch bug
+
+**位置**：`prefScore()` (line 5024) vs `recordCommuteInteraction()` (line 5468)
+
+```javascript
+// 读：prefScore (line 5027)
+const sourcePref = betaConfidence(
+  getPreference('candidate_source', candidate.source || 'task')
+  //                                                      ^^^^
+);
+
+// 写：recordCommuteInteraction (line 5468)
+recordSignal('candidate_source', candidate.source || 'pendingTask', true);
+//                                                      ^^^^^^^^^^^
+```
+
+当 `candidate.source` 为 null/undefined 时：读到 key `'candidate_source::task'`，写入 key `'candidate_source::pendingTask'` → **两个不同的 key → sourcePref 恒为 0.5 → source 偏好完全无效。**
+
+**修复**：统一 fallback 值。一行代码。
+
+---
+
+### 🟠 IMPORTANT
+
+#### 债务 5：Beta 偏好学习仍然是"裸"的
+
+**位置**：`recordSignal()` (line 5013) + `learning agent.md` 第三章
+
+**现状**：`recordSignal` 就是 `alpha += 1` / `beta += 1`。`learning agent.md` 里设计的 6 个增强机制一个都没实现：
+
+| 机制 | 文档 | 代码 | 不做会怎样 |
+|------|:--:|:--:|------|
+| 时间衰减 | ✅ | ❌ | 去年的偏好和昨天的偏好权重一样 → agent 不会适应变化 |
+| 延迟奖励 | ✅ | ❌ | 用户接受了但后来取消了 → agent 仍然当正反馈 |
+| 信号分层 | ✅ | ❌ | "无视"和"拒绝"被同等对待 → agent 过度学习噪音 |
+| Thompson Sampling | ✅ | ❌ | 从不探索 → 过早收敛到局部最优 |
+| 安全信封 | ✅ | ❌ | Tier 2 自动建规则可能覆盖不变量 |
+| 冷启动人群先验 | ✅ | ❌ | 新用户 agent 完全"瞎"→ 前几周体验差 |
+
+**当前权重的实际影响**：1 次接受（alpha=2/beta=1/conf=0.67）vs 10 次接受（alpha=11/beta=1/conf=0.92），在 `prefScore` 里的差异仅 `(0.67-0.5)*20=3.4` vs `(0.92-0.5)*20=8.4`。这点差异在 `scoreCandidate` 总分（importance*18 + urgency*14 + ...）里几乎感觉不到 → agent 表面在"学"，实际决策仍由硬编码规则主导。
+
+---
+
+#### 债务 6：`confirmDeskPlanWindow` 不设 `sourceTaskId`
+
+**位置**：`confirmDeskPlanWindow()` (line 5962) vs `scheduleTaskToSlot()` (line 4634)
+
+**现状**：`scheduleTaskToSlot` 设了 `sourceTaskId: source + ':' + id`，Agent Loop 通过 `eventScheduledForTask()` 查这个字段来判断任务是否已排。但 `confirmDeskPlanWindow` **没有设这个字段**。
+
+**影响**：通过 desk plan 安排的任务 → `eventScheduledForTask()` 返回 false → Agent Loop 再次为同一个任务生成 deadline-risk move → **用户看到重复建议**。
+
+---
+
+#### 债务 7：interactionLog schema 不统一
+
+**位置**：`recordCommuteInteraction()` (line 5436) vs `recordConflictOverride()` (line 4381)
+
+| 路径 | schema |
+|------|------|
+| Commute 交互 | `{ts, action, context, top3, chosenIdx, candidateId, kind, source, involves, draftGenerated, draftSent, features, label}` |
+| 冲突覆盖 | `{type: 'conflict_override', kind, mode, at}` ← 完全不同 |
+| Desk plan | **不记录** |
+| scheduleTaskToSlot | **不记录** |
+
+**影响**：未来做 ML 训练时，需要写特殊 case 解析不同格式。应该统一为一种 `interaction_log` 行结构（见债务 1 的表设计）。
+
+---
+
+### 🟡 NICE TO HAVE
+
+#### 债务 8：13 种 Move 类型只有 1 种实现了
+
+**位置**：`MOVE_DETECTORS` (line 4490)
+
+```javascript
+const MOVE_DETECTORS = [detectDeadlineRisk];
+```
+
+架构扩展性很好——往数组里 push 一个纯函数就加能力。但目前只有 deadline-risk 一个探测器。没有 Energy Guard / Context Switch Cost / Travel Optimize / Pre-mortem / Cleanup / Rebalance / Prep / Follow-up——产品离"主动 agent"还差 12 个探测器。
+
+---
+
+#### 债务 9：`getPlanWindows` 仍然只看今天
+
+**位置**：`getPlanWindows()` (line 5644)
+
+Agent Loop 的 `proposeSlotsForTask()` 已经能跨天扫描了，但 Time Planning Board 的 `getPlanWindows()` 还是钉死 `todayMonthKey()` + `getTodayDate()`。用户手动规划时看不到明天后天的空闲窗口。
+
+---
+
+#### 债务 10：没有 schema 迁移函数
+
+**位置**：`snapshotCloud()` (line 4886) + `cloudLoad()` (line 4842)
+
+`schemaVersion: 2` 标记了但 `cloudLoad` 里没有任何 `if (remote.schemaVersion < 2) { migrateFrom(remote); }` 的逻辑。Phase C 改表结构时，老用户数据加载会静默失败或行为异常。
+
+---
+
+#### 债务 11：`scheduleTaskToSlot` 硬编码 event type
+
+**位置**：`scheduleTaskToSlot()` (line 4635-4636)
+
+```javascript
+t: isOnline ? 'online' : 'deep',
+type: isOnline ? 'online' : 'deep',
+```
+
+非 call/video 一律 `type: 'deep'`。但如果 kind 是 'social'、'think'、或自定义类型，`type` 丢失了原始信息。`kind` 字段保留但 `type` 不准确——未来 Analytics 按 type 统计会出错。
+
+---
+
+### 修复优先级矩阵
+
+| 排序 | 债务 | 估计工作量 | 不修的后果 |
+|:--:|------|:--:|------|
+| **1** | #2 Desk Plan 路径补 interactionLog | 30min | Stage A 数据继续缺失主路径 |
+| **2** | #4 prefScore key mismatch | 5min | source 偏好完全无效 |
+| **3** | #6 confirmDeskPlanWindow 补 sourceTaskId | 10min | 用户看到重复 deadline-risk 建议 |
+| **4** | #3 scheduleTaskToSlot 补 interactionLog | 20min | Agent Loop 交互信号丢失 |
+| **5** | #1 Supabase 拆表 | 2-3h | 数据越多迁移越痛；跨用户 ML 无法做 |
+| **6** | #7 统一 interactionLog schema | 30min | 不同路径的日志无法统一查询 |
+| **7** | #5 Beta 增强（至少加时间衰减） | 1-2h | agent 学习效果被硬编码规则淹没 |
+| **8** | #10 迁移函数 | 30min | 未来改 schema 时老数据断裂 |
+| **9** | #8 加 2-3 个基础 detector | 2-3h | 产品不够"主动" |
+| **10** | #9 getPlanWindows 泛化到任意日 | 1h | 手动规划只能看今天 |
+| **11** | #11 event type 保留原始 kind | 10min | Analytics 统计不准确 |

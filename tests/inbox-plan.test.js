@@ -50,6 +50,7 @@ globalThis.__app = {
   buildCandidatePool,
   getPlanWindows,
   planCandidateFitsWindow,
+  interactionLog,
   confirmInboxPlanToWindow: typeof confirmInboxPlanToWindow === 'function' ? confirmInboxPlanToWindow : undefined,
 };`, context);
 
@@ -70,6 +71,17 @@ assert.strictEqual(
 vm.runInContext('calView = "tasks";', context);
 app.confirmInboxPlanToWindow('pendingTask', 'p4', window.id);
 
+const deskLog = app.interactionLog.find(row =>
+  row.action === 'accepted' &&
+  row.context &&
+  row.context.surface === 'desk_plan' &&
+  row.candidateId === 'p4'
+);
+assert(deskLog, 'desk plan acceptance should write a normalized interaction row');
+assert.strictEqual(deskLog.source, 'pendingTask', 'desk plan log keeps source');
+assert.strictEqual(deskLog.label, 1, 'desk plan acceptance has positive label');
+assert.ok(deskLog.features && typeof deskLog.features === 'object', 'desk plan log includes features');
+
 assert.strictEqual(
   vm.runInContext('calView', context),
   'tasks',
@@ -79,10 +91,40 @@ assert.strictEqual(
 assert.strictEqual(app.pendingTasksDB.length, beforeCount - 1, 'scheduled task should leave Inbox task source');
 assert(!app.buildCandidatePool().some(c => c.id === 'p4'), 'scheduled task should leave agent candidate pool');
 
-const scheduled = app.eventsDB['2026-6'][6].some(event => event.title === 'Reply to Anna');
-const commuteScheduled = Object.values(app.eventsDB['2026-6']).flat().some(event =>
+const scheduledEvent = (app.eventsDB['2026-6'][6] || []).find(event => event.title === 'Reply to Anna');
+const commuteEvent = Object.values(app.eventsDB['2026-6']).flat().find(event =>
   event.commuteTasks && event.commuteTasks.some(task => task.title === 'Reply to Anna')
 );
-assert(scheduled || commuteScheduled, 'scheduled task should appear on calendar or inside a commute window');
+assert(scheduledEvent || commuteEvent, 'scheduled task should appear on calendar or inside a commute window');
+
+if (scheduledEvent) {
+  assert.strictEqual(scheduledEvent.sourceTaskId, 'pendingTask:p4', 'desk-planned event keeps sourceTaskId');
+  assert.strictEqual(scheduledEvent.kind, candidate.kind, 'desk-planned event keeps original kind');
+  assert.strictEqual(scheduledEvent.type, 'deep', 'solo task is typed as deep for analytics');
+}
+
+app.pendingTasksDB.push({
+  id: 'social-test',
+  title: 'Coffee follow-up',
+  estTime: '~30m',
+  kind: 'social',
+  involves: 'Marie',
+  deadline: 'Jun 6',
+  importance: 2,
+  urgency: 2,
+});
+
+const socialCandidate = app.buildCandidatePool().find(c => c.id === 'social-test');
+const socialWindow = app.getPlanWindows().find(w =>
+  w.type === 'desk' && app.planCandidateFitsWindow(socialCandidate, w, w.minutes)
+);
+assert(socialWindow, 'expected an available desk window for social-test');
+app.confirmInboxPlanToWindow('pendingTask', 'social-test', socialWindow.id);
+
+const socialEvent = (app.eventsDB['2026-6'][6] || []).find(event => event.title === 'Coffee follow-up');
+assert(socialEvent, 'social desk-planned task should create a calendar event');
+assert.strictEqual(socialEvent.sourceTaskId, 'pendingTask:social-test', 'social event keeps sourceTaskId');
+assert.strictEqual(socialEvent.kind, 'social', 'social event keeps original kind');
+assert.strictEqual(socialEvent.type, 'social', 'social kind maps to social event type');
 
 console.log('inbox-plan.test.js passed');
