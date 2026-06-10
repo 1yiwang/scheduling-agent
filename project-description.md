@@ -67,14 +67,22 @@
 - 写时机：防抖 800ms（`cloudSave`）；`saveLearningState` / `editFriendNote` / `setDisplayName` 均触发 `cloudSave`，确保学习/好友/名字真正落后端、跨设备一致。
 - 已知限制：**后写覆盖先写**（多端/多标签页）；blob 整体重写，`interactionLog` 会随时间膨胀——这两点正是 Phase C 要解决的。
 
-### 目标（C · Phase 2，规范化多表 + 真实趋势）
+### Phase C 第一刀（已实现）：学习数据双写到规范化表
 ```sql
--- Phase C 第一刀：先拆学习数据（当前本次修复已先保证信号干净）
 pref_store(user_id, dimension, key, alpha, beta, confidence, sample_count, last_updated)
 interaction_log(id, user_id, ts, action, context, top3, chosen_idx, candidate_id, kind, source, involves, features, label)
 duration_observations(id, user_id, kind, person, observed_minutes, ts)
+```
+- `supabase-schema.sql` 现在创建三张真实学习表并启用 RLS：用户只能读写自己的行。
+- 前端保持 **双写**：
+  - `recordInteraction(...)`：写本地 `interactionLog` + `app_state` blob，同时 best-effort `insert interaction_log`。
+  - `recordSignal(...)`：更新本地 `prefStore` + blob，同时 best-effort `upsert pref_store`。
+  - `recordObservedDuration(...)`：更新本地 `durationStore` + blob，同时 best-effort `insert duration_observations`。
+- 失败策略：学习表写入失败不阻塞 UI，blob 仍是兼容快照；这样线上表还没建好时 app 不会崩。
+- 迁移策略：后续读旧 `app_state.data.learning` 回填三张表；当前先保证**新产生**的信号进入规范化表。
 
--- Phase C 第二刀：再拆核心业务实体
+### Phase C 第二刀（未来）：拆核心业务实体
+```sql
 profile(user_id pk, display_name, prefs jsonb, updated_at)
 events(id pk, user_id, date, start, end, type, kind, title, who, location, note, source_task_id, status, ...)
 tasks(id pk, user_id, title, kind, mins, due, who, status, created_at, ...)
@@ -82,9 +90,9 @@ friends(id pk, user_id, name, note, share_scope, ...)
 ```
 - `interaction_log` **追加式、永不覆盖** → ① 任意时间窗算准分析（真实"本周 vs 上周"）；② 学习即对它的聚合（`prefStore` 是派生缓存）；③ 未来 ML 训练数据。
 - `pref_store` 是当前 Beta 偏好的可查询聚合表；`duration_observations` 保存原始时长观测，避免只存 running average 后丢失训练样本。
-- 迁移：读旧 `app_state.data`（`schemaVersion`）→ 拆出 `learning.interactionLog` / `prefStore` / `durationStore` → 写入学习表；`prefStore/durationStore` 后续可由日志和观测重算。
+- 迁移：读旧 `app_state.data`（`schemaVersion`）→ 拆出核心实体写入业务表；`app_state` 保留一段时间作为回滚快照。
 - 配套：`updated_at`/版本号防多端覆盖；`interactions` 保留策略（封顶/归档旧记录为聚合）。
-- 当前策略：**先修正学习路径，再拆表**。否则新表只会保存不完整或不一致的信号。
+- 当前策略：学习数据已先拆表；核心业务实体等产品自用稳定后再拆，避免过早迁移 events/tasks。
 
 ### 分析页数据来源（与上面对齐）
 - Week 视图（`renderAnalyticsPage` + `computeWeekStats`）**现已从真实 `eventsDB`/`completionDB` 计算**当周（Mon–Sun）的时间分布、完成率、通勤效率，不再 mock。

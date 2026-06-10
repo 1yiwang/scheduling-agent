@@ -4930,6 +4930,65 @@ async function cloudSaveNow() {
  } catch (e) {}
 }
 
+function cloudLearningActive() {
+ return appMode === 'live' && !!sb && !!sbUser;
+}
+
+function runCloudQuery(query) {
+ try {
+  if (query && typeof query.then === 'function') query.then(function () {}, function () {});
+ } catch (e) {}
+}
+
+function cloudInsertInteraction(row) {
+ if (!cloudLearningActive() || !row) return;
+ try {
+  runCloudQuery(sb.from('interaction_log').insert({
+   user_id: sbUser.id,
+   ts: row.ts,
+   action: row.action,
+   context: row.context || null,
+   top3: row.top3 || [],
+   chosen_idx: row.chosenIdx,
+   candidate_id: row.candidateId,
+   kind: row.kind,
+   source: row.source,
+   involves: row.involves,
+   features: row.features || null,
+   label: row.label
+  }));
+ } catch (e) {}
+}
+
+function cloudUpsertPreference(pref) {
+ if (!cloudLearningActive() || !pref) return;
+ try {
+  runCloudQuery(sb.from('pref_store').upsert({
+   user_id: sbUser.id,
+   dimension: pref.dimension,
+   key: pref.key,
+   alpha: pref.alpha,
+   beta: pref.beta,
+   confidence: pref.confidence,
+   sample_count: pref.sampleCount,
+   last_updated: pref.lastUpdated || new Date().toISOString()
+  }));
+ } catch (e) {}
+}
+
+function cloudInsertDurationObservation(kind, person, minutes) {
+ if (!cloudLearningActive()) return;
+ try {
+  runCloudQuery(sb.from('duration_observations').insert({
+   user_id: sbUser.id,
+   kind: kind || null,
+   person: person || null,
+   observed_minutes: minutes,
+   ts: new Date().toISOString()
+  }));
+ } catch (e) {}
+}
+
 function showLogin() { const ov = document.getElementById('loginOverlay'); if (ov) ov.classList.add('show'); }
 function closeLogin() { const ov = document.getElementById('loginOverlay'); if (ov) ov.classList.remove('show'); }
 async function sendMagicLink() {
@@ -5048,6 +5107,7 @@ function recordSignal(dimension, key, accepted) {
  pref.confidence = betaConfidence(pref);
  pref.lastUpdated = new Date().toISOString();
  saveLearningState();
+ cloudUpsertPreference(pref);
  return pref;
 }
 
@@ -5074,6 +5134,7 @@ function recordObservedDuration(kind, person, minutes) {
  d.count += 1;
  durationStore[k] = d;
  saveLearningState();
+ cloudInsertDurationObservation(kind, person, minutes);
 }
 
 function predictDurationMinutes(candidate) {
@@ -5154,7 +5215,7 @@ function recordInteraction(opts) {
   startHour: context.startHour || null
  };
  const action = normalizeInteractionAction(opts.action);
- interactionLog.push({
+ const row = {
   ts: opts.ts || new Date().toISOString(),
   action: action,
   type: action,
@@ -5169,8 +5230,10 @@ function recordInteraction(opts) {
   draftSent: !!opts.draftSent,
   features: opts.features || (candidate.kind ? buildFeatureVector(candidate, featureWindow) : null),
   label: Object.prototype.hasOwnProperty.call(opts, 'label') ? opts.label : null
- });
+ };
+ interactionLog.push(row);
  saveLearningState();
+ cloudInsertInteraction(row);
 }
 
 function importanceScore(value) {
