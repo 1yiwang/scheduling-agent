@@ -4629,8 +4629,69 @@ function detectCleanupNeeded() {
  return moves;
 }
 
+function eventHasPrep(eventId) {
+ for (const mk of Object.keys(eventsDB)) {
+  for (const dk of Object.keys(eventsDB[mk])) {
+   if ((eventsDB[mk][dk] || []).some(ev => ev.prepForEventId === eventId)) return true;
+  }
+ }
+ return false;
+}
+
+function prepSlotBeforeEvent(year, month, day, ev, mins) {
+ const meetingStart = timeToMinutes(ev.startTime);
+ const windows = getFreeWindowsForDate(year, month, day, mins, null);
+ const prior = windows.filter(w => w.end <= meetingStart && w.end - w.start >= mins).sort((a, b) => b.end - a.end)[0];
+ if (!prior) return null;
+ const start = Math.max(prior.start, meetingStart - mins);
+ if (start + mins > prior.end) return null;
+ return { startMin: start, mins: mins };
+}
+
+function detectPrepNeeded() {
+ const moves = [];
+ const tN = appNow();
+ const startDate = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate());
+ const endDate = new Date(startDate.getTime() + AGENT_HORIZON_DAYS * 86400000);
+ for (const mk of Object.keys(eventsDB)) {
+  const parts = mk.split('-');
+  const year = parseInt(parts[0], 10), month = parseInt(parts[1], 10);
+  for (const dk of Object.keys(eventsDB[mk])) {
+   const day = parseInt(dk, 10);
+   const date = new Date(year, month - 1, day);
+   if (date < startDate || date > endDate) continue;
+   (eventsDB[mk][dk] || []).forEach(ev => {
+    if (!['busy','online'].includes(ev.type) || !ev.startTime || !ev.endTime) return;
+    if (eventHasPrep(ev.id)) return;
+    const hasSignal = (ev.participants && ev.participants.length) || (ev.context && ev.context.trim());
+    if (!hasSignal) return;
+    const slot = prepSlotBeforeEvent(year, month, day, ev, 30);
+    if (!slot) return;
+    const daysUntil = Math.round((date - startDate) / 86400000);
+    moves.push({
+     id: 'move-prep-' + ev.id,
+     type: 'prep_needed',
+     severity: daysUntil <= 1 ? 'high' : 'normal',
+     daysUntil: daysUntil,
+     title: 'Prep for ' + conflictShortTitle(ev.title),
+     dueShort: daysUntil === 0 ? 'today' : 'in ' + daysUntil + 'd',
+     subject: { eventId: ev.id },
+     mins: slot.mins,
+     dueISO: year + '-' + pad2(month) + '-' + pad2(day),
+     proposedActions: [{
+      label: minutesToTime(slot.startMin).replace(':00', ''),
+      fn: 'createPrepBlock',
+      payload: { eventId: ev.id, year: year, month: month, day: day, startMin: slot.startMin, mins: slot.mins }
+     }]
+    });
+   });
+  }
+ }
+ return moves;
+}
+
 // Registry — add a new proactive capability by pushing a detector here.
-const MOVE_DETECTORS = [detectExistingConflicts, detectFollowUpsDue, detectCleanupNeeded, detectDeadlineRisk];
+const MOVE_DETECTORS = [detectExistingConflicts, detectFollowUpsDue, detectCleanupNeeded, detectPrepNeeded, detectDeadlineRisk];
 
 function runAgentLoop() {
  let moves = [];
@@ -4758,6 +4819,9 @@ function runMoveAction(moveId, actionIdx) {
   markFollowUpDone(a.payload.eventId);
  } else if (a.fn === 'markComplete') {
   markComplete(a.payload.eventId, a.payload.status);
+ } else if (a.fn === 'createPrepBlock') {
+  const p = a.payload;
+  createPrepBlock(p.eventId, p.year, p.month, p.day, p.startMin, p.mins);
  }
 }
 
@@ -4773,6 +4837,50 @@ function markFollowUpDone(eventId) {
  saveAppData();
  syncAllViews();
  showToast('Follow-up done');
+}
+
+function createPrepBlock(eventId, year, month, day, startMin, mins) {
+ const found = findEventById(eventId);
+ if (!found) return;
+ const target = found.event;
+ const key = year + '-' + month;
+ if (!eventsDB[key]) eventsDB[key] = {};
+ if (!eventsDB[key][day]) eventsDB[key][day] = [];
+ const start = startMin, end = startMin + mins;
+ const evIdNew = 'prep-' + eventId + '-' + Date.now();
+ const ev = {
+  id: evIdNew,
+  prepForEventId: eventId,
+  t: 'deep',
+  type: 'deep',
+  kind: 'prep',
+  title: 'Prep: ' + conflictShortTitle(target.title),
+  time: minutesToTime(start).replace(':00','') + '–' + minutesToTime(end).replace(':00',''),
+  startTime: minutesToHHMM(start),
+  endTime: minutesToHHMM(end),
+  duration: formatPlanMinutes(mins),
+  loc: 'Prep block',
+  locationShort: 'Prep',
+  participants: [],
+  transitMode: null,
+  transitDuration: null,
+  transitWorkable: false,
+  bufferBefore: 0,
+  bufferAfter: 0,
+  context: 'Prepare for ' + (target.title || 'meeting'),
+  agentNote: 'Created from Agent prep suggestion.',
+  dressCode: null,
+  returnInfo: null,
+  followUpNeeded: false,
+  followUpBy: null,
+  followUpStatus: 'pending',
+  followUpNote: ''
+ };
+ eventsDB[key][day].push(ev);
+ runtimeEvents[evIdNew] = ev;
+ saveAppData();
+ syncAllViews();
+ showToast('Prep block added');
 }
 
 function eventTypeForTaskKind(kind) {

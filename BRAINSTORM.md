@@ -701,7 +701,7 @@ runAgentLoop(horizon=7d)
 | **Commute-fill** 通勤塞事 | 可用通勤 + 轻任务 | ⚠️ 只限今天（可工作通勤=不算冲突，见下）|
 | **Deadline-risk** 截止日预警 | 快到期但没排块的任务 | ✅ 已实现（`detectDeadlineRisk` → 首页 Agent suggestions 简报，一键排/自定义日期时间）|
 | **Conflict** 冲突消解 | 双重预订 / 排进不可工作时段（如 walk）| ✅ 调度即校验（`detectSlotConflict`，warn+覆盖+学习）+ 主动巡检（`detectExistingConflicts` 进 `MOVE_DETECTORS`，简报一键挪走其中一个）|
-| **Prep** 会前准备 | 重要会前无准备块 | ❌ 无 |
+| **Prep** 会前准备 | 重要会前无准备块 | ✅ 已实现（`detectPrepNeeded` 扫描未来重要 busy/online 会议，会议前一键创建 30m prep block） |
 | **Follow-up** 会后跟进 | 会后欠的消息/笔记 | ✅ 已实现（`detectFollowUpsDue` 扫描 due today / overdue 的 pending follow-up，简报一键 Done） |
 | **Cleanup** 收尾 | 过去事件未标记完成 | ✅ 已实现（`detectCleanupNeeded` 扫描过去未标记的 work events，简报一键 Done / Not done） |
 | **Rebalance** 重排 | 今天过载 → 建议挪 | ❌ 无 |
@@ -1058,7 +1058,8 @@ Agent 分析：
 - ✅ 已完成 Conflict 主动巡检：Agent Loop 会扫描 horizon 内已存在的重叠事件，选择较短/后开始的事件作为可移动对象，并给出一键 `moveEventToSlot` 动作。
 - ✅ 已完成 Overdue Follow-up Detector：`detectFollowUpsDue` 会把 due today / overdue 的 pending follow-up 放进 Agent Loop，并提供一键 Done。
 - ✅ 已完成 Cleanup Detector：`detectCleanupNeeded` 会把过去未标记完成状态的 deep/busy/online 事件放进 Agent Loop，并复用 `markComplete` 一键标记 Done / Not done。
-- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Prep / Rebalance detectors。
+- ✅ 已完成 Prep Detector：判定靠事件 `type`（`busy` 线下 / `online` 线上）+ 有 `participants` 或 `context`，不是某个 "meeting" 标签；会议前有 30 分钟空窗才提示，一键创建 `prepForEventId` 标记的 prep block。与其它所有 move 一样，卡片右侧 `×` 可 `dismissMove` 跳过（当前会话内有效），用户不想准备就直接忽略。
+- ⏭️ 下一步：events / tasks / profile 的规范化（Phase C 剩余表），以及 Rebalance Detector。
 
 ### 🔴 CRITICAL
 

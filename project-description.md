@@ -269,9 +269,10 @@ friends(id pk, user_id, name, note, share_scope, ...)
 - ✅ **Conflict 主动巡检**：`detectExistingConflicts()` 进入 `MOVE_DETECTORS`，扫描已存在的重叠事件并在简报提供一键 `moveEventToSlot` 修复
 - ✅ **Overdue Follow-up Detector**：`detectFollowUpsDue()` 进入 `MOVE_DETECTORS`，把 due today / overdue 的 pending follow-up 放进简报并提供一键 Done
 - ✅ **Cleanup Detector**：`detectCleanupNeeded()` 进入 `MOVE_DETECTORS`，把过去未标记完成状态的 work events 放进简报并复用 `markComplete`
+- ✅ **Prep Detector**：`detectPrepNeeded()` 进入 `MOVE_DETECTORS`，按事件 `type`（busy/online）+ participants/context 判定（非标签），为未来重要会议在会前可用空窗一键创建 30m prep block；与其它 move 一样可用 `×` 跳过
 
 **下一步（建议顺序）**
-1. 更多 detector：Prep（会前准备）、Rebalance（今天过载）。
+1. 更多 detector：Rebalance（今天过载）。
 2. **Phase C 剩余表**：把 `events` / `tasks` / `profile` 从 blob 继续拆到规范化表。
 3. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
 4. 语音输入（deferred）。
