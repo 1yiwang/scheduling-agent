@@ -155,7 +155,11 @@ friends(id pk, user_id, name, note, share_scope, ...)
 }
 ```
 
-### 4.3 已实现的 detector：Deadline-risk（`detectDeadlineRisk`）
+### 4.3 已实现的 detector
+
+> 全部 6 个 detector 的统一速查表（触发条件 / 选谁动 / 动作 / 安静策略 / 测试）见 **[`docs/agent-detectors.md`](docs/agent-detectors.md)**，新增 detector 时往那里追加。下面只留 Deadline-risk 作为样例说明。
+
+**样例：Deadline-risk（`detectDeadlineRisk`）**
 
 1. 取 `getInboxItems()` 里有 deadline、未完成、**且未排块**（`eventScheduledForTask` 查 `sourceTaskId`）的任务。
 2. `daysUntil = daysFromToday(deadlineISO)`；超过 `AGENT_HORIZON_DAYS`(=9，可调) 不打扰。
