@@ -1,7 +1,7 @@
 # Scheduling Agent —— 一个会主动管理日程的 AI Agent
 
 > 面向作品集 / CV 的项目总览。技术架构细节见 `project-description.md`，产品决策过程见 `BRAINSTORM.md`，自进化方法论见 `learning agent.md`。
-> 最后更新：2026-06-11。
+> 最后更新：2026-06-17。
 
 ---
 
@@ -24,7 +24,9 @@
 - 周二、周四各有一个苏黎世的会，本可以合并到同一天省下 5 小时通勤。
 - 某个深度工作块连续第三个，注意力其实已经废了。
 
-真人助理会替你想到这些。我想做的，就是一个**有这种「主动性」的 AI Agent**——它在你不看的时候也替你盯着日程，发现问题、给出可执行的方案，而不是等你来查。
+真人助理会替你想到这些。我想做的，就是一个**有这种「主动性」的 AI Agent**——每次你打开它，它就替你扫一遍日程，发现问题、给出可执行的方案，而不是等你来查。
+
+**产品缘起**：在一次 networking 活动上，一位创始人说想要一个能主动管理时间的日历——聪明到知道火车通勤能塞低优先级会议、而航班不行。这个项目就是从那场对话长出来的。
 
 ---
 
@@ -51,15 +53,26 @@
 把系统从「被动日历 + 零散建议」升级为「主动 Agent」的中心对象。
 
 ```
-触发（打开 app / 任何数据改动后）
+触发（打开 app / 任何数据改动后）          ← 阶段 1；阶段 2 才加 webhook / 定时 / push
   → runAgentLoop()
       → 遍历 MOVE_DETECTORS（每个 detector 是纯函数，返回 Move[]）
-      → 策展层：合并 / 按紧迫度排序 / 折叠次要项
-      → 安全护栏：critical 必显置顶
+      → 策展层：mergeMoves → curate（规则版即时渲染，LLM 版后台异步）→ applyCuration
+      → 安全护栏：critical 必显置顶、非法排序回退
   → 渲染进首页 Agent Suggestions 简报
   → 用户：确认 / 改 / 忽略
   → 确认即写库 + 全视图同步 + 记录学习信号 → 下一轮
 ```
+
+### 成熟度判断（写简历时要诚实）
+
+| 维度 | 现状 | 说明 |
+|---|---|---|
+| 是不是 Agent？ | ✅ 是 | 已有感知→决策→行动→记忆的闭环，只是自主性还不完整 |
+| 是不是「主动」Agent？ | ⚠️ 半成品 | **主动发现**做到了；**自主触发**还没做到（用户不在时不会自己跑） |
+| 学习飞轮闭环了吗？ | ⚠️ 管道有了，效果未闭环 | Tier-1 在记数据，但偏好权重仍被硬编码规则淹没，学到的几乎不改变排序 |
+| 对外怎么称呼？ | ✅ 可以说 proactive agent | 「主动」= 不等用户问、主动发现问题；不要说「后台默默运行」 |
+
+**一句话阶段定位**：已完成 **阶段 1 · 点火**（Agent Loop + 6 detector + propose-only + 学习埋点）；正在向 **阶段 2 · 接地**（真实日历 + 自主触发）和 **学习飞轮可度量** 推进。
 
 两个让它可持续扩展、且安全的关键设计：
 
@@ -113,6 +126,8 @@
 
 **真实样例（Tier 1）**：用户在「步行途中」反复坚持排会议 → Agent 从行为学到「你确实在这种通勤里工作」→ 提升该模态的可工作度 → 以后不再报冲突。**这是 Agent 从行为学会改判断，而非写死规则。**
 
+**当前学习债务（简历里可主动提「下一步」）**：偏好权重太弱、无视≠拒绝未区分、无时间衰减、无 Plan vs Actual——学到的东西还不足以让建议质量肉眼可见地变好。这是团队已确认的最高优先级，而非功能堆砌。
+
 ---
 
 ## ⭐ 数据架构：为「跨用户 ML」铺路
@@ -142,21 +157,71 @@
 
 ## 当前进度（Roadmap）
 
-**✅ 已实现**
-- Agent Loop 骨架 + 6 个 detector + 首页主动简报（一键排 / 自定义时间）
-- 跨天调度引擎，Loop 与所有手动入口统一复用
-- 冲突检测 + 覆盖 + Tier-1 学习闭环
-- 三视图（首页 / 日历 / 任务）数据实时同步 + 持久化
-- 持久化 Phase 1 + Phase C 第一刀（学习三表，线上验证通过）
-- 真实趋势分析页（本周 vs 上周接受率、时长、top kind/source）
-- 简报策展层（确定性规则版 + BYO-key LLM rank-only 增强 + 安全护栏）
+### ✅ 已实现（截至 2026-06-17）
 
-**🔜 下一步（已确认优先级：先闭环学习飞轮，再加感知）**
-1. **Plan vs Actual 追踪**：记录 Agent 规划了什么 vs 实际发生什么——信息密度最高的学习信号。
-2. **Beta 学习增强**：提高偏好在排序中的权重 + 信号分层（无视 ≠ 拒绝） + 时间衰减。
-3. **离线回测脚手架**：用 `interaction_log` 回放历史，度量「规则 vs LLM vs 增强后」的接受率——让每次改动可验证。
-4. **泛化视野**：把「只看今天」泛化为「能管整周」，从今天助手进化为周管家。
-5. 阶段 2：接入真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
+**Agent 核心**
+- Agent Loop 骨架 + **6 个 detector** + 首页主动简报（一键排 / 自定义时间 / 忽略）
+- 跨天调度引擎（`proposeSlotsForTask` / `getFreeWindowsForDate`），Loop 与 Inbox 计划、Find New Time 统一复用
+- `sourceTaskId` 打通任务↔日历，避免重复 deadline-risk 建议
+- Find New Time 真实改期（3 个建议槽，后两个可手填日期时间）
+- 冲突检测（双重预订 / 不可工作通勤）+ 覆盖警告 + Tier-1 学习
+- 简报策展层 Phase A（确定性 `curateMovesRules` + `applyCuration` 安全护栏 + “More” 折叠区）
+- 简报策展层 Phase B（Settings BYO-key LLM rank-only，经 `api/llm.js` serverless 代理，失败回退规则版）
+
+**数据与学习**
+- 学习数据债务 #2/#3/#4/#6/#7/#11 已修复（接受路径写 normalized `interactionLog`、保留 kind/type 等）
+- Stage A 特征埋点（`features` + `label`，只记不用，为 ML 铺路）
+- 时长滑动平均（`predictDurationMinutes` 按 person/kind 替代固定估时）
+- 持久化 Phase 1（Supabase JSONB blob，学习/好友/名字跨设备同步）
+- Phase C 第一刀：学习三表双写（`interaction_log` / `pref_store` / `duration_observations`）+ RLS + 历史 blob 幂等回填，**线上已验证**
+- Analytics：Week 视图真实数据 + Learning Trends 卡（本周 vs 上周接受率、时长、top kind/source）
+
+**产品与工程**
+- 三视图（首页 / 日历 / 任务）`syncAllViews()` 一处改处处同步
+- 双域名部署：`calendar-demo.yiwang.dev`（演示）/ `calendar.yiwang.dev`（个人真用）
+- Magic Link + Google OAuth；作品集页 [yiwang.dev/ai.html](https://www.yiwang.dev/ai.html) 已上架
+
+### ⚠️ 已知缺口（写简历时可作「下一步」素材）
+
+- **自主触发**：只在打开 app / 改数据时跑 loop，无 webhook、无定时 push
+- **学习效果未闭环**：Beta 偏好权重被 `importance×18` 等硬规则淹没，建议质量短期难感知提升
+- **`getPlanWindows` 部分路径仍只看今天**（Agent Loop 已能跨天，Time Planning Board 尚未完全泛化）
+- Tier 2 模式发现、Plan vs Actual、离线回测——已设计，未实现
+- 未接真实日历（Google / MS Graph）；单文件 `index.html` 已近 8000 行
+
+### 🔜 下一步（2026-06-10 晚确认 · 当前仍生效）
+
+**核心判断：停止再加 detector，先把学习飞轮闭环 + 让它可度量。**
+
+| 轨道 | 优先级 | 内容 |
+|---|---|---|
+| **A · 学习飞轮** | 🔴 最高 | ① Plan vs Actual ② Beta 增强（提权重 + 信号分层）③ 离线回测脚手架 |
+| **B · 视野扩展** | 🟡 中 | 泛化 `getPlanWindows(date)`：今天助手 → 周管家 |
+| **C · 工程健康** | 🟢 按需 | 单文件拆分（下次加 detector 时顺手做） |
+
+**阶段 2（质变）**：接真实日历 + webhook/定时触发 → 用户不在时 agent 也在替你看。
+
+**现在明确不做**：再加新 detector、Phase C 剩余表拆 events/tasks、ML 预测层、Travel Optimize / Pre-mortem（等真实日历数据）。
+
+---
+
+## 简历 / 作品集摘抄参考
+
+> 下面可直接改写进英文 CV 或 [yiwang.dev/ai.html](https://www.yiwang.dev/ai.html)。注意：**proactive** 可用，避免写 “runs in the background”。
+
+**英文 elevator pitch（~3 句）**
+- A proactive scheduling agent that scans your calendar and surfaces what a normal calendar never warns you about—deadlines with no time blocked, back-to-back meetings, overloaded days.
+- For each issue it drafts a one-tap fix (propose-only); every accept or pass feeds a learning pipeline backed by Supabase.
+- Architecture: deterministic engine as the brain, LLM at the edge (rank-only curation), 6 pluggable detectors on an Agent Loop.
+
+**中文一句话（简历项目描述）**
+- 主动管理日程的 scheduling agent：6 个 detector 主动发现问题，一键确认排期，确定性引擎决策 + Supabase 学习飞轮，已上线 demo 与个人版。
+
+**技术关键词（可贴 Skills 行）**
+- Agent Loop · Detector registry · Propose-only · Event-sourced learning · Supabase Postgres + RLS · Vercel serverless · Beta preference learning · Vanilla JS
+
+**可写的量化/事实点**
+- 6 proactive detectors · ~8000-line single-file prototype · 3 normalized learning tables · 2 live subdomains · BYO-key LLM curation with deterministic fallback
 
 ---
 
