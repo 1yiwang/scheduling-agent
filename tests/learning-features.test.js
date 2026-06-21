@@ -33,6 +33,8 @@ globalThis.__app = {
   buildFeatureVector: typeof buildFeatureVector === 'function' ? buildFeatureVector : undefined,
   recordSignal: typeof recordSignal === 'function' ? recordSignal : undefined,
   prefScore: typeof prefScore === 'function' ? prefScore : undefined,
+  betaConfidence: typeof betaConfidence === 'function' ? betaConfidence : undefined,
+  decayBetaCounts: typeof decayBetaCounts === 'function' ? decayBetaCounts : undefined,
   normalizeInteractionAction: typeof normalizeInteractionAction === 'function' ? normalizeInteractionAction : undefined,
   recordInteraction: typeof recordInteraction === 'function' ? recordInteraction : undefined,
   interactionLog,
@@ -102,5 +104,15 @@ assert.strictEqual(row.source, 'pendingTask', 'normalized interaction has source
 assert.strictEqual(row.involves, 'Lukas', 'normalized interaction has involves');
 assert.strictEqual(row.label, 1, 'normalized interaction has label');
 assert.ok(row.features && typeof row.features === 'object', 'normalized interaction has feature vector');
+
+// Fractional weak signal
+Object.keys(app.prefStore).forEach(k => delete app.prefStore[k]);
+const frac = app.recordSignal('candidate_kind', 'solo', true, { strength: 'weak', nowISO: '2026-06-17T12:00:00.000Z' });
+assert.strictEqual(frac.alpha, 1.25, 'weak accept adds 0.25 alpha');
+
+// Decay lowers effective confidence over time
+const staleConf = app.betaConfidence({ alpha: 11, beta: 1, lastUpdated: '2026-01-01T00:00:00.000Z' }, '2026-06-17T00:00:00.000Z');
+const freshConf = app.betaConfidence({ alpha: 11, beta: 1, lastUpdated: '2026-06-17T00:00:00.000Z' }, '2026-06-17T00:00:00.000Z');
+assert.ok(staleConf < freshConf, 'time decay reduces stale preference confidence');
 
 console.log('learning-features.test.js passed');

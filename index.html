@@ -4147,9 +4147,9 @@ function confirmInboxPlanToWindow(source, id, windowId) {
  if (win.type === 'commute') confirmCommutePlanWindow(win, [item]);
  else confirmDeskPlanWindow(win, [item]);
  removeCandidateFromSource(item);
- recordSignal('candidate_kind', item.kind, true);
- recordSignal('candidate_source', item.source || 'pendingTask', true);
- if (item.involves) recordSignal('person', item.involves, true);
+ recordSignal('candidate_kind', item.kind, true, { strength: 'weak' });
+ recordSignal('candidate_source', item.source || 'pendingTask', true, { strength: 'weak' });
+ if (item.involves) recordSignal('person', item.involves, true, { strength: 'weak' });
  activeInboxPlanId = null;
  inboxDeleteConfirmId = null;
  syncAllViews();
@@ -5189,6 +5189,13 @@ function dismissMove(id) {
  const m = currentMoves().find(x => x.id === id);
  const ids = (m && m.mergedFrom) ? m.mergedFrom : [id];
  ids.forEach(x => { if (dismissedMoveIds.indexOf(x) < 0) dismissedMoveIds.push(x); });
+ if (m) {
+  recordInteraction({
+   action: 'implicit_dismiss',
+   context: { moveId: id, detector: m.type || null, subject: m.subject || null },
+   label: null
+  });
+ }
  syncAllViews();
 }
 
@@ -5313,9 +5320,9 @@ function scheduleTaskToSlot(source, id, year, month, day, startMin, mins) {
   involves: involves,
   reason: it ? it.reason : ''
  }, 'agent_loop');
- recordSignal('candidate_kind', kind, true);
- recordSignal('candidate_source', source, true);
- if (involves) recordSignal('person', involves, true);
+ recordSignal('candidate_kind', kind, true, { strength: 'weak' });
+ recordSignal('candidate_source', source, true, { strength: 'weak' });
+ if (involves) recordSignal('person', involves, true, { strength: 'weak' });
  removeTaskEverywhere(source, id);
  syncAllViews();
  showToast('Scheduled · ' + agentDayLabel(new Date(year, month - 1, day)) + ' ' + minutesToTime(start).replace(':00', ''));
@@ -5641,10 +5648,10 @@ function cloudUpsertPreference(pref) {
    user_id: sbUser.id,
    dimension: pref.dimension,
    key: pref.key,
-   alpha: pref.alpha,
-   beta: pref.beta,
+   alpha: Math.round(pref.alpha * 100) / 100,
+   beta: Math.round(pref.beta * 100) / 100,
    confidence: pref.confidence,
-   sample_count: pref.sampleCount,
+   sample_count: Math.round(pref.sampleCount * 100) / 100,
    last_updated: pref.lastUpdated || new Date().toISOString()
   }));
  } catch (e) {}
@@ -5882,28 +5889,140 @@ function getPreference(dimension, key) {
  return prefStore[id];
 }
 
-function betaConfidence(pref) {
- const total = pref.alpha + pref.beta;
- return total ? pref.alpha / total : 0.5;
+const SIGNAL_STRENGTH = { weak: 0.25, medium: 0.5, strong: 1.0 };
+const PREF_DECAY_HALFLIFE_DAYS = 45;
+const PREF_SCORE_WEIGHTS = { kind: 36, person: 22, source: 14, hour: 10, dow: 10 };
+
+function signalDelta(accepted, strength) {
+ const weight = Object.prototype.hasOwnProperty.call(SIGNAL_STRENGTH, strength) ? SIGNAL_STRENGTH[strength] : 1.0;
+ return accepted ? { alpha: weight, beta: 0 } : { alpha: 0, beta: weight };
 }
 
-function recordSignal(dimension, key, accepted) {
+function decayBetaCounts(pref, nowISO) {
+ pref = pref || {};
+ const nowMs = nowISO ? new Date(nowISO).getTime() : appNow().getTime();
+ const lastMs = pref.lastUpdated ? new Date(pref.lastUpdated).getTime() : nowMs;
+ const halflifeMs = PREF_DECAY_HALFLIFE_DAYS * 24 * 60 * 60 * 1000;
+ const decay = halflifeMs > 0 ? Math.pow(0.5, Math.max(0, nowMs - lastMs) / halflifeMs) : 1;
+ const obsAlpha = Math.max(0, (pref.alpha || 1) - 1);
+ const obsBeta = Math.max(0, (pref.beta || 1) - 1);
+ return { alpha: 1 + obsAlpha * decay, beta: 1 + obsBeta * decay };
+}
+
+function betaConfidence(pref, nowISO) {
+ const eff = decayBetaCounts(pref, nowISO);
+ const total = eff.alpha + eff.beta;
+ return total ? eff.alpha / total : 0.5;
+}
+
+function getPrefInStore(store, dimension, key) {
+ const id = prefKey(dimension, key || 'unknown');
+ if (!store[id]) {
+  store[id] = {
+   dimension: dimension,
+   key: key || 'unknown',
+   alpha: 1,
+   beta: 1,
+   confidence: 0.5,
+   sampleCount: 0,
+   lastUpdated: null
+  };
+ }
+ return store[id];
+}
+
+function applySignalToPrefStore(store, dimension, key, accepted, opts) {
+ opts = opts || {};
+ const pref = getPrefInStore(store, dimension, key);
+ const delta = signalDelta(accepted, opts.strength);
+ pref.alpha += delta.alpha;
+ pref.beta += delta.beta;
+ const weight = Object.prototype.hasOwnProperty.call(SIGNAL_STRENGTH, opts.strength) ? SIGNAL_STRENGTH[opts.strength] : 1.0;
+ pref.sampleCount = Math.round((pref.sampleCount + weight) * 100) / 100;
+ pref.confidence = betaConfidence(pref, opts.nowISO);
+ if (opts.nowISO) pref.lastUpdated = opts.nowISO;
+ return pref;
+}
+
+function recordSignal(dimension, key, accepted, opts) {
+ opts = opts || {};
+ applySignalToPrefStore(prefStore, dimension, key, accepted, opts);
  const pref = getPreference(dimension, key);
- if (accepted) pref.alpha += 1;
- else pref.beta += 1;
- pref.sampleCount += 1;
- pref.confidence = betaConfidence(pref);
- pref.lastUpdated = new Date().toISOString();
+ pref.lastUpdated = opts.nowISO || new Date().toISOString();
+ pref.confidence = betaConfidence(pref, opts.nowISO);
  saveLearningState();
  cloudUpsertPreference(pref);
  return pref;
 }
 
-function prefScore(candidate) {
+function prefScore(candidate, ctx) {
+ ctx = ctx || {};
+ const W = PREF_SCORE_WEIGHTS;
  const kindPref = betaConfidence(getPreference('candidate_kind', candidate.kind));
  const personPref = candidate.involves ? betaConfidence(getPreference('person', candidate.involves)) : 0.5;
  const sourcePref = betaConfidence(getPreference('candidate_source', candidate.source || 'pendingTask'));
- return (kindPref - 0.5) * 20 + (personPref - 0.5) * 12 + (sourcePref - 0.5) * 8;
+ let score = (kindPref - 0.5) * W.kind + (personPref - 0.5) * W.person + (sourcePref - 0.5) * W.source;
+ if (ctx.hour != null) {
+  const hourPref = betaConfidence(getPreference('schedule_hour', String(ctx.hour)));
+  score += (hourPref - 0.5) * W.hour;
+ }
+ if (ctx.dow != null) {
+  const dowPref = betaConfidence(getPreference('schedule_dow', String(ctx.dow)));
+  score += (dowPref - 0.5) * W.dow;
+ }
+ return score;
+}
+
+function applyPlanActualRowToStore(store, row, nowISO) {
+ if (!row) return { applied: false, dimensions: [] };
+ const gapType = row.gap && row.gap.type;
+ const f = row.features || {};
+ if (!gapType) return { applied: false, dimensions: [] };
+ const dimensions = [];
+
+ function applyKind(accepted, strength) {
+  if (f.kind == null) return false;
+  applySignalToPrefStore(store, 'candidate_kind', f.kind, accepted, { strength: strength, nowISO: nowISO });
+  dimensions.push('candidate_kind');
+  return true;
+ }
+
+ function applyHourDow(accepted, strength) {
+  if (f.hourOfDay == null || f.dayOfWeek == null) return false;
+  applySignalToPrefStore(store, 'schedule_hour', String(f.hourOfDay), accepted, { strength: strength, nowISO: nowISO });
+  applySignalToPrefStore(store, 'schedule_dow', String(f.dayOfWeek), accepted, { strength: strength, nowISO: nowISO });
+  dimensions.push('schedule_hour', 'schedule_dow');
+  return true;
+ }
+
+ switch (gapType) {
+  case 'completed_on_time':
+   if (!applyKind(true, 'strong') || !applyHourDow(true, 'strong')) return { applied: false, dimensions: [] };
+   break;
+  case 'not_completed':
+  case 'rescheduled':
+   if (!applyKind(false, 'strong') || !applyHourDow(false, 'strong')) return { applied: false, dimensions: [] };
+   break;
+  case 'completed_late':
+   if (!applyHourDow(false, 'medium')) return { applied: false, dimensions: [] };
+   break;
+  case 'duration_drift':
+   if (!applyKind(false, 'weak')) return { applied: false, dimensions: [] };
+   break;
+  default:
+   return { applied: false, dimensions: [] };
+ }
+
+ return { applied: dimensions.length > 0, dimensions: dimensions };
+}
+
+function applyPlanActualLearning(row, opts) {
+ opts = opts || {};
+ if (!row || row.learningApplied) return { applied: false, dimensions: [] };
+ const nowISO = opts.nowISO || row.ts || null;
+ const result = applyPlanActualRowToStore(prefStore, row, nowISO);
+ if (result.applied) saveLearningState();
+ return result;
 }
 
 // ── Duration prediction (running average) ── replaces the user's fixed estimate
@@ -6120,6 +6239,10 @@ function isPlanActualTerminal(ev, result, completion, nowMs) {
 function recordPlanActualGap(row) {
  if (!row || !row.eventId) return false;
  if (planActualLog.some(function (r) { return r.eventId === row.eventId; })) return false;
+ if (!row.learningApplied) {
+  const learning = applyPlanActualLearning(row);
+  row.learningApplied = learning.applied;
+ }
  planActualLog.push(row);
  saveLearningState();
  recordInteraction({
@@ -6387,11 +6510,20 @@ function candidateKindLabel(kind) {
  return 'Task';
 }
 
-function scoreCandidate(candidate) {
+function scoreCandidate(candidate, ctx) {
  return importanceScore(candidate.importance) * 18 +
   importanceScore(candidate.urgency) * 14 +
   Math.max(0, 30 - candidate.estMinutes) * 0.2 +
-  prefScore(candidate);
+  prefScore(candidate, ctx);
+}
+
+function slotContextFromStartTime(startTime, dow) {
+ if (!startTime) return null;
+ const hour = parseInt(String(startTime).split(':')[0], 10);
+ if (Number.isNaN(hour)) return null;
+ const ctx = { hour: hour };
+ if (dow != null) ctx.dow = dow;
+ return ctx;
 }
 
 function findCommuteSuggestions() {
@@ -6406,11 +6538,12 @@ function findCommuteSuggestions() {
  for (const win of windows) {
   const work = getWorkability(win.transitMode);
   const winMins = windowMinutes(win);
+  const slotCtx = slotContextFromStartTime(win.startTime, appNow().getDay());
   const ranked = candidates
    .filter(c => c.estMinutes <= winMins && candidateFitsWorkability(c, work))
    .map(c => ({
     ...c,
-    score: scoreCandidate(c),
+    score: scoreCandidate(c, slotCtx),
     fitReason: work.reason + ' · ' + c.estMinutes + ' min fits in this ' + winMins + '-min window.'
    }))
    .sort((a,b)=>b.score-a.score)
@@ -6663,13 +6796,13 @@ function recordCommuteInteraction(cs, candidate, action) {
   label: (action === 'accepted' || action === 'sent') ? 1 : (action === 'dismissed' ? 0 : null)
  });
  if (action === 'accepted' || action === 'sent') {
-  recordSignal('candidate_kind', candidate.kind, true);
-  recordSignal('candidate_source', candidate.source || 'pendingTask', true);
-  if (candidate.involves) recordSignal('person', candidate.involves, true);
+  recordSignal('candidate_kind', candidate.kind, true, { strength: 'medium' });
+  recordSignal('candidate_source', candidate.source || 'pendingTask', true, { strength: 'medium' });
+  if (candidate.involves) recordSignal('person', candidate.involves, true, { strength: 'medium' });
  } else if (action === 'dismissed') {
-  recordSignal('candidate_kind', candidate.kind, false);
-  recordSignal('candidate_source', candidate.source || 'pendingTask', false);
-  if (candidate.involves) recordSignal('person', candidate.involves, false);
+  recordSignal('candidate_kind', candidate.kind, false, { strength: 'weak' });
+  recordSignal('candidate_source', candidate.source || 'pendingTask', false, { strength: 'weak' });
+  if (candidate.involves) recordSignal('person', candidate.involves, false, { strength: 'weak' });
  }
 }
 
@@ -6919,10 +7052,11 @@ function getCandidatesForWindow(win) {
  const usedElsewhere = stagedCandidateIds(win.id);
  const alreadyHere = new Set(getStagedItems(win.id).map(item => item.id));
  const remaining = win.minutes - usedPlanMinutes(win.id);
+ const slotCtx = slotContextFromStartTime(win.startTime, appNow().getDay());
  return buildCandidatePool()
   .filter(c => !usedElsewhere.has(c.id) && !alreadyHere.has(c.id))
   .filter(c => planCandidateFitsWindow(c, win, remaining))
-  .sort((a,b)=>scoreCandidate(b)-scoreCandidate(a))
+  .sort((a,b)=>scoreCandidate(b, slotCtx)-scoreCandidate(a, slotCtx))
   .slice(0, 4);
 }
 
@@ -7142,9 +7276,9 @@ function confirmPlanWindow(windowId) {
  else confirmDeskPlanWindow(win, items);
  items.forEach(item => {
   removeCandidateFromSource(item);
-  recordSignal('candidate_kind', item.kind, true);
-  recordSignal('candidate_source', item.source || 'pendingTask', true);
-  if (item.involves) recordSignal('person', item.involves, true);
+  recordSignal('candidate_kind', item.kind, true, { strength: 'weak' });
+  recordSignal('candidate_source', item.source || 'pendingTask', true, { strength: 'weak' });
+  if (item.involves) recordSignal('person', item.involves, true, { strength: 'weak' });
  });
  delete timePlanState[windowId];
  syncAllViews();
@@ -8303,6 +8437,220 @@ function renderAgentLearningCard() {
 function weekStartMonday(d) {
  const dow = (d.getDay() + 6) % 7;
  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow);
+}
+
+// ── Offline backtest scaffold (Track A #3) ──
+function normalizeBacktestRow(row) {
+ if (!row) return null;
+ const action = row.action || row.type || null;
+ if (!action || !row.ts) return null;
+ return {
+  ts: row.ts,
+  action: action,
+  kind: row.kind || null,
+  source: row.source || null,
+  involves: row.involves || null,
+  context: row.context || null,
+  top3: row.top3 || [],
+  chosenIdx: Number.isInteger(row.chosenIdx) ? row.chosenIdx : (Number.isInteger(row.chosen_idx) ? row.chosen_idx : null),
+  features: row.features || null,
+  label: Object.prototype.hasOwnProperty.call(row, 'label') ? row.label : null
+ };
+}
+
+function sortBacktestRows(rows) {
+ return (rows || []).slice().filter(Boolean).sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+}
+
+function normalizePlanActualContext(row) {
+ if (row.gap && row.features) return row;
+ if (row.context && row.context.gap) return row.context;
+ return row;
+}
+
+function backtestSlotContext(row) {
+ const ctx = {};
+ const f = row.features || {};
+ const c = row.context || {};
+ if (f.hour_of_day != null) ctx.hour = f.hour_of_day;
+ else if (f.hourOfDay != null) ctx.hour = f.hourOfDay;
+ else if (c.startHour != null) ctx.hour = c.startHour;
+ if (f.day_of_week != null) ctx.dow = f.day_of_week;
+ else if (f.dayOfWeek != null) ctx.dow = f.dayOfWeek;
+ return ctx;
+}
+
+function backtestCandidateFromTop3(c) {
+ c = c || {};
+ return {
+  id: c.id || null,
+  kind: c.kind || 'solo',
+  source: c.source || 'pendingTask',
+  involves: c.involves || null,
+  importance: c.importance || 'medium',
+  urgency: c.urgency || 'medium',
+  estMinutes: c.estMinutes || c.est_minutes || 30
+ };
+}
+
+function applyInteractionRowToStore(store, row) {
+ if (!row) return;
+ const action = row.action;
+ const nowISO = row.ts;
+ if (action === 'implicit_dismiss') return;
+ if (action === 'plan_actual') {
+  applyPlanActualRowToStore(store, normalizePlanActualContext(row), nowISO);
+  return;
+ }
+ const kind = row.kind;
+ const source = row.source || 'pendingTask';
+ const involves = row.involves;
+ if (action === 'accepted') {
+  if (kind) applySignalToPrefStore(store, 'candidate_kind', kind, true, { strength: 'weak', nowISO: nowISO });
+  applySignalToPrefStore(store, 'candidate_source', source, true, { strength: 'weak', nowISO: nowISO });
+  if (involves) applySignalToPrefStore(store, 'person', involves, true, { strength: 'weak', nowISO: nowISO });
+ } else if (action === 'sent') {
+  if (kind) applySignalToPrefStore(store, 'candidate_kind', kind, true, { strength: 'medium', nowISO: nowISO });
+  applySignalToPrefStore(store, 'candidate_source', source, true, { strength: 'medium', nowISO: nowISO });
+  if (involves) applySignalToPrefStore(store, 'person', involves, true, { strength: 'medium', nowISO: nowISO });
+ } else if (action === 'dismissed') {
+  if (kind) applySignalToPrefStore(store, 'candidate_kind', kind, false, { strength: 'weak', nowISO: nowISO });
+  applySignalToPrefStore(store, 'candidate_source', source, false, { strength: 'weak', nowISO: nowISO });
+  if (involves) applySignalToPrefStore(store, 'person', involves, false, { strength: 'weak', nowISO: nowISO });
+ }
+}
+
+function replayPrefStore(rows, opts) {
+ opts = opts || {};
+ const store = {};
+ const sorted = sortBacktestRows(rows);
+ for (let i = 0; i < sorted.length; i++) {
+  if (opts.untilIndex != null && i >= opts.untilIndex) break;
+  const row = sorted[i];
+  if (opts.untilTs && String(row.ts) >= String(opts.untilTs)) break;
+  applyInteractionRowToStore(store, row);
+ }
+ return store;
+}
+
+function prefScoreFromStore(store, candidate, ctx, nowISO) {
+ ctx = ctx || {};
+ const W = PREF_SCORE_WEIGHTS;
+ const kindPref = betaConfidence(getPrefInStore(store, 'candidate_kind', candidate.kind), nowISO);
+ const personPref = candidate.involves ? betaConfidence(getPrefInStore(store, 'person', candidate.involves), nowISO) : 0.5;
+ const sourcePref = betaConfidence(getPrefInStore(store, 'candidate_source', candidate.source || 'pendingTask'), nowISO);
+ let score = (kindPref - 0.5) * W.kind + (personPref - 0.5) * W.person + (sourcePref - 0.5) * W.source;
+ if (ctx.hour != null) {
+  const hourPref = betaConfidence(getPrefInStore(store, 'schedule_hour', String(ctx.hour)), nowISO);
+  score += (hourPref - 0.5) * W.hour;
+ }
+ if (ctx.dow != null) {
+  const dowPref = betaConfidence(getPrefInStore(store, 'schedule_dow', String(ctx.dow)), nowISO);
+  score += (dowPref - 0.5) * W.dow;
+ }
+ return score;
+}
+
+function scoreCandidateBase(candidate) {
+ return importanceScore(candidate.importance) * 18 +
+  importanceScore(candidate.urgency) * 14 +
+  Math.max(0, 30 - (candidate.estMinutes || 30)) * 0.2;
+}
+
+function scoreCandidateFromStore(store, candidate, ctx, strategy, nowISO) {
+ const base = scoreCandidateBase(candidate);
+ if (strategy === 'baseline') return base;
+ return base + prefScoreFromStore(store, candidate, ctx, nowISO);
+}
+
+function pickTopCandidateIndex(candidates, store, ctx, strategy, nowISO) {
+ const scored = (candidates || []).map(function (c, i) {
+  return { i: i, score: scoreCandidateFromStore(store, backtestCandidateFromTop3(c), ctx, strategy, nowISO) };
+ });
+ scored.sort(function (a, b) { return b.score - a.score; });
+ return scored.length ? scored[0].i : 0;
+}
+
+function aggregateAcceptMetrics(rows) {
+ let accepted = 0, decided = 0, implicitDismiss = 0;
+ (rows || []).forEach(function (r) {
+  if (r.action === 'implicit_dismiss') { implicitDismiss++; return; }
+  if (r.action === 'plan_actual') return;
+  const isAccept = r.label === 1 || r.action === 'accepted' || r.action === 'sent';
+  const isReject = r.label === 0 || r.action === 'dismissed';
+  if (isAccept) { accepted++; decided++; }
+  else if (isReject) { decided++; }
+ });
+ return {
+  accepted: accepted,
+  decided: decided,
+  acceptRate: decided ? Math.round(accepted / decided * 100) : null,
+  implicitDismissCount: implicitDismiss
+ };
+}
+
+function aggregatePlanActualMetrics(rows) {
+ const gaps = {};
+ let total = 0, onTime = 0, positiveLabel = 0;
+ (rows || []).forEach(function (r) {
+  if (r.action !== 'plan_actual') return;
+  const ctx = normalizePlanActualContext(r);
+  const gapType = ctx.gap && ctx.gap.type;
+  if (!gapType) return;
+  total++;
+  gaps[gapType] = (gaps[gapType] || 0) + 1;
+  if (gapType === 'completed_on_time') onTime++;
+  if (ctx.label === 1 || (ctx.features && ctx.features.label === 1) || r.label === 1) positiveLabel++;
+ });
+ return {
+  total: total,
+  completedOnTime: onTime,
+  completionRate: total ? Math.round(positiveLabel / total * 100) : null,
+  gapBreakdown: gaps
+ };
+}
+
+function evaluateRankingTop1(rows, strategy) {
+ const sorted = sortBacktestRows(rows);
+ let decisions = 0, top1Hits = 0;
+ for (let i = 0; i < sorted.length; i++) {
+  const row = sorted[i];
+  if (!row.top3 || row.top3.length < 2) continue;
+  if (!Number.isInteger(row.chosenIdx)) continue;
+  if (row.action !== 'accepted' && row.action !== 'dismissed' && row.action !== 'sent') continue;
+  decisions++;
+  const store = replayPrefStore(sorted, { untilIndex: i });
+  const ctx = backtestSlotContext(row);
+  const topIdx = pickTopCandidateIndex(row.top3, store, ctx, strategy, row.ts);
+  if (topIdx === row.chosenIdx) top1Hits++;
+ }
+ return {
+  strategy: strategy,
+  decisions: decisions,
+  top1Hits: top1Hits,
+  top1Rate: decisions ? Math.round(top1Hits / decisions * 100) : null
+ };
+}
+
+function runOfflineBacktest(rows, opts) {
+ opts = opts || {};
+ const normalized = (rows || []).map(normalizeBacktestRow).filter(Boolean);
+ const sorted = sortBacktestRows(normalized);
+ const baseline = evaluateRankingTop1(sorted, 'baseline');
+ const enhanced = evaluateRankingTop1(sorted, 'enhanced');
+ const rankingMetrics = {
+  baseline: baseline,
+  enhanced: enhanced,
+  lift: (baseline.top1Rate != null && enhanced.top1Rate != null) ? enhanced.top1Rate - baseline.top1Rate : null
+ };
+ const finalStore = replayPrefStore(sorted);
+ return {
+  rowCount: sorted.length,
+  acceptMetrics: aggregateAcceptMetrics(sorted),
+  planActualMetrics: aggregatePlanActualMetrics(sorted),
+  rankingMetrics: rankingMetrics,
+  replayedPrefCount: Object.keys(finalStore).length
+ };
 }
 
 function tsInWeekRange(ts, weekStart, weekEndExclusive) {

@@ -277,11 +277,59 @@ agent 排期 (scheduleTaskToSlot / confirmDeskPlanWindow)
 - 云端 blob：`snapshotCloud().learning.planActualLog`
 - 双写：`interaction_log` 行 `action='plan_actual'`（context = 完整 gap 行，features + label 供回测）
 
-**范围 v1**：仅 agent 排期路径（有 `planMeta` 的事件）；手动 `addTodayEvent` 不在范围内。observe-only——**尚未**用 gap 数据改排序（Track A #2 Beta 增强下一步）。
+**范围 v1**：仅 agent 排期路径（有 `planMeta` 的事件）；手动 `addTodayEvent` 不在范围内。reconcile 后通过 `applyPlanActualLearning` 反馈到 `prefStore`（见 §7.6）。
 
 **测试**：`tests/plan-actual.test.js` · `tests/plan-actual-hooks.test.js` · `tests/cloud-learning-sync.test.js`（plan_actual 双写）
 
 > 施工计划：`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`
+
+### 7.6 Beta 学习增强（Track A #2 · 2026-06-17 已实现）
+
+> 让 Tier-1 偏好**真正影响排序**，并用 Plan vs Actual 作延迟奖励。
+
+**信号分层**
+
+| 用户动作 | 强度 | Beta 更新 |
+|---|---|---|
+| 接受排期（agent loop / desk plan） | weak (+0.25) | kind / source / person |
+| commute accept / sent | medium (+0.5) | kind / source / person |
+| plan_actual 按时完成 | strong (+1.0) | kind + `schedule_hour` + `schedule_dow` |
+| 未完成 / 改期 | strong reject | 同上 |
+| 晚完成 | medium reject | hour + dow |
+| duration_drift | weak reject | kind only |
+| dismiss agent 卡片 (×) | 无 | 只写 `implicit_dismiss` |
+| commute dismiss | weak reject | kind / source / person |
+
+**机制**
+- `prefScore` 权重提升（kind×36, person×22, source×14, hour/dow×10）
+- `betaConfidence` 读侧 45 天半衰期衰减
+- 新维度：`schedule_hour`、`schedule_dow`
+- `recordPlanActualGap` → `applyPlanActualLearning`（每 eventId 一次）
+
+**测试**：`tests/beta-signal.test.js` · `tests/beta-ranking.test.js` · `tests/plan-actual-hooks.test.js` · `tests/learning-features.test.js`
+
+> 施工计划：`docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md`
+
+### 7.7 离线回测脚手架（Track A #3 · 2026-06-17 已实现）
+
+> 用已有 `interaction_log` 离线回答：「Beta 增强有没有比无学习 baseline 排得更准？」
+
+**入口**
+- `runOfflineBacktest(rows)` — 纯函数，返回 metrics 报告
+- `node scripts/run-backtest.js [export.json]` — CLI 回放
+
+**策略对比 v1**
+- `baseline`：importance/urgency/时长 only
+- `enhanced`：replay prefs 后加 `prefScoreFromStore`
+
+**输出指标**
+- `acceptMetrics` — accept rate（排除 `implicit_dismiss` 与 `plan_actual`）
+- `planActualMetrics` — completion rate + gap breakdown
+- `rankingMetrics` — top-1 hit rate + `lift`（enhanced − baseline）
+
+**测试**：`tests/backtest-replay.test.js` · `tests/backtest-metrics.test.js` · `tests/fixtures/backtest-sample.json`
+
+> 施工计划：`docs/superpowers/plans/2026-06-17-offline-backtest.md`
 
 > 三层自进化方法论（Tier-1 参数自调 / Tier-2 模式发现 / Tier-3 结构学习）详见 `learning agent.md`。
 
@@ -307,10 +355,11 @@ agent 排期 (scheduleTaskToSlot / confirmDeskPlanWindow)
 - ✅ **策展层 Layer 1（Phase A · 确定性）**：detectors → `mergeMoves`（合并同事件卡）→ `curate`（`curateMovesRules` 按 severity/dismiss 降权/紧迫度排序+折叠）→ `applyCuration`（安全护栏：critical 必显置顶、缺失补回、非法回退）。简报新增 “More” 折叠区；`currentMoves()` 统一动作链路。详见 `docs/agent-detectors.md §8` 与 plan `2026-06-10-agent-curation-layer.md`。
 - ✅ **策展层 Layer 1（Phase B · BYO-key LLM）**：Settings 新增「AI assistant」分组（个人版+登录可见），填 base URL / model / API key（仅存本机 localStorage `schedulingAgentLLM.v1`，不入云）。`curateMovesLLM`（rank_only，只回 `{order,folded}` 的已知 id）经 `api/llm.js` serverless 代理转发到 DeepSeek（同源守卫，key 每次由客户端带、不存服务端）；渲染先用规则版即时显示，后台异步取 LLM 决策按 moves 签名缓存后重渲染；任何失败回退规则版。`applyCuration` 护栏对 LLM 同样生效。预设 DeepSeek（`deepseek-chat`）。
 - ✅ **Plan vs Actual 追踪（Track A #1）**：agent 排期打 `planMeta` → 完成/改期/过期扫描 reconcile → `planActualLog` + `interaction_log(plan_actual)` 双写。见 §7.5 · plan `2026-06-17-plan-vs-actual.md`。
+- ✅ **Beta 学习增强（Track A #2）**：信号分层 + 偏好权重提升 + plan_actual 延迟奖励 → `prefStore`（含 `schedule_hour`/`schedule_dow`）。见 §7.6 · plan `2026-06-17-beta-learning-enhancement.md`。
+- ✅ **离线回测脚手架（Track A #3）**：`runOfflineBacktest` 回放 interaction 行，对比 baseline vs enhanced ranking lift。见 §7.7 · plan `2026-06-17-offline-backtest.md` · CLI `scripts/run-backtest.js`。
 
 **下一步（建议顺序）**
-1. **Beta 学习增强** + **离线回测脚手架**（Track A #2/#3；消费 `planActualLog` / `plan_actual` 行）。
-2. **泛化 `getPlanWindows(date)`**（今天助手 → 周管家）。
+1. **泛化 `getPlanWindows(date)`**（今天助手 → 周管家）。
 3. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
 4. 语音输入（deferred）。
 
@@ -325,6 +374,8 @@ agent 排期 (scheduleTaskToSlot / confirmDeskPlanWindow)
 | 调度引擎 | `getFreeWindowsForDate` `proposeSlotsForTask` `taskEstMinutes` `scheduleTaskToSlot` `eventScheduledForTask` |
 | 事件卡 / 改期 | `renderEventCard` `rescheduleEvent` `pickRescheduleSlot` `moveEventToSlot` `expandedEventId` |
 | Inbox 计划 | `getInboxItems` `inboxRowHtml` `toggleInboxPlan` `renderInboxPlanChoices` `planTaskToSlot` |
-| 冲突 / 学习 | `detectSlotConflict` `effectiveTransitScore` `getWorkability` `recordConflictOverride` `recordSignal` `predictDurationMinutes` |
+| 冲突 / 学习 | `detectSlotConflict` `effectiveTransitScore` `getWorkability` `recordConflictOverride` `recordSignal` `applyPlanActualLearning` `predictDurationMinutes` |
 | Plan vs Actual | `stampPlanMeta` `reconcilePlanActual` `reconcilePastAgentEvents` `recordPlanActualGap` `classifyPlanActualGap` `planActualLog` |
+| Beta 增强 | `signalDelta` `decayBetaCounts` `betaConfidence` `prefScore` `scoreCandidate` `SIGNAL_STRENGTH` |
+| 离线回测 | `runOfflineBacktest` `replayPrefStore` `evaluateRankingTop1` `aggregatePlanActualMetrics` `aggregateAcceptMetrics` |
 | 同步 / 持久化 | `syncAllViews` `saveAppData` `saveLearningState` `findEventById` |

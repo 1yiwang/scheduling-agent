@@ -34,10 +34,10 @@ create table if not exists public.pref_store (
   user_id       uuid references auth.users(id) on delete cascade,
   dimension     text not null,
   key           text not null,
-  alpha         int not null default 1,
-  beta          int not null default 1,
+  alpha         real not null default 1,
+  beta          real not null default 1,
   confidence    real not null default 0.5,
-  sample_count  int not null default 0,
+  sample_count  real not null default 0,
   last_updated  timestamptz,
   primary key (user_id, dimension, key)
 );
@@ -100,3 +100,9 @@ create policy "duration_observations_select_own" on public.duration_observations
 drop policy if exists "duration_observations_insert_own" on public.duration_observations;
 create policy "duration_observations_insert_own" on public.duration_observations
   for insert with check (auth.uid() = user_id);
+
+-- Migration: allow fractional Beta counts (Track A #2 Beta enhancement).
+-- Safe to run on existing projects; no-op if columns are already real.
+alter table public.pref_store alter column alpha type real using alpha::real;
+alter table public.pref_store alter column beta type real using beta::real;
+alter table public.pref_store alter column sample_count type real using sample_count::real;

@@ -49,8 +49,8 @@
 
 **轨道 A · 闭环学习飞轮（护城河 · 最高优先）**
 1. ~~**Plan vs Actual 追踪**~~ ✅（2026-06-17）：记录 agent 排了什么 vs 实际完成/改期/超时。`planActualLog` + `interaction_log(plan_actual)` 已落地。
-2. **Beta 增强**（先做两件）：提高偏好在排序里的权重 + 信号分层（无视≠拒绝），让「学到的」真正改变 Top 排序。
-3. **离线回测脚手架**：`interaction_log` + `plan_actual` 回放历史，度量「规则 vs LLM vs 增强后」的接受率——验证 2 有没有用，也回答 LLM 策展值不值。
+2. ~~**Beta 增强**~~ ✅（2026-06-17）：信号分层 + 提权重 + plan_actual 延迟奖励 → `prefStore`。
+3. ~~**离线回测脚手架**~~ ✅（2026-06-17）：`runOfflineBacktest` 回放 `interaction_log`，对比 baseline vs enhanced。
 
 **轨道 B · 视野扩展（质变 · 中优先）**
 4. **泛化 `getPlanWindows(date)`**：今天助手 → 周管家。结构性质变，deadline-risk 已铺一半基础设施，独立低风险，可随时插入。
@@ -65,7 +65,7 @@
 - ❌ Travel Optimize / Pre-mortem（等阶段 2 接真实日历才有数据支撑）
 
 ### 起步建议
-从轨道 A 的 **Beta 增强** 起步（Plan vs Actual ✅：`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`；施工计划：`docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md`）。回测脚手架在其后。
+从 **P1 泛化 getPlanWindows** 或真实日历接入起步（Track A 学习飞轮 ✅ 全部完成）。
 
 ## 北极星（已确认）
 专用、嵌入、零描述、一键接受/拒绝的调度 agent —— **"日历界的 Cursor"**。

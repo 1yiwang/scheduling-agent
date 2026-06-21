@@ -75,6 +75,9 @@ globalThis.__app = {
   saveLearningState,
   loadLearningState,
   LEARNING_STORAGE_KEY,
+  prefStore,
+  getPreference,
+  recordSignal,
 };`, context);
 
 const app = context.__app;
@@ -200,6 +203,21 @@ assert.strictEqual(app.reconcilePlanActual(onTimeEv.id, '2026-06-12T12:00:00.000
 assert.strictEqual(app.planActualLog.length, beforeLogs + 1);
 assert.strictEqual(app.planActualLog[app.planActualLog.length - 1].gap.type, 'completed_on_time');
 assert.strictEqual(app.planActualLog[app.planActualLog.length - 1].label, 1);
+
+// ── Beta enhancement: weak accept on schedule + strong on reconcile ──
+const lastRow = app.planActualLog[app.planActualLog.length - 1];
+assert.strictEqual(lastRow.learningApplied, true, 'plan_actual row marks learningApplied');
+const soloKind = app.getPreference('candidate_kind', 'solo');
+assert.ok(soloKind.alpha > 1.25, 'solo kind gets weak accept + strong on-time reward');
+const hourKey = String(lastRow.features.hourOfDay);
+const hourPref = app.getPreference('schedule_hour', hourKey);
+assert.ok(hourPref.alpha >= 2, 'schedule_hour strong accept after on-time completion');
+
+const soloAlphaBefore = soloKind.alpha;
+const hourAlphaBefore = hourPref.alpha;
+assert.strictEqual(app.reconcilePlanActual(onTimeEv.id, '2026-06-12T13:00:00.000Z'), false, 'idempotent learning');
+assert.strictEqual(app.getPreference('candidate_kind', 'solo').alpha, soloAlphaBefore, 'no double-apply on kind');
+assert.strictEqual(app.getPreference('schedule_hour', hourKey).alpha, hourAlphaBefore, 'no double-apply on hour');
 
 // ── Phase C: cloud dual-write (live mode) ──
 vm.runInContext("appMode = 'live';", context);

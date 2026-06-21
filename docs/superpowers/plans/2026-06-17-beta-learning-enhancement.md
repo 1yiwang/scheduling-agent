@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implement task-by-task with TDD. Steps use checkbox (`- [ ]`) syntax for tracking. Tests are Node `vm`-based in `tests/*.test.js`. Run the full suite after each task.
 
-**Status:** 🔲 Not started. Depends on Plan vs Actual ✅ (`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`).
+**Status:** ✅ Phase A–D complete (2026-06-17). Track A #3 offline backtest scaffold is next.
 
 **Goal:** Make Tier-1 Beta preferences **actually change Top-N ranking** — not symbolic learning buried under `importance×18`. Close the second half of the flywheel: **consume `planActualLog` as delayed reward**, and **stop treating dismiss like reject**.
 
@@ -132,7 +132,7 @@ beta-ranking.test.js passed
 
 ### Phase A — Pure signal + decay (no UI hooks)
 
-- [ ] **A1. Scaffold `tests/beta-signal.test.js`.** Export via `globalThis.__app`:
+- [x] **A1. Scaffold `tests/beta-signal.test.js`.** Export via `globalThis.__app`:
 
   ```javascript
   SIGNAL_STRENGTH,
@@ -144,7 +144,7 @@ beta-ranking.test.js passed
   prefStore,
   ```
 
-- [ ] **A2. `SIGNAL_STRENGTH` + `signalDelta(accepted, strength)` + test.**
+- [x] **A2. `SIGNAL_STRENGTH` + `signalDelta(accepted, strength)` + test.**
 
   | `strength` | `accepted=true` | `accepted=false` |
   |---|---|---|
@@ -153,13 +153,13 @@ beta-ranking.test.js passed
   | `strong` | +1.0 α | +1.0 β |
   | omitted | +1.0 α (backward compat) | +1.0 β |
 
-- [ ] **A3. `decayBetaCounts(pref, nowISO)` + test.** Given `alpha=11, beta=1, lastUpdated=90d ago`, effective counts ≈ halfway between prior `(1,1)` and raw `(11,1)`. Fresh `lastUpdated` → no decay.
+- [x] **A3. `decayBetaCounts(pref, nowISO)` + test.** Given `alpha=11, beta=1, lastUpdated=90d ago`, effective counts ≈ halfway between prior `(1,1)` and raw `(11,1)`. Fresh `lastUpdated` → no decay.
 
-- [ ] **A4. Upgrade `betaConfidence(pref, nowISO?)` + test.** Uses `decayBetaCounts`. Inject fixed `nowISO` in tests — never bare `Date.now()` inside pure path.
+- [x] **A4. Upgrade `betaConfidence(pref, nowISO?)` + test.** Uses `decayBetaCounts`. Inject fixed `nowISO` in tests — never bare `Date.now()` inside pure path.
 
-- [ ] **A5. Upgrade `recordSignal(dimension, key, accepted, opts?)` + test.** Applies `signalDelta`; `sampleCount += strengthWeight` (round to 2 decimals); updates `lastUpdated`.
+- [x] **A5. Upgrade `recordSignal(dimension, key, accepted, opts?)` + test.** Applies `signalDelta`; `sampleCount += strengthWeight` (round to 2 decimals); updates `lastUpdated`.
 
-- [ ] **A6. `applyPlanActualLearning(row)` + test (write first, hard).**
+- [x] **A6. `applyPlanActualLearning(row)` + test (write first, hard).**
 
   | `gap.type` | Dimensions updated | Strength |
   |---|---|---|
@@ -173,7 +173,7 @@ beta-ranking.test.js passed
 
 ### Phase B — Raise pref weight + ranking impact
 
-- [ ] **B1. Raise `prefScore` multipliers + test in `tests/beta-ranking.test.js`.**
+- [x] **B1. Raise `prefScore` multipliers + test in `tests/beta-ranking.test.js`.**
 
   v1 targets (tune in test until flip works):
 
@@ -182,9 +182,9 @@ beta-ranking.test.js passed
   // schedule_hour / schedule_dow: ±10 each when ctx provided
   ```
 
-- [ ] **B2. `prefScore(candidate, ctx?)` hour/dow terms + test.** When `ctx = { hour: 13, dow: 2 }`, include `schedule_hour::13` and `schedule_dow::2` confidence deltas.
+- [x] **B2. `prefScore(candidate, ctx?)` hour/dow terms + test.** When `ctx = { hour: 13, dow: 2 }`, include `schedule_hour::13` and `schedule_dow::2` confidence deltas.
 
-- [ ] **B3. `scoreCandidate(candidate, ctx?)` pass-through + ranking test.** Scenario:
+- [x] **B3. `scoreCandidate(candidate, ctx?)` pass-through + ranking test.** Scenario:
 
   ```text
   Two candidates: equal importance/urgency/duration.
@@ -192,19 +192,19 @@ beta-ranking.test.js passed
   Delta in scoreCandidate ≥ 12 points (material, not noise).
   ```
 
-- [ ] **B4. `findCommuteSuggestions` / time-plan ranking.** Audit call sites — pass slot hour into `scoreCandidate` where window start is known (`win.startTime`). If too invasive for v1, document skip and leave hour learning to plan_actual path only.
+- [x] **B4. `findCommuteSuggestions` / time-plan ranking.** Audit call sites — pass slot hour into `scoreCandidate` where window start is known (`win.startTime`). If too invasive for v1, document skip and leave hour learning to plan_actual path only.
 
 ### Phase C — Wire signal layering + delayed reward
 
-- [ ] **C1. `recordPlanActualGap` → `applyPlanActualLearning(row)` + test.** After append, call learning; set `row.learningApplied = true` on stored row. Second reconcile attempt → no double-apply.
+- [x] **C1. `recordPlanActualGap` → `applyPlanActualLearning(row)` + test.** After append, call learning; set `row.learningApplied = true` on stored row. Second reconcile attempt → no double-apply.
 
-- [ ] **C2. Acceptance paths → weak signal.** Change `scheduleTaskToSlot` tail `recordSignal` calls to `{ strength: 'weak' }`. Same for `confirmPlanWindow` / `recordPlanAcceptance` companion signals (lines ~4150, ~5316, ~7145). **Do not remove** `recordInteraction` rows.
+- [x] **C2. Acceptance paths → weak signal.** Change `scheduleTaskToSlot` tail `recordSignal` calls to `{ strength: 'weak' }`. Same for `confirmPlanWindow` / `recordPlanAcceptance` companion signals (lines ~4150, ~5316, ~7145). **Do not remove** `recordInteraction` rows.
 
-- [ ] **C3. `recordCommuteInteraction` dismissed → weak reject.** Accept/sent stay medium (`0.5`) — stronger than schedule weak because user saw alternatives.
+- [x] **C3. `recordCommuteInteraction` dismissed → weak reject.** Accept/sent stay medium (`0.5`) — stronger than schedule weak because user saw alternatives.
 
-- [ ] **C4. `dismissMove(id)` → log only + test.** `recordInteraction({ action:'implicit_dismiss', context:{ moveId, detector:m.detector, subject:m.subject } })`. Assert **no** change to `prefStore` counts for involved kind/source.
+- [x] **C4. `dismissMove(id)` → log only + test.** `recordInteraction({ action:'implicit_dismiss', context:{ moveId, detector:m.detector, subject:m.subject } })`. Assert **no** change to `prefStore` counts for involved kind/source.
 
-- [ ] **C5. Extend `tests/plan-actual-hooks.test.js`.** End-to-end:
+- [x] **C5. Extend `tests/plan-actual-hooks.test.js`.** End-to-end:
 
   ```text
   scheduleTaskToSlot → weak pref bump (small)
@@ -213,16 +213,16 @@ beta-ranking.test.js passed
   second sync → pref unchanged (idempotent)
   ```
 
-- [ ] **C6. Extend `tests/learning-features.test.js`.** Fractional `recordSignal(..., { strength:'weak' })` increases alpha by 0.25; decay reduces effective confidence over time.
+- [x] **C6. Extend `tests/learning-features.test.js`.** Fractional `recordSignal(..., { strength:'weak' })` increases alpha by 0.25; decay reduces effective confidence over time.
 
 ### Phase D — Docs + manual QA
 
-- [ ] **D1. Update docs.**
+- [x] **D1. Update docs.**
   - `project-description.md` §7.6 Beta enhancement (signal table + new dimensions).
   - `product-description.md` — #2 link to this plan; update maturity table when shipped.
   - `BRAINSTORM.md` — path planning: Beta 增强 ✅ when done.
 
-- [ ] **D2. Manual QA (personal mode).**
+- [x] **D2. Manual QA (personal mode).**
   1. Accept 3 agent-loop schedules for solo deep work in the **afternoon** → complete all on time.
   2. Supabase: `pref_store` rows for `schedule_hour::14` (or your hour) show rising `alpha`.
   3. Dismiss an agent card (×) → `interaction_log.action = 'implicit_dismiss'`, **no** new reject in `pref_store` for that task kind.

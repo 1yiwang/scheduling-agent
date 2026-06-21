@@ -126,9 +126,11 @@
 
 **真实样例（Tier 1）**：用户在「步行途中」反复坚持排会议 → Agent 从行为学到「你确实在这种通勤里工作」→ 提升该模态的可工作度 → 以后不再报冲突。**这是 Agent 从行为学会改判断，而非写死规则。**
 
-**Plan vs Actual（Track A #1 · ✅ 已落地）**：agent 通过 `scheduleTaskToSlot` / desk plan 排块时打 `planMeta`；用户完成、改期或 block 过期后，`reconcilePlanActual` 记录 planned vs actual 差距（`completed_on_time` / `not_completed` / `rescheduled` 等），写入 `planActualLog` 并双写 `interaction_log(action='plan_actual')`。这是 Tier-2 模式发现与 Beta 增强的**数据地基**——observe-only，尚未用 gap 改排序。
+**Plan vs Actual（Track A #1 · ✅ 已落地）**：agent 排期打 `planMeta`；完成/改期/过期后 reconcile 写入 `planActualLog` 并双写 `interaction_log(plan_actual)`。
 
-**当前学习债务（下一步）**：偏好权重太弱、无视≠拒绝未区分、无时间衰减；gap 数据已有，待 **Beta 增强** 与 **离线回测** 让它真正改变行为并可验证。
+**Beta 学习增强（Track A #2 · ✅ 已落地）**：接受排期 = 弱正反馈；按时完成 = 强正反馈（含 `schedule_hour`/`schedule_dow`）；dismiss 卡片不计负反馈；偏好权重提升后排序可被学习结果翻转。
+
+**当前学习债务（下一步）**：Track A 学习飞轮已闭环；下一步 **P1 泛化 getPlanWindows** 或接真实日历。
 
 ---
 
@@ -187,7 +189,7 @@
 ### ⚠️ 已知缺口（写简历时可作「下一步」素材）
 
 - **自主触发**：只在打开 app / 改数据时跑 loop，无 webhook、无定时 push
-- **学习效果未闭环**：Beta 偏好权重被硬编码规则淹没；`planActualLog` 已记录 gap，但尚未反馈到排序
+- **学习效果未闭环**：~~Beta 权重弱 / dismiss=reject / 无回测~~ ✅ Track A 已全部落地；待 P1 扩展视野
 - **`getPlanWindows` 部分路径仍只看今天**（Agent Loop 已能跨天，Time Planning Board 尚未完全泛化）
 - Tier 2 模式发现、离线回测——已设计，未实现
 - 未接真实日历（Google / MS Graph）；单文件 `index.html` 已近 8000 行
@@ -198,7 +200,7 @@
 
 | 轨道 | 优先级 | 内容 |
 |---|---|---|
-| **A · 学习飞轮** | 🔴 最高 | ① ~~Plan vs Actual~~ ✅ ② Beta 增强（提权重 + 信号分层）③ 离线回测脚手架 |
+| **A · 学习飞轮** | 🔴 最高 | ① ~~Plan vs Actual~~ ✅ ② ~~Beta 增强~~ ✅ ③ ~~离线回测~~ ✅ |
 | **B · 视野扩展** | 🟡 中 | 泛化 `getPlanWindows(date)`：今天助手 → 周管家 |
 | **C · 工程健康** | 🟢 按需 | 单文件拆分（下次加 detector 时顺手做） |
 
@@ -217,8 +219,8 @@
 | # | 任务 | 为什么 | 预估 | 施工计划 |
 |---|---|---|---|---|
 | **1** | ~~**Plan vs Actual 追踪**~~ | ✅ 已落地（2026-06-17） | — | [`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`](docs/superpowers/plans/2026-06-17-plan-vs-actual.md) |
-| **2** | **Beta 学习增强** | 提偏好权重 + 信号分层；消费 `planActualLog` | 2–4h | [`docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md`](docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md) **← 当前起步** |
-| **3** | **离线回测脚手架** | 用 `interaction_log` / `planActualLog` 回放，度量规则 vs LLM vs 增强后 | 2–3h | 待写 |
+| **2** | ~~**Beta 学习增强**~~ | ✅ 已落地（2026-06-17） | — | [`docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md`](docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md) |
+| **3** | ~~**离线回测脚手架**~~ | ✅ 已落地（2026-06-17） | — | [`docs/superpowers/plans/2026-06-17-offline-backtest.md`](docs/superpowers/plans/2026-06-17-offline-backtest.md) |
 
 ### 🟡 P1 — 质变：从今天助手 → 周管家 / 真主动
 
@@ -249,7 +251,7 @@
 ### 推荐执行顺序
 
 ```
-P0: ① Plan vs Actual ✅ → ② Beta 增强 → ③ 离线回测
+P0: ① Plan vs Actual ✅ → ② Beta 增强 ✅ → ③ 离线回测 ✅
 P1: ④ 泛化 getPlanWindows → ⑤ 真实日历 → ⑥ 自主触发
 P2: ⑦ 语音输入（可自用插队）→ ⑧⑨ 偏好透明化 → ⑩ Tier 2
 ```
