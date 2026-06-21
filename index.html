@@ -5290,6 +5290,14 @@ function scheduleTaskToSlot(source, id, year, month, day, startMin, mins) {
  };
  eventsDB[key][day].push(ev);
  runtimeEvents[evId] = ev;
+ stampPlanMeta(ev, {
+  surface: 'agent_loop',
+  year: year,
+  month: month,
+  day: day,
+  sourceTaskId: ev.sourceTaskId,
+  plannedMinutes: mins
+ });
  recordPlanAcceptance({
   id: 'agent-loop-' + source + '-' + id,
   startTime: minutesToHHMM(start),
@@ -6038,6 +6046,35 @@ function buildPlanActualFeatures(planned, actual, gap) {
   gapType: gap.type,
   label: gap.type === 'completed_on_time' ? 1 : 0
  };
+}
+
+// Stamp agent-scheduled events so Plan vs Actual can reconcile later (Phase B).
+function stampPlanMeta(ev, meta) {
+ if (!ev || ev.planMeta) return;
+ meta = meta || {};
+ const planned = buildPlannedSnapshot(ev, meta);
+ ev.planMeta = {
+  surface: meta.surface || planned.surface || null,
+  plannedAt: new Date().toISOString(),
+  plannedDateISO: planned.dateISO,
+  plannedStart: planned.startTime,
+  plannedEnd: planned.endTime,
+  plannedMinutes: planned.plannedMinutes,
+  sourceTaskId: planned.sourceTaskId,
+  wasRescheduled: false,
+  rescheduleCount: 0,
+  finalDateISO: planned.dateISO,
+  finalStartTime: planned.startTime,
+  reconciled: false
+ };
+}
+
+function touchPlanMetaReschedule(ev, year, month, day, startMin) {
+ if (!ev || !ev.planMeta) return;
+ ev.planMeta.wasRescheduled = true;
+ ev.planMeta.rescheduleCount = (ev.planMeta.rescheduleCount || 0) + 1;
+ ev.planMeta.finalDateISO = isoFromYMD(year, month, day);
+ ev.planMeta.finalStartTime = minutesToHHMM(startMin);
 }
 
 // ── Stage A · training-data capture ──
@@ -7043,6 +7080,15 @@ function confirmDeskPlanWindow(win, items) {
   };
   eventsDB[key][today].push(event);
   runtimeEvents[evIdNew] = event;
+  const planDay = appNow();
+  stampPlanMeta(event, {
+   surface: 'desk_plan',
+   year: planDay.getFullYear(),
+   month: planDay.getMonth() + 1,
+   day: today,
+   sourceTaskId: event.sourceTaskId,
+   plannedMinutes: item.estMinutes
+  });
   recordPlanAcceptance(win, item, 'desk_plan');
   cursor = end;
  });
@@ -7656,6 +7702,7 @@ function moveEventToSlot(eventId, year, month, day, startMin, mins) {
  if (!eventsDB[newKey][day]) eventsDB[newKey][day] = [];
  if (!eventsDB[newKey][day].some(e => e.id === eventId)) eventsDB[newKey][day].push(ev);
  runtimeEvents[eventId] = ev;
+ touchPlanMetaReschedule(ev, year, month, day, start);
  syncAllViews();
  showToast('Moved · ' + agentDayLabel(new Date(year, month - 1, day)) + ' ' + minutesToTime(start).replace(':00',''));
 }

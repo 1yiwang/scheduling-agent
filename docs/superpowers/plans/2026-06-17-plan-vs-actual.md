@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implement task-by-task with TDD. Steps use checkbox (`- [ ]`) syntax for tracking. Tests are Node `vm`-based in `tests/*.test.js`. Run the full suite after each task.
 
-**Status:** 🚧 Phase A implemented + tested (`tests/plan-actual.test.js`). Phase B–D pending.
+**Status:** 🚧 Phase A–B implemented + tested. Phase C–D pending.
 
 **Goal:** Record the gap between what the agent **planned** (scheduled a block) and what **actually happened** (completed, rescheduled, skipped, ran long/short). This is the highest-information-density learning signal in the product — it upgrades learning from「用户点了什么」to「用户后来到底做没做」.
 
@@ -199,13 +199,13 @@ plan-actual-hooks.test.js passed
 
 ### Phase B — Event stamping (agent paths only)
 
-- [ ] **B1. `stampPlanMeta(ev, meta)` + test via hooks file.** Sets `planMeta` on event object. Idempotent: second stamp ignored.
+- [x] **B1. `stampPlanMeta(ev, meta)` + test via hooks file.** Sets `planMeta` on event object. Idempotent: second stamp ignored.
 
-- [ ] **B2. Wire `scheduleTaskToSlot`.** After pushing `ev`, call `stampPlanMeta(ev, { surface:'agent_loop', sourceTaskId: ev.sourceTaskId })`. Extend `tests/agent-loop-schedule.test.js`: scheduled event has `planMeta.surface === 'agent_loop'`.
+- [x] **B2. Wire `scheduleTaskToSlot`.** After pushing `ev`, call `stampPlanMeta(ev, { surface:'agent_loop', sourceTaskId: ev.sourceTaskId })`. Extend `tests/agent-loop-schedule.test.js`: scheduled event has `planMeta.surface === 'agent_loop'`.
 
-- [ ] **B3. Wire `confirmDeskPlanWindow`.** After each created event, `stampPlanMeta(event, { surface:'desk_plan', sourceTaskId: event.sourceTaskId })`. Extend `tests/inbox-plan.test.js` similarly.
+- [x] **B3. Wire `confirmDeskPlanWindow`.** After each created event, `stampPlanMeta(event, { surface:'desk_plan', sourceTaskId: event.sourceTaskId })`. Extend `tests/inbox-plan.test.js` similarly.
 
-- [ ] **B4. Wire `moveEventToSlot`.** If `ev.planMeta` exists: set `wasRescheduled=true`, increment `rescheduleCount`, update `planMeta.finalDateISO/finalStart`. Do **not** reconcile yet unless event is also terminal.
+- [x] **B4. Wire `moveEventToSlot`.** If `ev.planMeta` exists: set `wasRescheduled=true`, increment `rescheduleCount`, update `planMeta.finalDateISO/finalStart`. Do **not** reconcile yet unless event is also terminal.
 
 ### Phase C — Reconciliation + append-once log
 

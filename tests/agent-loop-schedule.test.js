@@ -63,6 +63,10 @@ const ev = (app.eventsDB['2026-6'][7] || []).find(e => e.sourceTaskId === 'pendi
 assert(ev, 'agent-loop scheduled task should create a calendar event');
 assert.strictEqual(ev.type, 'social', 'agent-loop event should preserve social type');
 assert.strictEqual(ev.kind, 'social', 'agent-loop event should preserve kind');
+assert.ok(ev.planMeta, 'agent-loop scheduled event should carry planMeta');
+assert.strictEqual(ev.planMeta.surface, 'agent_loop');
+assert.strictEqual(ev.planMeta.plannedDateISO, '2026-06-07');
+assert.strictEqual(ev.planMeta.sourceTaskId, 'pendingTask:loop-social');
 
 const log = app.interactionLog.find(row =>
   row.action === 'accepted' &&

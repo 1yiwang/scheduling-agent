@@ -101,6 +101,8 @@ if (scheduledEvent) {
   assert.strictEqual(scheduledEvent.sourceTaskId, 'pendingTask:p4', 'desk-planned event keeps sourceTaskId');
   assert.strictEqual(scheduledEvent.kind, candidate.kind, 'desk-planned event keeps original kind');
   assert.strictEqual(scheduledEvent.type, 'deep', 'solo task is typed as deep for analytics');
+  assert.ok(scheduledEvent.planMeta, 'desk-planned event should carry planMeta');
+  assert.strictEqual(scheduledEvent.planMeta.surface, 'desk_plan');
 }
 
 app.pendingTasksDB.push({
@@ -126,5 +128,7 @@ assert(socialEvent, 'social desk-planned task should create a calendar event');
 assert.strictEqual(socialEvent.sourceTaskId, 'pendingTask:social-test', 'social event keeps sourceTaskId');
 assert.strictEqual(socialEvent.kind, 'social', 'social event keeps original kind');
 assert.strictEqual(socialEvent.type, 'social', 'social kind maps to social event type');
+assert.ok(socialEvent.planMeta, 'social desk-planned event should carry planMeta');
+assert.strictEqual(socialEvent.planMeta.surface, 'desk_plan');
 
 console.log('inbox-plan.test.js passed');
