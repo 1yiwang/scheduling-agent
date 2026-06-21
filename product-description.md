@@ -217,7 +217,7 @@
 | # | 任务 | 为什么 | 预估 | 施工计划 |
 |---|---|---|---|---|
 | **1** | ~~**Plan vs Actual 追踪**~~ | ✅ 已落地（2026-06-17） | — | [`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`](docs/superpowers/plans/2026-06-17-plan-vs-actual.md) |
-| **2** | **Beta 学习增强** | 提偏好权重 + 信号分层；消费 `planActualLog` | 2–4h | **← 当前起步** |
+| **2** | **Beta 学习增强** | 提偏好权重 + 信号分层；消费 `planActualLog` | 2–4h | [`docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md`](docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md) **← 当前起步** |
 | **3** | **离线回测脚手架** | 用 `interaction_log` / `planActualLog` 回放，度量规则 vs LLM vs 增强后 | 2–3h | 待写 |
 
 ### 🟡 P1 — 质变：从今天助手 → 周管家 / 真主动

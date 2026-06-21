@@ -65,7 +65,7 @@
 - ❌ Travel Optimize / Pre-mortem（等阶段 2 接真实日历才有数据支撑）
 
 ### 起步建议
-从轨道 A 的 **Beta 增强** 或 **回测脚手架** 起步（Plan vs Actual 已完成，见 `docs/superpowers/plans/2026-06-17-plan-vs-actual.md`）。
+从轨道 A 的 **Beta 增强** 起步（Plan vs Actual ✅：`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`；施工计划：`docs/superpowers/plans/2026-06-17-beta-learning-enhancement.md`）。回测脚手架在其后。
 
 ## 北极星（已确认）
 专用、嵌入、零描述、一键接受/拒绝的调度 agent —— **"日历界的 Cursor"**。
