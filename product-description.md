@@ -205,6 +205,56 @@
 
 ---
 
+## 优先级任务总览（2026-06-17 · 当前生效）
+
+> **Binding constraint**：不是「看得不够多」，而是「学得不够准、改完无法验证」。6 个 detector + LLM 策展已够；下一步先闭环学习飞轮。
+
+### 🔴 P0 — 护城河：学习飞轮闭环 + 可度量
+
+| # | 任务 | 为什么 | 预估 | 施工计划 |
+|---|---|---|---|---|
+| **1** | **Plan vs Actual 追踪** | 最高信息密度学习信号：agent 排了什么 vs 实际完成/改期/未完成 | 2–3h | [`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`](docs/superpowers/plans/2026-06-17-plan-vs-actual.md) ← **当前起步** |
+| **2** | **Beta 学习增强** | 提偏好权重 + 信号分层（无视≠拒绝）；现在硬规则淹没 Beta | 2–4h | 待写（依赖 #1 产出 gap 数据） |
+| **3** | **离线回测脚手架** | 用 `interaction_log` / `planActualLog` 回放，度量规则 vs LLM vs 增强后 | 2–3h | 待写 |
+
+### 🟡 P1 — 质变：从今天助手 → 周管家 / 真主动
+
+| # | 任务 | 为什么 | 预估 |
+|---|---|---|---|
+| **4** | **泛化 `getPlanWindows(date)`** | Time Planning Board 仍只看今天；Agent Loop 已能跨天 | 1–2h |
+| **5** | **阶段 2：真实日历只读** | mock → 真实生活；Travel/Pre-mortem 才有数据 | 数天 |
+| **6** | **自主触发** | webhook / 定时 / push；用户不在也在替你看 | 依赖 #5 |
+
+### 🟢 P2 — 体验增强（有价值，非当前最急）
+
+| # | 任务 | 说明 | 预估 |
+|---|---|---|---|
+| **7** | **语音输入** | Whisper STT → serverless 代理 → LLM 解析 → 可编辑草稿 → 确认入库。**deferred**，但符合「零描述」北极星 | 1–2 天 |
+| **8** | **用户偏好档案** | Settings → Preferences，解决冷启动 | 半天 |
+| **9** | **「Agent 眼中的你」面板** | 透明展示已学偏好 + 纠正入口 | 半天 |
+| **10** | **Tier 2 模式发现** | 自动发现「午饭时间总被拒」等模式 | 4–6h |
+
+### ⚪ P3 — 明确暂缓
+
+| 任务 | 状态 |
+|---|---|
+| 新 detector（Energy Guard / Context Switch 等） | ❌ 感知够了 |
+| Phase C 剩余表（events/tasks/profile） | ❌ 此刻无收益 |
+| ML 预测层 | ❌ 数据量不够 |
+| 单文件拆分（~8000 行） | 🟢 下次加 detector 时顺手做 |
+
+### 推荐执行顺序
+
+```
+P0: ① Plan vs Actual → ② Beta 增强 → ③ 离线回测
+P1: ④ 泛化 getPlanWindows → ⑤ 真实日历 → ⑥ 自主触发
+P2: ⑦ 语音输入（可自用插队）→ ⑧⑨ 偏好透明化 → ⑩ Tier 2
+```
+
+**语音输入排 P2 首位**：设计已定（Whisper + serverless + 草稿卡），但边际价值低于 Plan vs Actual——语音能加事件，却不能让 agent 排得更准。若自用减负可插队到 P0 与 P1 之间。
+
+---
+
 ## 简历 / 作品集摘抄参考
 
 > 下面可直接改写进英文 CV 或 [yiwang.dev/ai.html](https://www.yiwang.dev/ai.html)。注意：**proactive** 可用，避免写 “runs in the background”。
