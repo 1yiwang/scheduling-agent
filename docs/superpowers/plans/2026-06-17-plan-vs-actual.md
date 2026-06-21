@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implement task-by-task with TDD. Steps use checkbox (`- [ ]`) syntax for tracking. Tests are Node `vm`-based in `tests/*.test.js`. Run the full suite after each task.
 
-**Status:** 📋 Planned — not started.
+**Status:** 🚧 Phase A implemented + tested (`tests/plan-actual.test.js`). Phase B–D pending.
 
 **Goal:** Record the gap between what the agent **planned** (scheduled a block) and what **actually happened** (completed, rescheduled, skipped, ran long/short). This is the highest-information-density learning signal in the product — it upgrades learning from「用户点了什么」to「用户后来到底做没做」.
 
@@ -164,7 +164,7 @@ plan-actual-hooks.test.js passed
 
 ### Phase A — Pure classifier (no UI, no persistence)
 
-- [ ] **A1. Scaffold `tests/plan-actual.test.js` + expose helpers.** Load `index.html` via `vm` like `tests/learning-features.test.js`. Export via `globalThis.__app`:
+- [x] **A1. Scaffold `tests/plan-actual.test.js` + expose helpers.** Load `index.html` via `vm` like `tests/learning-features.test.js`. Export via `globalThis.__app`:
 
   ```javascript
   buildPlannedSnapshot,
@@ -174,9 +174,9 @@ plan-actual-hooks.test.js passed
   planActualLog,
   ```
 
-- [ ] **A2. `buildPlannedSnapshot(event, meta)` + test.** Given an event + `{ surface }`, return the `planned` sub-object. Test: preserves kind/type/title/minutes/date from event fields.
+- [x] **A2. `buildPlannedSnapshot(event, meta)` + test.** Given an event + `{ surface }`, return the `planned` sub-object. Test: preserves kind/type/title/minutes/date from event fields.
 
-- [ ] **A3. `classifyPlanActualGap(planned, actualState)` + test (write first, hard).** Cases to cover:
+- [x] **A3. `classifyPlanActualGap(planned, actualState)` + test (write first, hard).** Cases to cover:
 
   | Case | Input | Expected `gap.type` |
   |---|---|---|
@@ -188,14 +188,14 @@ plan-actual-hooks.test.js passed
 
   Use fixed `now` in tests (inject as parameter — do not call `Date.now()` inside classifier).
 
-- [ ] **A4. `deriveGapSeverity(gapType, event)` + test.** Rules v1:
+- [x] **A4. `deriveGapSeverity(gapType, event)` + test.** Rules v1:
   - `not_completed` + agent-scheduled deep work → `high`
   - `rescheduled` → `medium`
   - `completed_late` → `medium`
   - `completed_on_time` → `low`
   - `duration_drift` alone → `low`
 
-- [ ] **A5. `buildPlanActualFeatures(planned, actual, gap)` + test.** Emits stable numeric fields for analytics/backtest (`hourOfDay`, `dayOfWeek`, `plannedMinutes`, `actualMinutes`, `deltaMinutes`, `label`).
+- [x] **A5. `buildPlanActualFeatures(planned, actual, gap)` + test.** Emits stable numeric fields for analytics/backtest (`hourOfDay`, `dayOfWeek`, `plannedMinutes`, `actualMinutes`, `deltaMinutes`, `label`).
 
 ### Phase B — Event stamping (agent paths only)
 

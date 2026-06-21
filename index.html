@@ -5324,6 +5324,7 @@ let timePlanState = {};
 let dismissedPlanWindows = [];
 const LEARNING_STORAGE_KEY = 'schedulingAgentLearning.v1';
 let interactionLog = [];
+let planActualLog = []; // append-once rows: planned vs what actually happened (Track A #1)
 let prefStore = {};
 let durationStore = {}; // `${kind}::${person}` → {totalMin, count} · learned actual durations
 let learningBackfilledAt = ''; // set once the old blob learning state is pushed into Phase C tables
@@ -5918,6 +5919,125 @@ function predictDurationMinutes(candidate) {
  const d = durationStore[durationKey(candidate.kind, candidate.involves)];
  if (d && d.count > 0) return Math.round(d.totalMin / d.count);
  return fallback;
+}
+
+// ── Plan vs Actual · pure classifier (Track A #1 · Phase A) ──
+function plannedEndTimestamp(planned) {
+ if (!planned || !planned.dateISO) return 0;
+ const parts = planned.dateISO.split('-').map(Number);
+ if (planned.endTime) {
+  const em = timeToMinutes(planned.endTime);
+  return new Date(parts[0], parts[1] - 1, parts[2], Math.floor(em / 60), em % 60).getTime();
+ }
+ if (planned.startTime && planned.plannedMinutes) {
+  const sm = timeToMinutes(planned.startTime) + planned.plannedMinutes;
+  return new Date(parts[0], parts[1] - 1, parts[2], Math.floor(sm / 60), sm % 60).getTime();
+ }
+ return new Date(parts[0], parts[1] - 1, parts[2], 23, 59).getTime();
+}
+
+function buildPlannedSnapshot(event, meta) {
+ meta = meta || {};
+ const ev = event || {};
+ let dateISO = meta.dateISO || meta.plannedDateISO || null;
+ if (!dateISO && meta.year != null && meta.month != null && meta.day != null) {
+  dateISO = isoFromYMD(meta.year, meta.month, meta.day);
+ }
+ let plannedMinutes = meta.plannedMinutes;
+ if (plannedMinutes == null && ev.startTime && ev.endTime) plannedMinutes = windowMinutes(ev);
+ return {
+  dateISO: dateISO,
+  startTime: ev.startTime || null,
+  endTime: ev.endTime || null,
+  plannedMinutes: plannedMinutes,
+  kind: ev.kind || null,
+  type: ev.type || ev.t || null,
+  title: (ev.title || '').trim(),
+  surface: meta.surface || null,
+  sourceTaskId: meta.sourceTaskId || ev.sourceTaskId || null
+ };
+}
+
+function classifyPlanActualGap(planned, actualState) {
+ planned = planned || {};
+ actualState = actualState || {};
+ const plannedDate = planned.dateISO;
+ const plannedMins = planned.plannedMinutes || 0;
+ const actualMins = actualState.actualMinutes;
+ const completed = actualState.completed;
+ const completedDate = actualState.completedDateISO;
+ const finalDate = actualState.finalDateISO || plannedDate;
+ const wasRescheduled = !!actualState.wasRescheduled;
+ const nowMs = actualState.nowISO ? new Date(actualState.nowISO).getTime() : Date.now();
+
+ if (wasRescheduled && finalDate && plannedDate && finalDate !== plannedDate) {
+  return { type: 'rescheduled', terminal: true };
+ }
+
+ if (completed === true) {
+  if (completedDate && plannedDate && completedDate > plannedDate) {
+   return { type: 'completed_late', terminal: true };
+  }
+  if (actualMins != null && plannedMins > 0) {
+   const tolerance = Math.max(15, plannedMins * 0.25);
+   if (Math.abs(actualMins - plannedMins) > tolerance) {
+    return { type: 'duration_drift', terminal: true };
+   }
+  }
+  return { type: 'completed_on_time', terminal: true };
+ }
+
+ if (completed === false) {
+  return { type: 'not_completed', terminal: true };
+ }
+
+ if (nowMs > plannedEndTimestamp(planned)) {
+  return { type: 'not_completed', terminal: true };
+ }
+
+ return { type: null, terminal: false };
+}
+
+function deriveGapSeverity(gapType, event) {
+ const ev = event || {};
+ const blockType = ev.type || ev.t || '';
+ const isDeep = blockType === 'deep' || ev.kind === 'solo';
+ switch (gapType) {
+  case 'not_completed': return isDeep ? 'high' : 'medium';
+  case 'rescheduled':
+  case 'completed_late': return 'medium';
+  case 'duration_drift':
+  case 'completed_on_time': return 'low';
+  default: return 'low';
+ }
+}
+
+function buildPlanActualFeatures(planned, actual, gap) {
+ planned = planned || {};
+ actual = actual || {};
+ gap = gap || {};
+ let dayOfWeek = null;
+ let hourOfDay = null;
+ if (planned.dateISO) {
+  const parts = planned.dateISO.split('-').map(Number);
+  dayOfWeek = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+ }
+ if (planned.startTime) hourOfDay = parseInt(planned.startTime.split(':')[0], 10);
+ const plannedMinutes = planned.plannedMinutes || 0;
+ const actualMinutes = actual.actualMinutes != null ? actual.actualMinutes : null;
+ const deltaMinutes = (actualMinutes != null && plannedMinutes) ? actualMinutes - plannedMinutes : null;
+ return {
+  hourOfDay: hourOfDay,
+  dayOfWeek: dayOfWeek,
+  kind: planned.kind,
+  type: planned.type,
+  importance: null,
+  plannedMinutes: plannedMinutes,
+  actualMinutes: actualMinutes,
+  deltaMinutes: deltaMinutes,
+  gapType: gap.type,
+  label: gap.type === 'completed_on_time' ? 1 : 0
+ };
 }
 
 // ── Stage A · training-data capture ──
