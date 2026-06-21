@@ -2061,13 +2061,15 @@
  <!-- Step 0: Listening -->
  <div id="captureStep0">
  <div id="voiceContext" style="display:none;text-align:center;font-size:13px;color:var(--ej-info);font-weight:500;margin-bottom:10px;"></div>
+ <div id="voiceDevBanner" style="display:none;margin-bottom:12px;padding:12px;border-radius:10px;background:var(--ej-warn-bg, rgba(255,193,7,0.12));font-size:13px;line-height:1.5;color:var(--ej-text);text-align:left;"></div>
  <div class="voice-ui">
  <div class="voice-ring listening">&#9679;</div>
- <div class="voice-hint">Listening... release to finish</div>
+ <div class="voice-hint" id="voiceHint">Speak, then tap Stop recording</div>
  </div>
- <button class="ios-btn primary" style="margin-top:12px;" onclick="simulateCapture()">
- Done Recording (Mock)
+ <button class="ios-btn primary" style="margin-top:12px;" id="voiceStopBtn" onclick="stopVoiceCaptureUI()">
+ Stop recording
  </button>
+ <button class="ios-btn ghost" style="margin-top:6px;height:40px;font-size:14px;" id="voiceMockBtn" onclick="simulateCapture()">Demo parse (mock)</button>
  <button class="ios-btn ghost" style="margin-top:6px;height:40px;font-size:14px;" onclick="closeCapture()">Cancel</button>
  </div>
 
@@ -2190,6 +2192,10 @@
    <input id="llmModel" type="text" placeholder="deepseek-chat" onchange="updateLLMConfig({model:this.value})" style="width:100%;margin-top:4px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
    <div class="settings-label" style="margin-top:14px;">API key</div>
    <input id="llmApiKey" type="password" autocomplete="off" placeholder="sk-..." onchange="updateLLMConfig({apiKey:this.value})" style="width:100%;margin-top:4px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
+   <div class="settings-label" style="margin-top:14px;">Voice transcription (Whisper)</div>
+   <div class="settings-hint" style="margin-top:0;margin-bottom:6px;">OpenAI-compatible STT endpoint. Uses chat key if STT key is blank.</div>
+   <input id="sttBaseUrl" type="text" placeholder="https://api.openai.com/v1" onchange="updateLLMConfig({sttBaseUrl:this.value})" style="width:100%;margin-top:4px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
+   <input id="sttApiKey" type="password" autocomplete="off" placeholder="OpenAI key for Whisper (optional)" onchange="updateLLMConfig({sttApiKey:this.value})" style="width:100%;margin-top:8px;padding:11px 12px;border:1px solid var(--ej-line);border-radius:10px;background:var(--ej-bg);color:var(--ej-text);font-size:14px;">
    <button class="settings-seg-btn" onclick="testLLMConnection()" style="background:var(--ej-bg);margin-top:12px;">Test connection</button>
    <div class="settings-hint" id="llmStatus" style="margin-top:8px;"></div>
   </div>
@@ -2267,9 +2273,307 @@ function toggleTodayEventExpand(eventId) {
  if (typeof syncAllViews === 'function') syncAllViews();
 }
 
+// ====== VOICE INPUT · STT + LLM parse (pure helpers testable in vm) ======
+const VOICE_KIND_ALIASES = {
+ meeting: 'meeting', meet: 'meeting', coffee: 'social', social: 'social',
+ call: 'call', phone: 'call', zoom: 'online', online: 'online',
+ solo: 'solo', solo_work: 'solo', deep: 'deep', focus: 'deep'
+};
+const VOICE_KIND_LABELS = {
+ meeting: 'In-person meeting', social: 'Coffee meeting', call: 'Phone call',
+ online: 'Online meeting', solo: 'Solo block', deep: 'Deep work'
+};
+
+function extractJSONFromLLM(text) {
+ if (!text || typeof text !== 'string') return null;
+ const trimmed = text.trim();
+ try { return JSON.parse(trimmed); } catch (e) {}
+ const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+ if (fence) { try { return JSON.parse(fence[1].trim()); } catch (e2) {} }
+ const brace = trimmed.match(/\{[\s\S]*\}/);
+ if (brace) { try { return JSON.parse(brace[0]); } catch (e3) {} }
+ return null;
+}
+
+function normalizeVoiceTime(t) {
+ if (!t || typeof t !== 'string') return null;
+ const m = t.match(/^(\d{1,2}):(\d{2})$/);
+ if (!m) return null;
+ return String(parseInt(m[1], 10)).padStart(2, '0') + ':' + m[2];
+}
+
+function parseVoiceEventJSON(text) {
+ const raw = extractJSONFromLLM(text);
+ if (!raw || typeof raw !== 'object') return null;
+ const title = typeof raw.title === 'string' ? raw.title.trim() : '';
+ if (!title) return null;
+ const startTime = normalizeVoiceTime(raw.startTime);
+ if (!startTime) return null;
+ let endTime = normalizeVoiceTime(raw.endTime);
+ if (!endTime) {
+  const parts = startTime.split(':').map(Number);
+  const endMin = parts[0] * 60 + parts[1] + 30;
+  endTime = String(Math.floor(endMin / 60)).padStart(2, '0') + ':' + String(endMin % 60).padStart(2, '0');
+ }
+ let kind = String(raw.eventKind || raw.kind || 'meeting').toLowerCase().replace(/\s+/g, '_');
+ kind = VOICE_KIND_ALIASES[kind] || 'meeting';
+ const dateISO = (typeof raw.dateISO === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dateISO)) ? raw.dateISO : null;
+ return {
+  title: title,
+  dateISO: dateISO,
+  startTime: startTime,
+  endTime: endTime,
+  location: typeof raw.location === 'string' ? raw.location.trim() : '',
+  person: typeof raw.person === 'string' ? raw.person.trim() : '',
+  eventKind: kind,
+  confidence: typeof raw.confidence === 'number' ? raw.confidence : null
+ };
+}
+
+function resolveVoiceCaptureDate(parsed, ctx) {
+ ctx = ctx || {};
+ if (parsed && parsed.dateISO) return parsed.dateISO;
+ const sd = ctx.selectedDay;
+ if (sd && sd.year && sd.month && sd.day) {
+  return sd.year + '-' + String(sd.month).padStart(2, '0') + '-' + String(sd.day).padStart(2, '0');
+ }
+ const now = ctx.now || (typeof appNow === 'function' ? appNow() : new Date());
+ return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+}
+
+function formatCaptureDateLabel(dateISO) {
+ const p = dateISO.split('-').map(Number);
+ const d = new Date(p[0], p[1] - 1, p[2]);
+ return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function formatVoiceTimeLabel(startTime, endTime) {
+ function fmt(t) {
+  const p = t.split(':').map(Number);
+  const h12 = p[0] % 12 || 12;
+  const ampm = p[0] >= 12 ? 'PM' : 'AM';
+  return h12 + ':' + String(p[1]).padStart(2, '0') + ' ' + ampm;
+ }
+ return fmt(startTime) + ' – ' + fmt(endTime);
+}
+
+function buildParseFieldsHTML(f) {
+ const typeLabel = VOICE_KIND_LABELS[f.eventKind] || f.eventKind || 'Meeting';
+ const loc = f.location || '—';
+ const person = f.person || '—';
+ return '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-date"/></svg><span class="pf-val">' + f.dateLabel + '</span></div>' +
+  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-time"/></svg><span class="pf-val">' + f.timeLabel + '</span></div>' +
+  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-location"/></svg><span class="pf-val">' + loc + '</span></div>' +
+  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-person"/></svg><span class="pf-val">' + person + '</span></div>' +
+  '<div class="parsed-field"><svg class="pf-icon" width="18" height="18"><use href="#icon-field-type"/></svg><span class="pf-val">' + typeLabel + '</span></div>';
+}
+
+function buildVoiceParsePrompt(transcript, ctx) {
+ ctx = ctx || {};
+ const today = (ctx.nowISO || new Date().toISOString()).slice(0, 10);
+ const tz = ctx.timezone || 'local';
+ return [
+  { role: 'system', content: 'You parse voice transcripts into calendar events. Today is ' + today + ' (' + tz + '). Resolve relative dates (tomorrow, next Monday) against today. Respond with JSON only, no markdown: {"title","dateISO":"YYYY-MM-DD or null","startTime":"HH:MM","endTime":"HH:MM","location","person","eventKind":"meeting|social|call|online|solo|deep","confidence":0-1}' },
+  { role: 'user', content: transcript }
+ ];
+}
+
+function voiceSTTConfigured(cfg) {
+ cfg = cfg || (typeof getLLMConfig === 'function' ? getLLMConfig() : {});
+ if (!cfg.enabled) return false;
+ const baseUrl = (cfg.sttBaseUrl || 'https://api.openai.com/v1').trim();
+ const apiKey = (cfg.sttApiKey || cfg.apiKey || '').trim();
+ return !!(baseUrl && apiKey);
+}
+
+function voicePipelineConfigured() {
+ return voiceSTTConfigured() && (typeof llmConfigured === 'function' ? llmConfigured() : false);
+}
+
+function captureYearMonthDay() {
+ if (capState.dateISO) {
+  const p = capState.dateISO.split('-').map(Number);
+  return { year: p[0], month: p[1], day: p[2] };
+ }
+ const dateInfo = parseDateStr(capState.date);
+ const year = capState.year || (typeof appNow === 'function' ? appNow().getFullYear() : new Date().getFullYear());
+ if (dateInfo) return { year: year, month: dateInfo.month, day: dateInfo.day };
+ const now = typeof appNow === 'function' ? appNow() : new Date();
+ return { year: year, month: now.getMonth() + 1, day: now.getDate() };
+}
+
+let voiceRecorder = null;
+let voiceStream = null;
+let voiceChunks = [];
+let voiceRecording = false;
+
+function voiceCaptureSupported() {
+ return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+}
+
+function startVoiceRecording() {
+ if (!voiceCaptureSupported()) return Promise.reject(new Error('Microphone not supported'));
+ return navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+  voiceStream = stream;
+  voiceChunks = [];
+  const mime = (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm')) ? 'audio/webm' : 'audio/mp4';
+  voiceRecorder = new MediaRecorder(stream, { mimeType: mime });
+  voiceRecorder.ondataavailable = e => { if (e.data && e.data.size) voiceChunks.push(e.data); };
+  voiceRecorder.start();
+  voiceRecording = true;
+ });
+}
+
+function stopVoiceRecording() {
+ if (!voiceRecorder || voiceRecorder.state === 'inactive') return Promise.resolve(null);
+ return new Promise(resolve => {
+  voiceRecorder.onstop = () => {
+   voiceRecording = false;
+   if (voiceStream) voiceStream.getTracks().forEach(t => t.stop());
+   voiceStream = null;
+   const mime = (voiceRecorder && voiceRecorder.mimeType) || 'audio/webm';
+   resolve(new Blob(voiceChunks, { type: mime }));
+  };
+  voiceRecorder.stop();
+ });
+}
+
+function blobToBase64(blob) {
+ return new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+  reader.onerror = reject;
+  reader.readAsDataURL(blob);
+ });
+}
+
+function transcribeAudio(blob) {
+ const cfg = getLLMConfig();
+ return blobToBase64(blob).then(b64 => fetch('/api/transcribe', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+   baseUrl: cfg.sttBaseUrl || 'https://api.openai.com/v1',
+   apiKey: cfg.sttApiKey || cfg.apiKey,
+   model: cfg.sttModel || 'whisper-1',
+   audioBase64: b64,
+   mimeType: blob.type || 'audio/webm'
+  })
+ }).then(res => res.json()).then(data => {
+  if (data && data.error) throw new Error(data.error);
+  return data.text || '';
+ }));
+}
+
+function parseVoiceTranscript(transcript, transport) {
+ const send = transport || llmChat;
+ const ctx = { nowISO: appNow().toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+ return Promise.resolve().then(() => send(buildVoiceParsePrompt(transcript, ctx))).then(text => {
+  const parsed = parseVoiceEventJSON(text);
+  if (!parsed) throw new Error('Could not parse event from transcript');
+  parsed.transcript = transcript;
+  return parsed;
+ });
+}
+
+function applyVoiceParseToUI(parsed) {
+ const dateISO = resolveVoiceCaptureDate(parsed, { selectedDay: selectedDay, now: appNow() });
+ const dateLabel = formatCaptureDateLabel(dateISO);
+ const timeLabel = formatVoiceTimeLabel(parsed.startTime, parsed.endTime);
+ capState.date = dateLabel;
+ capState.dateISO = dateISO;
+ capState.year = parseInt(dateISO.slice(0, 4), 10);
+ capState.captureMode = 'voice';
+ capState.voiceParsed = parsed;
+ if (parsed.eventKind === 'online' || parsed.eventKind === 'call') {
+  capState.origin = 'Home';
+  capState.transit = 'Walk';
+ } else if (!parsed.location) {
+  capState.origin = 'Home';
+  capState.transit = 'Walk';
+ } else {
+  capState.origin = null;
+  capState.transit = null;
+ }
+
+ const raw = document.getElementById('parseRawText');
+ if (raw) raw.textContent = '"' + (parsed.transcript || '') + '"';
+ const fields = document.getElementById('parseFields');
+ if (fields) fields.innerHTML = buildParseFieldsHTML({ dateLabel: dateLabel, timeLabel: timeLabel, location: parsed.location, person: parsed.person, eventKind: parsed.eventKind });
+
+ document.getElementById('captureStep0').style.display = 'none';
+ document.getElementById('captureStep1').style.display = 'block';
+ updateParseState();
+}
+
+function setVoiceProcessing(active, message) {
+ const hint = document.querySelector('#captureStep0 .voice-hint');
+ if (hint) hint.textContent = message || (active ? 'Processing…' : 'Listening… tap Stop when done');
+}
+
+function stopVoiceCaptureUI() {
+ processVoiceRecording();
+}
+
+function processVoiceRecording() {
+ setVoiceProcessing(true, 'Transcribing…');
+ return stopVoiceRecording().then(blob => {
+  if (!blob || !blob.size) throw new Error('No audio recorded');
+  if (!voicePipelineConfigured()) {
+   simulateCapture();
+   showToast('Demo mode — enable AI + OpenAI STT key in Settings for real voice');
+   return;
+  }
+  return transcribeAudio(blob).then(transcript => {
+   if (!transcript || !transcript.trim()) throw new Error('Empty transcript');
+   setVoiceProcessing(true, 'Understanding…');
+   return parseVoiceTranscript(transcript).then(parsed => applyVoiceParseToUI(parsed));
+  });
+ }).catch(e => {
+  setVoiceProcessing(false, 'Speak, then tap Stop recording');
+  let msg = e.message || 'unknown error';
+  if (isFileProtocol()) msg = '请用 npm run dev 启动本地服务器';
+  else if (msg.indexOf('Failed to fetch') >= 0 || msg.indexOf('fetch') >= 0) msg = 'API 不可用 — 请用 npm run dev 启动本地服务器';
+  showToast('Voice failed: ' + msg);
+  console.error(e);
+ }).finally(() => {
+  const btn = document.getElementById('recordBtn');
+  if (btn) {
+   btn.classList.remove('recording');
+   btn.innerHTML = '<svg width="18" height="18" style="flex-shrink:0;"><use href="#icon-mic"/></svg> Voice';
+  }
+ });
+}
+
 // ====== CAPTURE FLOW ======
 let capState = {};
 let selectedDay = null; // calendar day context for contextual capture
+
+function isLocalDevHost() {
+ try {
+  const h = location.hostname || '';
+  return h === 'localhost' || h === '127.0.0.1';
+ } catch (e) { return false; }
+}
+function isFileProtocol() {
+ try { return location.protocol === 'file:'; } catch (e) { return false; }
+}
+
+function updateVoiceDevBanner() {
+ const el = document.getElementById('voiceDevBanner');
+ if (!el) return;
+ if (isFileProtocol()) {
+  el.style.display = 'block';
+  el.innerHTML = '<b>不能直接双击打开 index.html</b><br>浏览器在 file:// 下不允许麦克风，也无法调用 /api/transcribe。<br><br>请在项目目录运行：<br><code style="font-size:12px;">npm run dev</code><br>然后打开 <a href="http://localhost:3000/?mode=live" style="color:var(--ej-info);">http://localhost:3000/?mode=live</a>';
+  return;
+ }
+ if (isLocalDevHost() && !voicePipelineConfigured()) {
+  el.style.display = 'block';
+  el.innerHTML = '<b>本地语音测试</b><br>打开 Settings（右上角）→ 勾选 Smart ranking → 填入 OpenAI key（Whisper 转写）和 LLM key（解析）。<br>Whisper 与 DeepSeek 可各用各的 key。';
+  return;
+ }
+ el.style.display = 'none';
+}
 
 function startCapture() {
  // Context-aware: if an event card is expanded, voice-edit it instead of creating new
@@ -2294,6 +2598,10 @@ function startCapture() {
  document.getElementById('captureStep2').style.display = 'none';
  document.getElementById('captureStepConflict').style.display = 'none';
  capState = { captureMode: 'voice' };
+ updateVoiceDevBanner();
+
+ const stopBtn = document.getElementById('voiceStopBtn');
+ if (stopBtn) stopBtn.disabled = isFileProtocol();
 
  // If user was viewing a specific calendar day, show context
  if (selectedDay) {
@@ -2308,7 +2616,19 @@ function startCapture() {
  if (ctxEl) ctxEl.style.display = 'none';
  }
 
- setTimeout(() => { btn.classList.remove('recording'); btn.innerHTML = 'Voice'; }, 1800);
+ setTimeout(() => { btn.classList.remove('recording'); btn.innerHTML = '<svg width="18" height="18" style="flex-shrink:0;"><use href="#icon-mic"/></svg> Voice'; }, 1800);
+
+ if (isFileProtocol()) return;
+
+ if (voiceCaptureSupported()) {
+  startVoiceRecording().catch(() => {
+   showToast('Microphone access denied');
+   closeCapture();
+  });
+ } else {
+  const mockBtn = document.getElementById('voiceMockBtn');
+  if (mockBtn) mockBtn.textContent = 'Demo parse (no mic)';
+ }
 }
 
 function simulateCapture() {
@@ -2343,6 +2663,14 @@ function simulateCapture() {
 }
 
 function closeCapture() {
+ if (voiceRecording && voiceRecorder && voiceRecorder.state !== 'inactive') {
+  voiceRecorder.onstop = () => {
+   voiceRecording = false;
+   if (voiceStream) voiceStream.getTracks().forEach(t => t.stop());
+   voiceStream = null;
+  };
+  voiceRecorder.stop();
+ }
  document.getElementById('captureOverlay').classList.remove('show');
  document.getElementById('recordBtn').classList.remove('recording');
  document.getElementById('recordBtn').innerHTML = 'Voice';
@@ -2577,7 +2905,7 @@ function buildEventFromCapState() {
  const locStr = locStrEl ? locStrEl.textContent : '';
  const person = personEl ? personEl.textContent : '';
  const typeStr = typeEl ? typeEl.textContent : 'Meeting';
- const title = person ? 'Meet ' + person : (typeStr || 'New Event');
+ const title = (capState.voiceParsed && capState.voiceParsed.title) ? capState.voiceParsed.title : (person && person !== '—' ? 'Meet ' + person : (typeStr || 'New Event'));
 
  const parsed = parseTimeStr(timeStr);
  const startTime = parsed ? parsed.startTime : '12:00';
@@ -2729,14 +3057,13 @@ function showConflictStep(event, conflicts) {
  '</div>';
 
  // Parse date for finding alternatives
- const dateInfo = parseDateStr(capState.date);
- if (!dateInfo) return;
- const monthKey = '2026-'+dateInfo.month;
- const allEvents = (eventsDB[monthKey]||{})[dateInfo.day]||[];
+ const ymd = captureYearMonthDay();
+ const monthKey = ymd.year + '-' + String(ymd.month).padStart(2, '0');
+ const allEvents = (eventsDB[monthKey]||{})[ymd.day]||[];
  const durMin = parseInt(event.endTime.split(':')[0])*60 + parseInt(event.endTime.split(':')[1]) -
   parseInt(event.startTime.split(':')[0])*60 - parseInt(event.startTime.split(':')[1]);
 
- const alternatives = findConflictAlternatives(c, allEvents, durMin, monthKey, dateInfo.day);
+ const alternatives = findConflictAlternatives(c, allEvents, durMin, monthKey, ymd.day);
  pendingConflictResolutions = alternatives;
 
  // Solution cards
@@ -2814,12 +3141,9 @@ function skipConflict() {
 
 function finalizeEvent(event) {
  // Determine target date
- const dateInfo = parseDateStr(capState.date);
- let monthKey = todayMonthKey(), dayNum = getTodayDate();
- if (dateInfo) {
-  monthKey = '2026-'+dateInfo.month;
-  dayNum = dateInfo.day;
- }
+ const ymd = captureYearMonthDay();
+ const monthKey = ymd.year + '-' + String(ymd.month).padStart(2, '0');
+ const dayNum = ymd.day;
 
  // Ensure eventsDB key exists
  if (!eventsDB[monthKey]) eventsDB[monthKey] = {};
@@ -2834,7 +3158,7 @@ function finalizeEvent(event) {
  // Update step2 with actual event info
  const step2Date = document.querySelector('#captureStep2 .voice-ui div:last-child');
  if (step2Date) {
-  const d = new Date(2026, dateInfo?dateInfo.month-1:5, dayNum);
+  const d = new Date(ymd.year, ymd.month - 1, dayNum);
   step2Date.textContent = d.toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'});
  }
  const step2Details = document.querySelector('#captureStep2 .parsed-block');
@@ -2853,6 +3177,16 @@ function finalizeEvent(event) {
  }
 
  showToast('Event added · '+event.title);
+
+ if (capState.captureMode === 'voice') {
+  recordInteraction({
+   action: 'voice_capture',
+   candidate: { id: event.id, kind: 'event', source: 'voice' },
+   context: { transcript: capState.voiceParsed && capState.voiceParsed.transcript, dateISO: capState.dateISO },
+   draftGenerated: true,
+   draftSent: true
+  });
+ }
 }
 
 function confirmParse() {
@@ -2860,14 +3194,12 @@ function confirmParse() {
  const event = buildEventFromCapState();
 
  // Detect conflicts
- const dateInfo = parseDateStr(capState.date);
- if (dateInfo) {
-  const monthKey = '2026-'+dateInfo.month;
-  const conflicts = detectConflicts(monthKey, dateInfo.day, event.startTime, event.endTime);
-  if (conflicts.length > 0) {
-   showConflictStep(event, conflicts);
-   return;
-  }
+ const ymd = captureYearMonthDay();
+ const monthKey = ymd.year + '-' + String(ymd.month).padStart(2, '0');
+ const conflicts = detectConflicts(monthKey, ymd.day, event.startTime, event.endTime);
+ if (conflicts.length > 0) {
+  showConflictStep(event, conflicts);
+  return;
  }
  // No conflicts — add directly
  finalizeEvent(event);
@@ -5377,7 +5709,7 @@ loadLearningState();
 // their own machine. It is never synced into the Supabase blob. DeepSeek is the
 // preset (OpenAI-compatible: POST {baseUrl}/chat/completions).
 const LLM_STORAGE_KEY = 'schedulingAgentLLM.v1';
-const LLM_DEFAULTS = { enabled: false, provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', apiKey: '' };
+const LLM_DEFAULTS = { enabled: false, provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', apiKey: '', sttBaseUrl: 'https://api.openai.com/v1', sttModel: 'whisper-1', sttApiKey: '' };
 let llmConfig = Object.assign({}, LLM_DEFAULTS);
 
 function normalizeLLMConfig(raw) {
@@ -5387,7 +5719,10 @@ function normalizeLLMConfig(raw) {
   provider: typeof r.provider === 'string' && r.provider ? r.provider : LLM_DEFAULTS.provider,
   baseUrl: typeof r.baseUrl === 'string' && r.baseUrl.trim() ? r.baseUrl.trim().replace(/\/+$/, '') : LLM_DEFAULTS.baseUrl,
   model: typeof r.model === 'string' && r.model.trim() ? r.model.trim() : LLM_DEFAULTS.model,
-  apiKey: typeof r.apiKey === 'string' ? r.apiKey.trim() : ''
+  apiKey: typeof r.apiKey === 'string' ? r.apiKey.trim() : '',
+  sttBaseUrl: typeof r.sttBaseUrl === 'string' && r.sttBaseUrl.trim() ? r.sttBaseUrl.trim().replace(/\/+$/, '') : LLM_DEFAULTS.sttBaseUrl,
+  sttModel: typeof r.sttModel === 'string' && r.sttModel.trim() ? r.sttModel.trim() : LLM_DEFAULTS.sttModel,
+  sttApiKey: typeof r.sttApiKey === 'string' ? r.sttApiKey.trim() : ''
  };
 }
 function getLLMConfig() { return llmConfig; }
@@ -5834,7 +6169,9 @@ function renderSettings() {
 function renderLLMSettings() {
  const group = document.getElementById('aiGroup');
  if (!group) return;
- const show = appMode === 'live' && cloudConfigured() && !!sbUser;
+ // BYO keys live in localStorage. Personal mode requires sign-in; demo + localhost
+ // also expose settings so voice can be tested on calendar-demo with your own keys.
+ const show = (appMode === 'live' && cloudConfigured() && !!sbUser) || isLocalDevHost() || appMode === 'demo';
  group.style.display = show ? 'block' : 'none';
  if (!show) return;
  const cfg = getLLMConfig();
@@ -5846,6 +6183,8 @@ function renderLLMSettings() {
  set('llmBaseUrl', 'value', cfg.baseUrl);
  set('llmModel', 'value', cfg.model);
  set('llmApiKey', 'value', cfg.apiKey);
+ set('sttBaseUrl', 'value', cfg.sttBaseUrl);
+ set('sttApiKey', 'value', cfg.sttApiKey);
 }
 
 function updateLLMConfig(patch) {

@@ -234,7 +234,7 @@
 
 | # | 任务 | 说明 | 预估 |
 |---|---|---|---|
-| **7** | **语音输入** | Whisper STT → serverless 代理 → LLM 解析 → 可编辑草稿 → 确认入库。**deferred**，但符合「零描述」北极星 | 1–2 天 |
+| **7** | **语音输入** | Whisper STT → `api/transcribe` → LLM 解析 → 可编辑草稿 → 确认入库。**✅ MVP 已接**（Demo 仍可用 mock） | 1–2 天 |
 | **8** | **用户偏好档案** | Settings → Preferences，解决冷启动 | 半天 |
 | **9** | **「Agent 眼中的你」面板** | 透明展示已学偏好 + 纠正入口 | 半天 |
 | **10** | **Tier 2 模式发现** | 自动发现「午饭时间总被拒」等模式 | 4–6h |
@@ -252,8 +252,8 @@
 
 ```
 P0: ① Plan vs Actual ✅ → ② Beta 增强 ✅ → ③ 离线回测 ✅
-P1: ④ 泛化 getPlanWindows ✅ → ⑤ 真实日历 → ⑥ 自主触发
-P2: ⑦ 语音输入（可自用插队）→ ⑧⑨ 偏好透明化 → ⑩ Tier 2
+P1: ④ 泛化 getPlanWindows ✅ → ⑤ 真实日历（Google）→ ⑥ 自主触发
+P2: ⑦ 语音输入 ✅ MVP → ⑧⑨ 偏好透明化 → ⑩ Tier 2
 ```
 
 **语音输入排 P2 首位**：设计已定（Whisper + serverless + 草稿卡），但边际价值低于 Plan vs Actual——语音能加事件，却不能让 agent 排得更准。若自用减负可插队到 P0 与 P1 之间。
