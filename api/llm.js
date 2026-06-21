@@ -15,6 +15,14 @@ function hostOf(value) {
   try { return new URL(value).host.split(':')[0]; } catch (e) { return String(value).split(':')[0]; }
 }
 
+function apiErrorMessage(json) {
+  if (!json) return 'upstream error';
+  if (typeof json.error === 'string') return json.error;
+  if (json.error && typeof json.error.message === 'string') return json.error.message;
+  if (typeof json.message === 'string') return json.message;
+  return 'upstream error';
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method not allowed' });
@@ -59,6 +67,10 @@ module.exports = async (req, res) => {
     const text = await upstream.text();
     let json;
     try { json = JSON.parse(text); } catch (e) { json = { error: 'upstream returned non-JSON', raw: text.slice(0, 500) }; }
+    if (!upstream.ok) {
+      res.status(upstream.status).json({ error: apiErrorMessage(json) });
+      return;
+    }
     res.status(upstream.status).json(json);
   } catch (e) {
     const aborted = e && e.name === 'AbortError';

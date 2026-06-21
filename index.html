@@ -2447,6 +2447,17 @@ function blobToBase64(blob) {
  });
 }
 
+function formatApiError(err) {
+ if (!err) return 'unknown error';
+ if (typeof err === 'string') return err;
+ if (typeof err === 'object') {
+  if (typeof err.message === 'string' && err.message) return err.message;
+  if (err.error) return formatApiError(err.error);
+  try { return JSON.stringify(err); } catch (e) { return 'unknown error'; }
+ }
+ return String(err);
+}
+
 function transcribeAudio(blob) {
  const cfg = getLLMConfig();
  return blobToBase64(blob).then(b64 => fetch('/api/transcribe', {
@@ -2459,9 +2470,9 @@ function transcribeAudio(blob) {
    audioBase64: b64,
    mimeType: blob.type || 'audio/webm'
   })
- }).then(res => res.json()).then(data => {
-  if (data && data.error) throw new Error(data.error);
-  return data.text || '';
+ }).then(res => res.json().then(data => ({ ok: res.ok, data: data }))).then(({ ok, data }) => {
+  if (!ok || (data && data.error)) throw new Error(formatApiError(data && data.error));
+  return (data && data.text) || '';
  }));
 }
 
@@ -2531,11 +2542,11 @@ function processVoiceRecording() {
   });
  }).catch(e => {
   setVoiceProcessing(false, 'Speak, then tap Stop recording');
-  let msg = e.message || 'unknown error';
+  let msg = formatApiError(e && e.message ? e.message : e);
   if (isFileProtocol()) msg = '请用 npm run dev 启动本地服务器';
-  else if (msg.indexOf('Failed to fetch') >= 0 || msg.indexOf('fetch') >= 0) msg = 'API 不可用 — 请用 npm run dev 启动本地服务器';
+  else if (msg.indexOf('Failed to fetch') >= 0) msg = 'API 不可用 — 请检查网络或稍后重试';
   showToast('Voice failed: ' + msg);
-  console.error(e);
+  console.error('voice capture error', e);
  }).finally(() => {
   const btn = document.getElementById('recordBtn');
   if (btn) {
@@ -5331,8 +5342,8 @@ function llmChat(messages) {
    baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, model: cfg.model,
    messages: messages, temperature: 0
   })
- }).then(res => res.json()).then(data => {
-  if (data && data.error) throw new Error(data.error);
+ }).then(res => res.json().then(data => ({ ok: res.ok, data: data }))).then(({ ok, data }) => {
+  if (!ok || (data && data.error)) throw new Error(formatApiError(data && data.error));
   const txt = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   if (!txt) throw new Error('empty response');
   return txt;
