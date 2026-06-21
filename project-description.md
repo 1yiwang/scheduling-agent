@@ -186,7 +186,8 @@ friends(id pk, user_id, name, note, share_scope, ...)
 
 | 函数 | 职责 |
 |---|---|
-| `getFreeWindowsForDate(y,m,d,minMin)` | **任意一天**的空档 = 工作日(08:00–20:00) − 当天事件；今天还会跳过已过去时段。`getPlanWindows()`（仅今天）的泛化版 |
+| `getFreeWindowsForDate(y,m,d,minMin)` | **任意一天**的空档 = 工作日(08:00–20:00) − 当天事件；今天还会跳过已过去时段 |
+| `getPlanWindowsForDate(y,m,d)` / `getPlanWindowsInHorizon(days)` | Time Planning Board 空闲窗；默认 7 天 horizon |
 | `proposeSlotsForTask(it, maxN)` | 今天→截止日（无截止则→horizon）逐天取一个最佳空档，最早优先，返回 `{year,month,day,startMin,mins,label,dayLabel}[]` |
 | `taskEstMinutes(it)` | 任务所需分钟（解析 `~2h` 等，下限 15）|
 | `scheduleTaskToSlot(source,id,y,m,d,startMin,mins)` | **底层写入器**：把 backlog 任务变成日历事件，写 `sourceTaskId`，从 backlog 移除，写 normalized `interactionLog` + `recordSignal` 学习，`syncAllViews` |
@@ -331,6 +332,28 @@ agent 排期 (scheduleTaskToSlot / confirmDeskPlanWindow)
 
 > 施工计划：`docs/superpowers/plans/2026-06-17-offline-backtest.md`
 
+### 7.8 泛化 getPlanWindows（Track B #4 · 2026-06-17 已实现）
+
+> Time Planning Board 从「只看今天」扩展到 **7 天 horizon**。
+
+**API**
+- `getPlanWindowsForDate(year, month, day)` — 单日 desk + commute 空闲窗
+- `getPlanWindowsInHorizon(days)` — 默认 `PLAN_BOARD_HORIZON_DAYS=7`
+- `getPlanWindows()` — 无参 = 今天（向后兼容）
+
+**行为**
+- 今天：仍用 `todayFreeSlots` + 事件切碎逻辑
+- 未来日：复用 `getFreeWindowsForDate`（与 Agent Loop 同源）
+- `confirmDeskPlanWindow` 按 window 的 `year/month/day` 创建事件
+
+**UI**
+- Plan today 标签：展示 7 天 board，非今日窗口带 day header
+- Coming up 标签：额外展示未来空闲窗
+
+**测试**：`tests/plan-windows-date.test.js` · `tests/inbox-plan.test.js`
+
+> 施工计划：`docs/superpowers/plans/2026-06-17-plan-windows-date.md`
+
 > 三层自进化方法论（Tier-1 参数自调 / Tier-2 模式发现 / Tier-3 结构学习）详见 `learning agent.md`。
 
 ---
@@ -357,11 +380,12 @@ agent 排期 (scheduleTaskToSlot / confirmDeskPlanWindow)
 - ✅ **Plan vs Actual 追踪（Track A #1）**：agent 排期打 `planMeta` → 完成/改期/过期扫描 reconcile → `planActualLog` + `interaction_log(plan_actual)` 双写。见 §7.5 · plan `2026-06-17-plan-vs-actual.md`。
 - ✅ **Beta 学习增强（Track A #2）**：信号分层 + 偏好权重提升 + plan_actual 延迟奖励 → `prefStore`（含 `schedule_hour`/`schedule_dow`）。见 §7.6 · plan `2026-06-17-beta-learning-enhancement.md`。
 - ✅ **离线回测脚手架（Track A #3）**：`runOfflineBacktest` 回放 interaction 行，对比 baseline vs enhanced ranking lift。见 §7.7 · plan `2026-06-17-offline-backtest.md` · CLI `scripts/run-backtest.js`。
+- ✅ **泛化 getPlanWindows（Track B #4）**：7 天 horizon + 按日期 confirm 落事件。见 §7.8 · plan `2026-06-17-plan-windows-date.md`。
 
 **下一步（建议顺序）**
-1. **泛化 `getPlanWindows(date)`**（今天助手 → 周管家）。
-3. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
-4. 语音输入（deferred）。
+1. **阶段 2：真实日历只读**（Google / MS Graph）。
+2. **自主触发**（webhook / 定时 / push；依赖真实日历）。
+3. 语音输入（deferred）。
 
 ---
 
@@ -371,7 +395,7 @@ agent 排期 (scheduleTaskToSlot / confirmDeskPlanWindow)
 |---|---|
 | 日期 | `appNow` `currentSimNow` `deadlineToISO` `isoFromYMD` `daysFromToday` `agentDayLabel` |
 | Agent Loop | `runAgentLoop` `MOVE_DETECTORS` `detectDeadlineRisk` `renderBriefingGroups` `runMoveAction` `dismissMove` `confirmMoveCustomSlot` |
-| 调度引擎 | `getFreeWindowsForDate` `proposeSlotsForTask` `taskEstMinutes` `scheduleTaskToSlot` `eventScheduledForTask` |
+| 调度引擎 | `getFreeWindowsForDate` `getPlanWindowsForDate` `getPlanWindowsInHorizon` `proposeSlotsForTask` `taskEstMinutes` `scheduleTaskToSlot` `eventScheduledForTask` |
 | 事件卡 / 改期 | `renderEventCard` `rescheduleEvent` `pickRescheduleSlot` `moveEventToSlot` `expandedEventId` |
 | Inbox 计划 | `getInboxItems` `inboxRowHtml` `toggleInboxPlan` `renderInboxPlanChoices` `planTaskToSlot` |
 | 冲突 / 学习 | `detectSlotConflict` `effectiveTransitScore` `getWorkability` `recordConflictOverride` `recordSignal` `applyPlanActualLearning` `predictDurationMinutes` |

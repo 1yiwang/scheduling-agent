@@ -53,7 +53,7 @@
 3. ~~**离线回测脚手架**~~ ✅（2026-06-17）：`runOfflineBacktest` 回放 `interaction_log`，对比 baseline vs enhanced。
 
 **轨道 B · 视野扩展（质变 · 中优先）**
-4. **泛化 `getPlanWindows(date)`**：今天助手 → 周管家。结构性质变，deadline-risk 已铺一半基础设施，独立低风险，可随时插入。
+4. ~~**泛化 `getPlanWindows(date)`**~~ ✅（2026-06-17）：Time Planning Board 7 天 horizon；`confirmDeskPlanWindow` 按 window 日期落事件。
 
 **轨道 C · 工程健康（税 · 按需）**
 5. 拆分单文件——**等下次加一批 detector 时顺手做**，不单独立项；纯函数 detector 是最低风险拆分边界。

@@ -190,7 +190,7 @@
 
 - **自主触发**：只在打开 app / 改数据时跑 loop，无 webhook、无定时 push
 - **学习效果未闭环**：~~Beta 权重弱 / dismiss=reject / 无回测~~ ✅ Track A 已全部落地；待 P1 扩展视野
-- **`getPlanWindows` 部分路径仍只看今天**（Agent Loop 已能跨天，Time Planning Board 尚未完全泛化）
+- **`getPlanWindows` 已泛化到 7 天 horizon**（2026-06-17）；Time Planning Board 显示本周空闲窗
 - Tier 2 模式发现、离线回测——已设计，未实现
 - 未接真实日历（Google / MS Graph）；单文件 `index.html` 已近 8000 行
 
@@ -201,7 +201,7 @@
 | 轨道 | 优先级 | 内容 |
 |---|---|---|
 | **A · 学习飞轮** | 🔴 最高 | ① ~~Plan vs Actual~~ ✅ ② ~~Beta 增强~~ ✅ ③ ~~离线回测~~ ✅ |
-| **B · 视野扩展** | 🟡 中 | 泛化 `getPlanWindows(date)`：今天助手 → 周管家 |
+| **B · 视野扩展** | 🟡 中 | ~~泛化 `getPlanWindows(date)`~~ ✅：今天助手 → 周管家 |
 | **C · 工程健康** | 🟢 按需 | 单文件拆分（下次加 detector 时顺手做） |
 
 **阶段 2（质变）**：接真实日历 + webhook/定时触发 → 用户不在时 agent 也在替你看。
@@ -226,8 +226,8 @@
 
 | # | 任务 | 为什么 | 预估 |
 |---|---|---|---|
-| **4** | **泛化 `getPlanWindows(date)`** | Time Planning Board 仍只看今天；Agent Loop 已能跨天 | 1–2h |
-| **5** | **阶段 2：真实日历只读** | mock → 真实生活；Travel/Pre-mortem 才有数据 | 数天 |
+| **4** | ~~**泛化 `getPlanWindows(date)`**~~ | ✅ 已落地（2026-06-17） | — | [`docs/superpowers/plans/2026-06-17-plan-windows-date.md`](docs/superpowers/plans/2026-06-17-plan-windows-date.md) |
+| **5** | **阶段 2：真实日历只读** | mock → 真实生活；Travel/Pre-mortem 才有数据 | 数天 | **← 当前起步** |
 | **6** | **自主触发** | webhook / 定时 / push；用户不在也在替你看 | 依赖 #5 |
 
 ### 🟢 P2 — 体验增强（有价值，非当前最急）
@@ -252,7 +252,7 @@
 
 ```
 P0: ① Plan vs Actual ✅ → ② Beta 增强 ✅ → ③ 离线回测 ✅
-P1: ④ 泛化 getPlanWindows → ⑤ 真实日历 → ⑥ 自主触发
+P1: ④ 泛化 getPlanWindows ✅ → ⑤ 真实日历 → ⑥ 自主触发
 P2: ⑦ 语音输入（可自用插队）→ ⑧⑨ 偏好透明化 → ⑩ Tier 2
 ```
 

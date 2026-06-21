@@ -3975,7 +3975,7 @@ function findInboxCandidate(source, id) {
 
 function getInboxPlanWindows(candidate) {
  if (!candidate) return [];
- return getPlanWindows()
+ return getPlanWindowsInHorizon(AGENT_HORIZON_DAYS)
   .filter(win => planCandidateFitsWindow(candidate, win, win.minutes - usedPlanMinutes(win.id)))
   .slice(0, 3);
 }
@@ -4321,6 +4321,8 @@ let dismissedMoveIds = [];
 // How many days ahead the agent looks for deadlines / free slots.
 // Set to 9 for now (≈ "due 9d"); can be raised toward ~10 later.
 const AGENT_HORIZON_DAYS = 9;
+// Time Planning Board shows free windows across this many days (today included).
+const PLAN_BOARD_HORIZON_DAYS = 7;
 
 function agentWorkday() { return { start: 8 * 60, end: 20 * 60 }; } // 08:00–20:00
 
@@ -6867,8 +6869,8 @@ function renderTodayAssistPanel() {
  const curated = applyCuration(merged, decision);
  const moves = curated.visible;
  const foldedMoves = curated.folded;
- const windows = getPlanWindows();
- const assistCount = moves.length + foldedMoves.length + windows.length;
+ const todayWindows = getPlanWindows();
+ const assistCount = moves.length + foldedMoves.length + todayWindows.length;
  if (assistCount === 0) return '';
 
  // Two buckets: "Plan today" (due-today moves + today's free time) vs
@@ -6876,7 +6878,7 @@ function renderTodayAssistPanel() {
  // view focused instead of stacking everything in one list.
  const todayMoves = moves.filter(m => m.daysUntil <= 0);
  const comingMoves = moves.filter(m => m.daysUntil > 0);
- const todayCount = todayMoves.length + windows.length;
+ const todayCount = todayMoves.length + todayWindows.length;
  const comingCount = comingMoves.length;
  let view = assistView;
  if (view === 'today' && todayCount === 0 && comingCount > 0) view = 'coming';
@@ -6902,11 +6904,17 @@ function renderTodayAssistPanel() {
   }
   if (view === 'coming') {
    html += renderMoveItems(comingMoves);
+   const futureWindows = getPlanWindowsInHorizon(PLAN_BOARD_HORIZON_DAYS).filter(function (w) { return !w.isToday; });
+   if (futureWindows.length) {
+    html += '<div class="tp-subhead">Free time ahead</div>';
+    html += renderTimePlanningBoard(futureWindows);
+   }
   } else {
    if (todayMoves.length) html += renderMoveItems(todayMoves);
-   if (windows.length) {
-    if (todayMoves.length) html += '<div class="tp-subhead">Plan today\u2019s free time</div>';
-    html += renderTimePlanningBoard();
+   const boardWindows = getPlanWindowsInHorizon(PLAN_BOARD_HORIZON_DAYS);
+   if (boardWindows.length) {
+    if (todayMoves.length) html += '<div class="tp-subhead">Plan free time</div>';
+    html += renderTimePlanningBoard(boardWindows);
    }
   }
   // Lower-priority moves the curator folded — kept one tap away, never dropped.
@@ -6988,41 +6996,149 @@ function getDeskPlanningSlots() {
  return segments;
 }
 
-function getPlanWindows() {
- const key = todayMonthKey(), today = getTodayDate();
- const evts = (eventsDB[key]||{})[today]||[];
- const deskWindows = getDeskPlanningSlots().map(s => ({
-  id: 'desk-'+s.id,
-  sourceId: s.id,
+function resolvePlanDate(dateSpec) {
+ const tN = appNow();
+ let y, m, d;
+ if (dateSpec && dateSpec.year != null && dateSpec.month != null && dateSpec.day != null) {
+  y = dateSpec.year;
+  m = dateSpec.month;
+  d = dateSpec.day;
+ } else if (dateSpec instanceof Date) {
+  y = dateSpec.getFullYear();
+  m = dateSpec.getMonth() + 1;
+  d = dateSpec.getDate();
+ } else {
+  y = tN.getFullYear();
+  m = tN.getMonth() + 1;
+  d = tN.getDate();
+ }
+ const isToday = y === tN.getFullYear() && m === (tN.getMonth() + 1) && d === tN.getDate();
+ const dateObj = new Date(y, m - 1, d);
+ return {
+  year: y,
+  month: m,
+  day: d,
+  dateISO: isoFromYMD(y, m, d),
+  isToday: isToday,
+  dayOfWeek: dateObj.getDay(),
+  dayLabel: agentDayLabel(dateObj)
+ };
+}
+
+function getDeskPlanningSlotsForDate(year, month, day) {
+ const resolved = resolvePlanDate({ year: year, month: month, day: day });
+ if (resolved.isToday) return getDeskPlanningSlots();
+ return getFreeWindowsForDate(year, month, day, 15).map(function (range, idx) {
+  return {
+   id: 'free-' + year + '-' + month + '-' + day + '-' + idx,
+   sourceId: 'free-' + year + '-' + month + '-' + day + '-' + idx,
+   startTime: minutesToHHMM(range.start),
+   endTime: minutesToHHMM(range.end),
+   suggestedTitle: 'Focus block',
+   agentReasoning: 'Free window on ' + resolved.dayLabel + '.',
+   suggestedBy: 'Agent'
+  };
+ });
+}
+
+function mapDeskSlotToPlanWindow(slot, resolved) {
+ const dayPrefix = resolved.isToday ? '' : (resolved.dayLabel + ' · ');
+ return {
+  id: 'desk-' + resolved.dateISO + '-' + slot.id,
+  sourceId: slot.id,
   type: 'desk',
+  year: resolved.year,
+  month: resolved.month,
+  day: resolved.day,
+  dateISO: resolved.dateISO,
+  isToday: resolved.isToday,
+  dayLabel: resolved.dayLabel,
+  dayOfWeek: resolved.dayOfWeek,
   icon: 'icon-field-time',
-  label: 'Desk block',
-  title: formatWindowTime(s.startTime, s.endTime) + ' · Desk',
+  label: resolved.isToday ? 'Desk block' : ('Desk · ' + resolved.dayLabel),
+  title: dayPrefix + formatWindowTime(slot.startTime, slot.endTime) + ' · Desk',
   sub: '',
-  startTime: s.startTime,
-  endTime: s.endTime,
-  minutes: timeToMinutes(s.endTime) - timeToMinutes(s.startTime),
+  startTime: slot.startTime,
+  endTime: slot.endTime,
+  minutes: timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime),
   work: { score: 3 }
- }));
+ };
+}
+
+function mapCommuteEventToPlanWindow(ev, resolved) {
+ const dayPrefix = resolved.isToday ? '' : (resolved.dayLabel + ' · ');
+ return {
+  id: 'commute-' + resolved.dateISO + '-' + ev.id,
+  sourceId: ev.id,
+  type: 'commute',
+  event: ev,
+  year: resolved.year,
+  month: resolved.month,
+  day: resolved.day,
+  dateISO: resolved.dateISO,
+  isToday: resolved.isToday,
+  dayLabel: resolved.dayLabel,
+  dayOfWeek: resolved.dayOfWeek,
+  icon: transitModeIcon(ev.transitMode),
+  label: resolved.isToday ? 'Mobile window' : ('Mobile · ' + resolved.dayLabel),
+  title: dayPrefix + formatWindowTime(ev.startTime, ev.endTime) + ' · ' + (ev.transitMode || 'Transit'),
+  sub: ev.loc,
+  startTime: ev.startTime,
+  endTime: ev.endTime,
+  minutes: windowMinutes(ev),
+  work: getWorkability(ev.transitMode),
+  loc: ev.loc,
+  transitMode: ev.transitMode
+ };
+}
+
+function getPlanWindowsForDate(year, month, day) {
+ const resolved = resolvePlanDate({ year: year, month: month, day: day });
+ const key = year + '-' + month;
+ const evts = (eventsDB[key] || {})[day] || [];
+ const deskWindows = getDeskPlanningSlotsForDate(year, month, day).map(function (s) {
+  return mapDeskSlotToPlanWindow(s, resolved);
+ });
  const commuteWindows = evts
-  .filter(e => e.type==='transit' && getWorkability(e.transitMode).score >= 2 && !(e.commuteTasks && e.commuteTasks.length))
-  .map(e => ({
-   id: 'commute-'+e.id,
-   sourceId: e.id,
-   type: 'commute',
-   event: e,
-   icon: transitModeIcon(e.transitMode),
-   label: 'Mobile window',
-   title: formatWindowTime(e.startTime, e.endTime) + ' · ' + (e.transitMode || 'Transit'),
-   sub: e.loc,
-   startTime: e.startTime,
-   endTime: e.endTime,
-   minutes: windowMinutes(e),
-   work: getWorkability(e.transitMode)
-  }));
+  .filter(function (e) {
+   return e.type === 'transit' && getWorkability(e.transitMode).score >= 2 && !(e.commuteTasks && e.commuteTasks.length);
+  })
+  .map(function (e) { return mapCommuteEventToPlanWindow(e, resolved); });
  return deskWindows.concat(commuteWindows)
-  .filter(w => !dismissedPlanWindows.includes(w.id))
-  .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
+  .filter(function (w) { return dismissedPlanWindows.indexOf(w.id) < 0; })
+  .sort(function (a, b) { return (a.startTime || '').localeCompare(b.startTime || ''); });
+}
+
+function getPlanWindowsInHorizon(horizonDays) {
+ horizonDays = horizonDays == null ? PLAN_BOARD_HORIZON_DAYS : horizonDays;
+ const tN = appNow();
+ const out = [];
+ const seen = {};
+ for (let offset = 0; offset < horizonDays; offset++) {
+  const d = new Date(tN.getFullYear(), tN.getMonth(), tN.getDate() + offset);
+  const windows = getPlanWindowsForDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  windows.forEach(function (w) {
+   if (seen[w.id]) return;
+   seen[w.id] = true;
+   out.push(w);
+  });
+ }
+ return out.sort(function (a, b) {
+  const da = (a.dateISO || '') + (a.startTime || '');
+  const db = (b.dateISO || '') + (b.startTime || '');
+  return da.localeCompare(db);
+ });
+}
+
+function getPlanWindows(dateSpec) {
+ if (dateSpec && dateSpec.horizonDays != null) {
+  return getPlanWindowsInHorizon(dateSpec.horizonDays);
+ }
+ if (dateSpec && dateSpec.year != null && dateSpec.month != null && dateSpec.day != null) {
+  return getPlanWindowsForDate(dateSpec.year, dateSpec.month, dateSpec.day);
+ }
+ const tN = appNow();
+ return getPlanWindowsForDate(tN.getFullYear(), tN.getMonth() + 1, tN.getDate());
 }
 
 function getStagedItems(windowId) {
@@ -7052,7 +7168,7 @@ function getCandidatesForWindow(win) {
  const usedElsewhere = stagedCandidateIds(win.id);
  const alreadyHere = new Set(getStagedItems(win.id).map(item => item.id));
  const remaining = win.minutes - usedPlanMinutes(win.id);
- const slotCtx = slotContextFromStartTime(win.startTime, appNow().getDay());
+ const slotCtx = slotContextFromStartTime(win.startTime, win.dayOfWeek != null ? win.dayOfWeek : appNow().getDay());
  return buildCandidatePool()
   .filter(c => !usedElsewhere.has(c.id) && !alreadyHere.has(c.id))
   .filter(c => planCandidateFitsWindow(c, win, remaining))
@@ -7134,11 +7250,18 @@ function addCustomPlanItem(windowId) {
  syncAllViews();
 }
 
-function renderTimePlanningBoard() {
- const windows = getPlanWindows();
- if (!windows.length) return '<div class="tp-empty">No open windows today.</div>';
+function renderTimePlanningBoard(windows) {
+ windows = windows || getPlanWindowsInHorizon(PLAN_BOARD_HORIZON_DAYS);
+ if (!windows.length) return '<div class="tp-empty">No open windows in the next ' + PLAN_BOARD_HORIZON_DAYS + ' days.</div>';
  let html = '<div class="time-plan-board">';
- windows.forEach(win => {
+ let lastDateISO = null;
+ windows.forEach(function (win) {
+  if (win.dateISO && win.dateISO !== lastDateISO) {
+   if (!win.isToday) html += '<div class="tp-dayhead">' + win.dayLabel + '</div>';
+   lastDateISO = win.dateISO;
+  } else if (!lastDateISO && win.dateISO) {
+   lastDateISO = win.dateISO;
+  }
   const staged = getStagedItems(win.id);
   const used = usedPlanMinutes(win.id);
   const remaining = Math.max(0, win.minutes - used);
@@ -7228,7 +7351,7 @@ function planItemDetail(winId, source, id) {
 }
 
 function findPlanWindow(windowId) {
- return getPlanWindows().find(w => w.id === windowId);
+ return getPlanWindowsInHorizon(PLAN_BOARD_HORIZON_DAYS).find(function (w) { return w.id === windowId; });
 }
 
 function addCandidateToPlanWindow(windowId, candidateId) {
@@ -7322,9 +7445,13 @@ function recordPlanAcceptance(win, item, surface) {
 }
 
 function confirmDeskPlanWindow(win, items) {
- const key = todayMonthKey(), today = getTodayDate();
+ const y = win.year != null ? win.year : appNow().getFullYear();
+ const m = win.month != null ? win.month : appNow().getMonth() + 1;
+ const day = win.day != null ? win.day : getTodayDate();
+ const resolved = resolvePlanDate({ year: y, month: m, day: day });
+ const key = y + '-' + m;
  if (!eventsDB[key]) eventsDB[key] = {};
- if (!eventsDB[key][today]) eventsDB[key][today] = [];
+ if (!eventsDB[key][day]) eventsDB[key][day] = [];
  let cursor = timeToMinutes(win.startTime);
  items.forEach((item, idx) => {
   const start = cursor;
@@ -7359,37 +7486,38 @@ function confirmDeskPlanWindow(win, items) {
    followUpStatus: item.involves ? 'pending' : null,
    followUpNote: item.involves ? 'Send confirmation message.' : ''
   };
-  eventsDB[key][today].push(event);
+  eventsDB[key][day].push(event);
   runtimeEvents[evIdNew] = event;
-  const planDay = appNow();
   stampPlanMeta(event, {
    surface: 'desk_plan',
-   year: planDay.getFullYear(),
-   month: planDay.getMonth() + 1,
-   day: today,
+   year: y,
+   month: m,
+   day: day,
    sourceTaskId: event.sourceTaskId,
    plannedMinutes: item.estMinutes
   });
   recordPlanAcceptance(win, item, 'desk_plan');
   cursor = end;
  });
- const winStart = timeToMinutes(win.startTime);
- const winEnd = timeToMinutes(win.endTime);
- for (let i = todayFreeSlots.length - 1; i >= 0; i--) {
-  const sStart = timeToMinutes(todayFreeSlots[i].startTime);
-  const sEnd = timeToMinutes(todayFreeSlots[i].endTime);
-  if (sStart < winEnd && sEnd > winStart) todayFreeSlots.splice(i, 1);
- }
- if (cursor < winEnd) {
-  const remStart = String(Math.floor(cursor/60)).padStart(2,'0') + ':' + String(cursor%60).padStart(2,'0');
-  todayFreeSlots.push({
-   id: 'remaining-' + win.sourceId + '-' + Date.now(),
-   startTime: remStart,
-   endTime: win.endTime,
-   suggestedTitle: 'Keep open',
-   agentReasoning: 'Remaining unallocated time from this planning window.',
-   suggestedBy: 'Agent'
-  });
+ if (resolved.isToday) {
+  const winStart = timeToMinutes(win.startTime);
+  const winEnd = timeToMinutes(win.endTime);
+  for (let i = todayFreeSlots.length - 1; i >= 0; i--) {
+   const sStart = timeToMinutes(todayFreeSlots[i].startTime);
+   const sEnd = timeToMinutes(todayFreeSlots[i].endTime);
+   if (sStart < winEnd && sEnd > winStart) todayFreeSlots.splice(i, 1);
+  }
+  if (cursor < winEnd) {
+   const remStart = String(Math.floor(cursor/60)).padStart(2,'0') + ':' + String(cursor%60).padStart(2,'0');
+   todayFreeSlots.push({
+    id: 'remaining-' + win.sourceId + '-' + Date.now(),
+    startTime: remStart,
+    endTime: win.endTime,
+    suggestedTitle: 'Keep open',
+    agentReasoning: 'Remaining unallocated time from this planning window.',
+    suggestedBy: 'Agent'
+   });
+  }
  }
 }
 
