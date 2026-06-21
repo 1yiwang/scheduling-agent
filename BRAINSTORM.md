@@ -31,14 +31,14 @@
 - ✅ Phase C 学习三表（`interaction_log`/`pref_store`/`duration_observations`）+ 历史回填（幂等）。
 - ✅ Detector 从 1 个 → **6 个**（conflict/follow-up/cleanup/prep/rebalance/deadline）。
 - ✅ **策展层 Layer 1**（Phase A 确定性 + Phase B BYO-key LLM rank_only，serverless 代理，安全护栏 `applyCuration`）。见 `docs/agent-detectors.md §8`。
+- ✅ **Plan vs Actual 追踪（Track A #1 · 2026-06-17）**：`stampPlanMeta` → `reconcilePlanActual` → `planActualLog` + `interaction_log(plan_actual)`。见 `docs/superpowers/plans/2026-06-17-plan-vs-actual.md`。
 
 ### 仍未做、且仍高价值的
 1. `getPlanWindows` 仍只看今天（债务 #9 / 瓶颈 1）。
-2. **Plan vs Actual 追踪**（§八，信息密度最高的学习信号，设计了没实现）。
-3. **Beta 学习增强**（债务 #5：偏好权重太弱被硬编码规则淹没；时间衰减/信号分层/冷启动先验全缺）。
-4. 更多 detector（Energy Guard / Context Switch / Travel / Pre-mortem / Week Ahead）。
+2. **Beta 学习增强**（债务 #5：偏好权重太弱被硬编码规则淹没；时间衰减/信号分层/冷启动先验全缺）。
+3. **离线回测脚手架**（用 `interaction_log` + `plan_actual` 回放，度量 detector/排序好坏）。
+4. 更多 detector（Energy Guard / Context Switch / Travel / Pre-mortem / Week Ahead）——**明确不做，感知够了**。
 5. 单文件拆分（已近 8000 行）。
-6. **离线回测脚手架**（用 `interaction_log` 回放历史，度量 detector/排序好坏）。
 
 ### 核心判断（已确认）
 **停止再加 detector，先把学习飞轮闭环 + 让它可度量。**
@@ -48,9 +48,9 @@
 ### 三条轨道（按依赖推进）
 
 **轨道 A · 闭环学习飞轮（护城河 · 最高优先）**
-1. **Plan vs Actual 追踪**：记录 agent 排了什么 vs 实际完成/改期/超时。最高信息密度，喂养下面所有学习。
+1. ~~**Plan vs Actual 追踪**~~ ✅（2026-06-17）：记录 agent 排了什么 vs 实际完成/改期/超时。`planActualLog` + `interaction_log(plan_actual)` 已落地。
 2. **Beta 增强**（先做两件）：提高偏好在排序里的权重 + 信号分层（无视≠拒绝），让「学到的」真正改变 Top 排序。
-3. **离线回测脚手架**：`interaction_log` 回放历史，度量「规则 vs LLM vs 增强后」的接受率——验证 1/2 有没有用，也回答 LLM 策展值不值。
+3. **离线回测脚手架**：`interaction_log` + `plan_actual` 回放历史，度量「规则 vs LLM vs 增强后」的接受率——验证 2 有没有用，也回答 LLM 策展值不值。
 
 **轨道 B · 视野扩展（质变 · 中优先）**
 4. **泛化 `getPlanWindows(date)`**：今天助手 → 周管家。结构性质变，deadline-risk 已铺一半基础设施，独立低风险，可随时插入。
@@ -65,7 +65,7 @@
 - ❌ Travel Optimize / Pre-mortem（等阶段 2 接真实日历才有数据支撑）
 
 ### 起步建议
-从轨道 A 的 **Plan vs Actual** 或 **回测脚手架** 起步，随后写分步 TDD 施工计划（参照 `docs/superpowers/plans/2026-06-10-agent-curation-layer.md` 体例）。
+从轨道 A 的 **Beta 增强** 或 **回测脚手架** 起步（Plan vs Actual 已完成，见 `docs/superpowers/plans/2026-06-17-plan-vs-actual.md`）。
 
 ## 北极星（已确认）
 专用、嵌入、零描述、一键接受/拒绝的调度 agent —— **"日历界的 Cursor"**。

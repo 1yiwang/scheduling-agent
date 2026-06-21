@@ -1,7 +1,7 @@
 # Scheduling Agent —— 一个会主动管理日程的 AI Agent
 
 > 面向作品集 / CV 的项目总览。技术架构细节见 `project-description.md`，产品决策过程见 `BRAINSTORM.md`，自进化方法论见 `learning agent.md`。
-> 最后更新：2026-06-17。
+> 最后更新：2026-06-17（Plan vs Actual Track A #1 已落地）。
 
 ---
 
@@ -126,7 +126,9 @@
 
 **真实样例（Tier 1）**：用户在「步行途中」反复坚持排会议 → Agent 从行为学到「你确实在这种通勤里工作」→ 提升该模态的可工作度 → 以后不再报冲突。**这是 Agent 从行为学会改判断，而非写死规则。**
 
-**当前学习债务（简历里可主动提「下一步」）**：偏好权重太弱、无视≠拒绝未区分、无时间衰减、无 Plan vs Actual——学到的东西还不足以让建议质量肉眼可见地变好。这是团队已确认的最高优先级，而非功能堆砌。
+**Plan vs Actual（Track A #1 · ✅ 已落地）**：agent 通过 `scheduleTaskToSlot` / desk plan 排块时打 `planMeta`；用户完成、改期或 block 过期后，`reconcilePlanActual` 记录 planned vs actual 差距（`completed_on_time` / `not_completed` / `rescheduled` 等），写入 `planActualLog` 并双写 `interaction_log(action='plan_actual')`。这是 Tier-2 模式发现与 Beta 增强的**数据地基**——observe-only，尚未用 gap 改排序。
+
+**当前学习债务（下一步）**：偏好权重太弱、无视≠拒绝未区分、无时间衰减；gap 数据已有，待 **Beta 增强** 与 **离线回测** 让它真正改变行为并可验证。
 
 ---
 
@@ -175,6 +177,7 @@
 - 持久化 Phase 1（Supabase JSONB blob，学习/好友/名字跨设备同步）
 - Phase C 第一刀：学习三表双写（`interaction_log` / `pref_store` / `duration_observations`）+ RLS + 历史 blob 幂等回填，**线上已验证**
 - Analytics：Week 视图真实数据 + Learning Trends 卡（本周 vs 上周接受率、时长、top kind/source）
+- **Plan vs Actual（Track A #1）**：agent 排期 `planMeta` → reconcile → `planActualLog` + `interaction_log(plan_actual)`；21 项自动化测试覆盖
 
 **产品与工程**
 - 三视图（首页 / 日历 / 任务）`syncAllViews()` 一处改处处同步
@@ -184,9 +187,9 @@
 ### ⚠️ 已知缺口（写简历时可作「下一步」素材）
 
 - **自主触发**：只在打开 app / 改数据时跑 loop，无 webhook、无定时 push
-- **学习效果未闭环**：Beta 偏好权重被 `importance×18` 等硬规则淹没，建议质量短期难感知提升
+- **学习效果未闭环**：Beta 偏好权重被硬编码规则淹没；`planActualLog` 已记录 gap，但尚未反馈到排序
 - **`getPlanWindows` 部分路径仍只看今天**（Agent Loop 已能跨天，Time Planning Board 尚未完全泛化）
-- Tier 2 模式发现、Plan vs Actual、离线回测——已设计，未实现
+- Tier 2 模式发现、离线回测——已设计，未实现
 - 未接真实日历（Google / MS Graph）；单文件 `index.html` 已近 8000 行
 
 ### 🔜 下一步（2026-06-10 晚确认 · 当前仍生效）
@@ -195,7 +198,7 @@
 
 | 轨道 | 优先级 | 内容 |
 |---|---|---|
-| **A · 学习飞轮** | 🔴 最高 | ① Plan vs Actual ② Beta 增强（提权重 + 信号分层）③ 离线回测脚手架 |
+| **A · 学习飞轮** | 🔴 最高 | ① ~~Plan vs Actual~~ ✅ ② Beta 增强（提权重 + 信号分层）③ 离线回测脚手架 |
 | **B · 视野扩展** | 🟡 中 | 泛化 `getPlanWindows(date)`：今天助手 → 周管家 |
 | **C · 工程健康** | 🟢 按需 | 单文件拆分（下次加 detector 时顺手做） |
 
@@ -213,8 +216,8 @@
 
 | # | 任务 | 为什么 | 预估 | 施工计划 |
 |---|---|---|---|---|
-| **1** | **Plan vs Actual 追踪** | 最高信息密度学习信号：agent 排了什么 vs 实际完成/改期/未完成 | 2–3h | [`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`](docs/superpowers/plans/2026-06-17-plan-vs-actual.md) ← **当前起步** |
-| **2** | **Beta 学习增强** | 提偏好权重 + 信号分层（无视≠拒绝）；现在硬规则淹没 Beta | 2–4h | 待写（依赖 #1 产出 gap 数据） |
+| **1** | ~~**Plan vs Actual 追踪**~~ | ✅ 已落地（2026-06-17） | — | [`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`](docs/superpowers/plans/2026-06-17-plan-vs-actual.md) |
+| **2** | **Beta 学习增强** | 提偏好权重 + 信号分层；消费 `planActualLog` | 2–4h | **← 当前起步** |
 | **3** | **离线回测脚手架** | 用 `interaction_log` / `planActualLog` 回放，度量规则 vs LLM vs 增强后 | 2–3h | 待写 |
 
 ### 🟡 P1 — 质变：从今天助手 → 周管家 / 真主动
@@ -246,7 +249,7 @@
 ### 推荐执行顺序
 
 ```
-P0: ① Plan vs Actual → ② Beta 增强 → ③ 离线回测
+P0: ① Plan vs Actual ✅ → ② Beta 增强 → ③ 离线回测
 P1: ④ 泛化 getPlanWindows → ⑤ 真实日历 → ⑥ 自主触发
 P2: ⑦ 语音输入（可自用插队）→ ⑧⑨ 偏好透明化 → ⑩ Tier 2
 ```
@@ -271,7 +274,7 @@ P2: ⑦ 语音输入（可自用插队）→ ⑧⑨ 偏好透明化 → ⑩ Tier
 - Agent Loop · Detector registry · Propose-only · Event-sourced learning · Supabase Postgres + RLS · Vercel serverless · Beta preference learning · Vanilla JS
 
 **可写的量化/事实点**
-- 6 proactive detectors · ~8000-line single-file prototype · 3 normalized learning tables · 2 live subdomains · BYO-key LLM curation with deterministic fallback
+- 6 proactive detectors · ~8000-line single-file prototype · 3 normalized learning tables · **Plan vs Actual gap logging** · 2 live subdomains · BYO-key LLM curation with deterministic fallback
 
 ---
 

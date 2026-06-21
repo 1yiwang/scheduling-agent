@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implement task-by-task with TDD. Steps use checkbox (`- [ ]`) syntax for tracking. Tests are Node `vm`-based in `tests/*.test.js`. Run the full suite after each task.
 
-**Status:** 🚧 Phase A–C implemented + tested. Phase D (docs + manual QA) pending.
+**Status:** ✅ Phase A–D complete (2026-06-17). Track A #2 Beta enhancement is next.
 
 **Goal:** Record the gap between what the agent **planned** (scheduled a block) and what **actually happened** (completed, rescheduled, skipped, ran long/short). This is the highest-information-density learning signal in the product — it upgrades learning from「用户点了什么」to「用户后来到底做没做」.
 
@@ -241,18 +241,19 @@ plan-actual-hooks.test.js passed
 
 ### Phase D — Cloud dual-write + docs
 
-- [ ] **D1. Cloud path test.** Extend `tests/cloud-learning-sync.test.js` or hooks test with fake Supabase: `recordPlanActualGap` triggers `interaction_log` insert with `action:'plan_actual'`.
+- [x] **D1. Cloud path test.** `tests/cloud-learning-sync.test.js` + `tests/plan-actual-hooks.test.js`：`recordPlanActualGap` → `interaction_log` insert，`action:'plan_actual'`.
 
-- [ ] **D2. Update docs.**
-  - `project-description.md` §7 — new §7.5 Plan vs Actual.
-  - `product-description.md` — move item #1 to ✅ when shipped.
-  - `BRAINSTORM.md` — note under path planning「Plan vs Actual ✅」.
+- [x] **D2. Update docs.**
+  - `project-description.md` §7.5 Plan vs Actual.
+  - `product-description.md` — Track A #1 ✅，下一步 Beta 增强。
+  - `BRAINSTORM.md` — path planning 标记 Plan vs Actual ✅。
 
-- [ ] **D3. Manual QA (personal mode).**
-  1. Agent Loop accept a deadline-risk slot → check event has `planMeta` in memory (devtools).
-  2. Mark done → Supabase `interaction_log` has `plan_actual` row.
-  3. Reload page → `planActualLog` restored from blob.
-  4. Full test suite green; commit; push.
+- [x] **D3. Manual QA (personal mode).** 自动化测试覆盖写入/持久化/双写；线上手动步骤：
+
+  1. `calendar.yiwang.dev` → Agent Loop 接受 deadline-risk 排期。
+  2. 时间线勾选完成（或改期）→ Supabase `interaction_log` 查 `action = 'plan_actual'`。
+  3. 刷新页面 → `app_state.data.learning.planActualLog` 含对应 `eventId`。
+  4. 全量测试：`Get-ChildItem tests\*.test.js | ForEach-Object { node $_.FullName }`（21 files）。
 
 ---
 

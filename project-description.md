@@ -2,7 +2,7 @@
 
 > 这是项目的**参考级架构文档**，沉淀「现在是怎么搭的」。
 > 头脑风暴/产品决策过程见 `BRAINSTORM.md`；agent 自进化方法论见 `learning agent.md`。
-> 最后更新：2026-06-10。
+> 最后更新：2026-06-17。
 
 ---
 
@@ -254,6 +254,35 @@ friends(id pk, user_id, name, note, share_scope, ...)
 - `recordSignal('candidate_kind' | 'candidate_source' | 'person', …)`：接受某类/某来源/某人相关任务时累积偏好（`prefScore` 影响候选排序；source fallback 已统一为 `pendingTask`）。
 - `durationStore`：按 `kind::person` 学真实时长，逐步替代用户的固定估计（`predictDurationMinutes`）。
 
+### 7.5 Plan vs Actual 追踪（Track A #1 · 2026-06-17 已实现）
+
+> 从「学用户点了什么」升级到「学用户后来实际做了什么」——agent 排块 vs 现实结果的差距。
+
+**流程**
+```
+agent 排期 (scheduleTaskToSlot / confirmDeskPlanWindow)
+  → stampPlanMeta(ev)                    // event.planMeta 记录原计划
+用户后续操作
+  → moveEventToSlot                      // touchPlanMetaReschedule
+  → markComplete / toggleTimelineComplete / 过期扫描 (syncAllViews)
+  → reconcilePlanActual(eventId)
+      → classifyPlanActualGap (纯函数)
+      → recordPlanActualGap (append-once)
+```
+
+**Gap 类型**：`completed_on_time` · `completed_late` · `not_completed` · `rescheduled` · `duration_drift`
+
+**存储**
+- 内存 + localStorage：`planActualLog[]`（随 `saveLearningState`）
+- 云端 blob：`snapshotCloud().learning.planActualLog`
+- 双写：`interaction_log` 行 `action='plan_actual'`（context = 完整 gap 行，features + label 供回测）
+
+**范围 v1**：仅 agent 排期路径（有 `planMeta` 的事件）；手动 `addTodayEvent` 不在范围内。observe-only——**尚未**用 gap 数据改排序（Track A #2 Beta 增强下一步）。
+
+**测试**：`tests/plan-actual.test.js` · `tests/plan-actual-hooks.test.js` · `tests/cloud-learning-sync.test.js`（plan_actual 双写）
+
+> 施工计划：`docs/superpowers/plans/2026-06-17-plan-vs-actual.md`
+
 > 三层自进化方法论（Tier-1 参数自调 / Tier-2 模式发现 / Tier-3 结构学习）详见 `learning agent.md`。
 
 ---
@@ -277,10 +306,11 @@ friends(id pk, user_id, name, note, share_scope, ...)
 - ✅ **Rebalance Detector**：`detectOverloadRebalance()` 进入 `MOVE_DETECTORS`，扫描 horizon 内 work 时长 >8h 的过载日，挑最短 deep focus block 一键挪到未过载的有空档日（不动带 participants 的会议）
 - ✅ **策展层 Layer 1（Phase A · 确定性）**：detectors → `mergeMoves`（合并同事件卡）→ `curate`（`curateMovesRules` 按 severity/dismiss 降权/紧迫度排序+折叠）→ `applyCuration`（安全护栏：critical 必显置顶、缺失补回、非法回退）。简报新增 “More” 折叠区；`currentMoves()` 统一动作链路。详见 `docs/agent-detectors.md §8` 与 plan `2026-06-10-agent-curation-layer.md`。
 - ✅ **策展层 Layer 1（Phase B · BYO-key LLM）**：Settings 新增「AI assistant」分组（个人版+登录可见），填 base URL / model / API key（仅存本机 localStorage `schedulingAgentLLM.v1`，不入云）。`curateMovesLLM`（rank_only，只回 `{order,folded}` 的已知 id）经 `api/llm.js` serverless 代理转发到 DeepSeek（同源守卫，key 每次由客户端带、不存服务端）；渲染先用规则版即时显示，后台异步取 LLM 决策按 moves 签名缓存后重渲染；任何失败回退规则版。`applyCuration` 护栏对 LLM 同样生效。预设 DeepSeek（`deepseek-chat`）。
+- ✅ **Plan vs Actual 追踪（Track A #1）**：agent 排期打 `planMeta` → 完成/改期/过期扫描 reconcile → `planActualLog` + `interaction_log(plan_actual)` 双写。见 §7.5 · plan `2026-06-17-plan-vs-actual.md`。
 
 **下一步（建议顺序）**
-1. 更多 detector：Energy Guard（背靠背 deep work）、Context Switch Cost（频繁切换）。
-2. **Phase C 剩余表**：把 `events` / `tasks` / `profile` 从 blob 继续拆到规范化表。
+1. **Beta 学习增强** + **离线回测脚手架**（Track A #2/#3；消费 `planActualLog` / `plan_actual` 行）。
+2. **泛化 `getPlanWindows(date)`**（今天助手 → 周管家）。
 3. 阶段 2：接真实日历（Google / MS Graph 只读），从假数据 → 真实生活。
 4. 语音输入（deferred）。
 
@@ -296,4 +326,5 @@ friends(id pk, user_id, name, note, share_scope, ...)
 | 事件卡 / 改期 | `renderEventCard` `rescheduleEvent` `pickRescheduleSlot` `moveEventToSlot` `expandedEventId` |
 | Inbox 计划 | `getInboxItems` `inboxRowHtml` `toggleInboxPlan` `renderInboxPlanChoices` `planTaskToSlot` |
 | 冲突 / 学习 | `detectSlotConflict` `effectiveTransitScore` `getWorkability` `recordConflictOverride` `recordSignal` `predictDurationMinutes` |
+| Plan vs Actual | `stampPlanMeta` `reconcilePlanActual` `reconcilePastAgentEvents` `recordPlanActualGap` `classifyPlanActualGap` `planActualLog` |
 | 同步 / 持久化 | `syncAllViews` `saveAppData` `saveLearningState` `findEventById` |

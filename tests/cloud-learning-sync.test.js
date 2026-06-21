@@ -66,6 +66,7 @@ globalThis.__app = {
   recordInteraction,
   recordSignal,
   recordObservedDuration,
+  recordPlanActualGap,
   calls,
 };`, Object.assign(context, { fakeSb, calls }));
 
@@ -104,5 +105,21 @@ assert.strictEqual(duration.payload.user_id, 'user-1', 'duration row has user_id
 assert.strictEqual(duration.payload.kind, 'social', 'duration row has kind');
 assert.strictEqual(duration.payload.person, 'Marie', 'duration row has person');
 assert.strictEqual(duration.payload.observed_minutes, 35, 'duration row has observed minutes');
+
+app.recordPlanActualGap({
+  eventId: 'evt-cloud-gap',
+  ts: '2026-06-12T10:00:00.000Z',
+  planned: { dateISO: '2026-06-12', plannedMinutes: 60, surface: 'agent_loop', kind: 'solo', type: 'deep' },
+  actual: { completed: true, actualMinutes: 58 },
+  gap: { type: 'completed_on_time', severity: 'low' },
+  features: { label: 1, gapType: 'completed_on_time', plannedMinutes: 60, actualMinutes: 58 },
+  label: 1,
+});
+
+const planActual = app.calls.find(c => c.op === 'insert' && c.table === 'interaction_log' && c.payload.action === 'plan_actual');
+assert(planActual, 'recordPlanActualGap should insert plan_actual into interaction_log when cloud is active');
+assert.strictEqual(planActual.payload.user_id, 'user-1', 'plan_actual row has user_id');
+assert.strictEqual(planActual.payload.label, 1, 'plan_actual row has label');
+assert.ok(planActual.payload.context && planActual.payload.context.eventId === 'evt-cloud-gap', 'plan_actual context carries gap row');
 
 console.log('cloud-learning-sync.test.js passed');
