@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implement task-by-task with TDD. Steps use checkbox (`- [ ]`) syntax for tracking. Tests are Node `vm`-based in `tests/*.test.js`. Run the full suite after each task.
 
-**Status:** 🚧 Phase A–B implemented + tested. Phase C–D pending.
+**Status:** 🚧 Phase A–C implemented + tested. Phase D (docs + manual QA) pending.
 
 **Goal:** Record the gap between what the agent **planned** (scheduled a block) and what **actually happened** (completed, rescheduled, skipped, ran long/short). This is the highest-information-density learning signal in the product — it upgrades learning from「用户点了什么」to「用户后来到底做没做」.
 
@@ -209,14 +209,14 @@ plan-actual-hooks.test.js passed
 
 ### Phase C — Reconciliation + append-once log
 
-- [ ] **C1. `planActualLog = []` + load/save.** Mirror `interactionLog` pattern:
+- [x] **C1. `planActualLog = []` + load/save.** Mirror `interactionLog` pattern:
   - Initialize near `interactionLog`.
   - `loadLearningState` / `saveLearningState` read/write `planActualLog`.
   - `snapshotCloud().learning.planActualLog` included; bump comment to note schema v2 sibling field (no migration needed — missing field → `[]`).
 
-- [ ] **C2. `recordPlanActualGap(row)` + test.** Append to `planActualLog` only if no existing row with same `eventId`. Call `saveLearningState()`. Best-effort `recordInteraction({ action:'plan_actual', context: row, features: row.features, label: row.label })`.
+- [x] **C2. `recordPlanActualGap(row)` + test.** Append to `planActualLog` only if no existing row with same `eventId`. Call `saveLearningState()`. Best-effort `recordInteraction({ action:'plan_actual', context: row, features: row.features, label: row.label })`.
 
-- [ ] **C3. `reconcilePlanActual(eventId, now)` + test.** Lookup event; if no `planMeta` or `planMeta.reconciled` → no-op. Build actual state from `completionDB`, current event slot, `planMeta`. Classify gap; if **terminal** (past end + (completed | explicit not done | rescheduled cross-day)) → `recordPlanActualGap`, set `planMeta.reconciled=true`.
+- [x] **C3. `reconcilePlanActual(eventId, now)` + test.** Lookup event; if no `planMeta` or `planMeta.reconciled` → no-op. Build actual state from `completionDB`, current event slot, `planMeta`. Classify gap; if **terminal** (past end + (completed | explicit not done | rescheduled cross-day)) → `recordPlanActualGap`, set `planMeta.reconciled=true`.
 
   Terminal rules v1:
   - Marked done (any day) → terminal
@@ -224,13 +224,13 @@ plan-actual-hooks.test.js passed
   - Planned end passed + still unmarked → terminal as `not_completed` at first past-day scan
   - Rescheduled but new slot still in future → not terminal yet
 
-- [ ] **C4. `reconcilePastAgentEvents(now)` + test.** Iterate `eventsDB` for events with `planMeta && !reconciled` whose planned window ended before `now`. Call `reconcilePlanActual` for each. Test: two past unmarked events → two log rows.
+- [x] **C4. `reconcilePastAgentEvents(now)` + test.** Iterate `eventsDB` for events with `planMeta && !reconciled` whose planned window ended before `now`. Call `reconcilePlanActual` for each. Test: two past unmarked events → two log rows.
 
-- [ ] **C5. Wire hooks.**
+- [x] **C5. Wire hooks.**
   - `markComplete` / `toggleTimelineComplete` → `reconcilePlanActual(eventId)` after state change.
   - End of `syncAllViews()` → `reconcilePastAgentEvents()` (guard with cheap early exit if no candidates).
 
-- [ ] **C6. Create `tests/plan-actual-hooks.test.js`.** End-to-end vm scenario:
+- [x] **C6. Extend `tests/plan-actual-hooks.test.js`.** End-to-end vm scenario:
 
   ```text
   scheduleTaskToSlot → event has planMeta

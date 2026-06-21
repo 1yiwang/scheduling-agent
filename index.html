@@ -5344,17 +5344,19 @@ function loadLearningState() {
   const parsed = JSON.parse(raw);
   prefStore = parsed.prefStore || {};
   interactionLog = parsed.interactionLog || [];
+  planActualLog = parsed.planActualLog || [];
   durationStore = parsed.durationStore || {};
  } catch (e) {
   prefStore = {};
   interactionLog = [];
+  planActualLog = [];
   durationStore = {};
  }
 }
 
 function saveLearningState() {
  try {
-  localStorage.setItem(LEARNING_STORAGE_KEY, JSON.stringify({ prefStore, interactionLog, durationStore }));
+  localStorage.setItem(LEARNING_STORAGE_KEY, JSON.stringify({ prefStore, interactionLog, planActualLog, durationStore }));
  } catch (e) {}
  if (typeof cloudSave === 'function') cloudSave();
 }
@@ -5549,6 +5551,7 @@ async function cloudLoad() {
     prefStore = remote.learning.prefStore || {};
     durationStore = remote.learning.durationStore || {};
     interactionLog = remote.learning.interactionLog || [];
+    planActualLog = remote.learning.planActualLog || [];
     saveLearningState();
    }
    learningBackfilledAt = remote.learningBackfilledAt || '';
@@ -5588,7 +5591,7 @@ function snapshotCloud() {
  try { nameOverride = localStorage.getItem(DISPLAY_NAME_KEY) || ''; } catch (e) {}
  return Object.assign({}, snapshotDBs(), {
   schemaVersion: 2,
-  learning: { prefStore: prefStore, durationStore: durationStore, interactionLog: interactionLog },
+  learning: { prefStore: prefStore, durationStore: durationStore, interactionLog: interactionLog, planActualLog: planActualLog },
   learningBackfilledAt: learningBackfilledAt || null,
   friendNotes: friendNotes,
   displayNameOverride: nameOverride
@@ -5976,7 +5979,7 @@ function classifyPlanActualGap(planned, actualState) {
  const completedDate = actualState.completedDateISO;
  const finalDate = actualState.finalDateISO || plannedDate;
  const wasRescheduled = !!actualState.wasRescheduled;
- const nowMs = actualState.nowISO ? new Date(actualState.nowISO).getTime() : Date.now();
+ const nowMs = actualState.nowISO ? new Date(actualState.nowISO).getTime() : appNow().getTime();
 
  if (wasRescheduled && finalDate && plannedDate && finalDate !== plannedDate) {
   return { type: 'rescheduled', terminal: true };
@@ -6075,6 +6078,149 @@ function touchPlanMetaReschedule(ev, year, month, day, startMin) {
  ev.planMeta.rescheduleCount = (ev.planMeta.rescheduleCount || 0) + 1;
  ev.planMeta.finalDateISO = isoFromYMD(year, month, day);
  ev.planMeta.finalStartTime = minutesToHHMM(startMin);
+}
+
+function getEventSlotISO(result) {
+ if (!result || !result.event) return null;
+ const ev = result.event;
+ const meta = ev.planMeta;
+ if (meta && meta.finalDateISO) return meta.finalDateISO;
+ if (result.monthKey != null && result.dayKey != null) {
+  const parts = String(result.monthKey).split('-');
+  return isoFromYMD(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(result.dayKey, 10));
+ }
+ return meta ? meta.plannedDateISO : null;
+}
+
+function finalSlotPlannedForEnd(ev, result) {
+ const meta = ev.planMeta || {};
+ return {
+  dateISO: meta.finalDateISO || getEventSlotISO(result) || meta.plannedDateISO,
+  endTime: ev.endTime || meta.plannedEnd,
+  startTime: ev.startTime || meta.plannedStart,
+  plannedMinutes: (ev.startTime && ev.endTime) ? windowMinutes(ev) : meta.plannedMinutes
+ };
+}
+
+function isPlanActualTerminal(ev, result, completion, nowMs) {
+ if (completion === true || completion === false) return true;
+ const meta = ev.planMeta;
+ if (!meta) return false;
+ if (meta.wasRescheduled && meta.finalDateISO && meta.plannedDateISO && meta.finalDateISO !== meta.plannedDateISO) {
+  return nowMs >= plannedEndTimestamp(finalSlotPlannedForEnd(ev, result));
+ }
+ return nowMs > plannedEndTimestamp({
+  dateISO: meta.plannedDateISO,
+  endTime: meta.plannedEnd,
+  startTime: meta.plannedStart,
+  plannedMinutes: meta.plannedMinutes
+ });
+}
+
+function recordPlanActualGap(row) {
+ if (!row || !row.eventId) return false;
+ if (planActualLog.some(function (r) { return r.eventId === row.eventId; })) return false;
+ planActualLog.push(row);
+ saveLearningState();
+ recordInteraction({
+  action: 'plan_actual',
+  context: row,
+  features: row.features || null,
+  label: row.label != null ? row.label : (row.features ? row.features.label : null),
+  ts: row.ts
+ });
+ return true;
+}
+
+function reconcilePlanActual(eventId, nowISO) {
+ const result = findEventById(eventId);
+ if (!result || !result.event || !result.event.planMeta) return false;
+ const ev = result.event;
+ const meta = ev.planMeta;
+ if (meta.reconciled) return false;
+ const completion = getCompletion(ev);
+ const nowMs = nowISO ? new Date(nowISO).getTime() : appNow().getTime();
+ if (!isPlanActualTerminal(ev, result, completion, nowMs)) return false;
+
+ const planned = {
+  dateISO: meta.plannedDateISO,
+  startTime: meta.plannedStart,
+  endTime: meta.plannedEnd,
+  plannedMinutes: meta.plannedMinutes,
+  kind: ev.kind || null,
+  type: ev.type || ev.t || null,
+  title: (ev.title || '').trim(),
+  surface: meta.surface || null,
+  sourceTaskId: meta.sourceTaskId || null
+ };
+ const slotISO = getEventSlotISO(result);
+ const actual = {
+  completed: completion === true ? true : (completion === false ? false : null),
+  completedDateISO: completion === true ? slotISO : null,
+  actualMinutes: completion === true ? windowMinutes(ev) : null,
+  wasRescheduled: !!meta.wasRescheduled,
+  finalDateISO: meta.finalDateISO,
+  finalStartTime: meta.finalStartTime,
+  nowISO: nowISO || appNow().toISOString()
+ };
+ const gap = classifyPlanActualGap(planned, actual);
+ if (!gap || !gap.terminal) return false;
+ const gapOut = { type: gap.type, severity: deriveGapSeverity(gap.type, ev) };
+ const features = buildPlanActualFeatures(planned, actual, gap);
+ const row = {
+  eventId: ev.id,
+  ts: nowISO || appNow().toISOString(),
+  planned: planned,
+  actual: actual,
+  gap: gapOut,
+  features: features,
+  label: features.label
+ };
+ if (recordPlanActualGap(row)) {
+  meta.reconciled = true;
+  return true;
+ }
+ return false;
+}
+
+function hasUnreconciledPlanActualCandidates() {
+ for (const monthKey of Object.keys(eventsDB)) {
+  const month = eventsDB[monthKey];
+  for (const dayKey of Object.keys(month)) {
+   for (let i = 0; i < month[dayKey].length; i++) {
+    const ev = month[dayKey][i];
+    if (ev.planMeta && !ev.planMeta.reconciled) return true;
+   }
+  }
+ }
+ for (const id of Object.keys(runtimeEvents)) {
+  const ev = runtimeEvents[id];
+  if (ev.planMeta && !ev.planMeta.reconciled) return true;
+ }
+ return false;
+}
+
+function reconcilePastAgentEvents(nowISO) {
+ if (!hasUnreconciledPlanActualCandidates()) return 0;
+ if (!nowISO) nowISO = appNow().toISOString();
+ let count = 0;
+ const seen = {};
+ for (const monthKey of Object.keys(eventsDB)) {
+  const month = eventsDB[monthKey];
+  for (const dayKey of Object.keys(month)) {
+   for (let i = 0; i < month[dayKey].length; i++) {
+    const ev = month[dayKey][i];
+    if (!ev.planMeta || ev.planMeta.reconciled || seen[ev.id]) continue;
+    seen[ev.id] = true;
+    if (reconcilePlanActual(ev.id, nowISO)) count++;
+   }
+  }
+ }
+ for (const id of Object.keys(runtimeEvents)) {
+  if (seen[id]) continue;
+  if (reconcilePlanActual(id, nowISO)) count++;
+ }
+ return count;
 }
 
 // ── Stage A · training-data capture ──
@@ -6484,6 +6630,7 @@ function syncAllViews() {
  if (typeof calView !== 'undefined' && calView === 'tasks' && document.getElementById('calTasksView')) renderInbox();
  const analytics = document.getElementById('page-analytics');
  if (analytics && analytics.classList.contains('active')) renderAnalyticsPage();
+ reconcilePastAgentEvents();
  saveAppData();
 }
 
@@ -7907,6 +8054,7 @@ function cancelEdit(eventId) {
 // ====== COMPLETION TRACKING ======
 function markComplete(eventId, status) {
  completionDB[eventId] = status;
+ reconcilePlanActual(eventId);
  saveAppData();
 
  // Update the event card + visual state
